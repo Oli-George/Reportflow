@@ -430,12 +430,10 @@ function DashboardView({ reports }: { reports: Report[] }) {
 
           {/* Activity */}
           <div
-            className="rounded-lg border"
-            style={{
+            className="rounded-lg border" style={{
               backgroundColor: "var(--card)",
               borderColor: "var(--border)",
-            }}
-          >
+            }}>
             <div className="px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h2 className="font-display font-600 text-sm" style={{ color: "var(--foreground)" }}>
                 Activity
@@ -485,13 +483,7 @@ function DashboardView({ reports }: { reports: Report[] }) {
 // ─── Reports View ─────────────────────────────────────────────────────────────
 
 const REPORT_TYPES: (ReportType | "All")[] = ["All","Daily","Weekly","Monthly","Annual",]
-const REPORT_STATUSES: (ReportStatus | "All")[] = [
-  "All",
-  "Approved",
-  "Submitted",
-  "Draft",
-  "Flagged",
-]
+const REPORT_STATUSES: (ReportStatus | "All")[] = ["All", "Approved", "Submitted", "Draft", "Flagged"]
 
 function ReportsView({
   reports,

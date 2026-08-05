@@ -1,5 +1,5 @@
 {
-  "name": "figma-make-app",
+  "name": "ReportFlow",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt"
+    
   },
   "dependencies": {
     "express": "^5.2.1",
