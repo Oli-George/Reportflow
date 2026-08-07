@@ -21,6 +21,13 @@ export interface Report {
   submitted: Date
   status: ReportStatus
   summary: string
+  feedback?: string
+}
+
+export function isWithinPastMonth(date: Date | string) {
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+  const submittedTime = new Date(date).getTime()
+  return new Date().getTime() - submittedTime <= thirtyDaysMs
 }
 
 export interface Member {
@@ -157,10 +164,12 @@ function Sidebar({
   active,
   onChange,
   collapsed,
+  onLogout,
 }: {
   active: View
   onChange: (v: View) => void
   collapsed: boolean
+  onLogout?: () => void
 }) {
   return (
     <aside
@@ -231,18 +240,38 @@ function Sidebar({
       </nav>
 
       {/* User */}
-      <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-mono font-500" style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)", }}>
-            OG
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>George Olisakwe</p>
-              <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>IT Department</p>
+      <div className="p-3 border-t flex flex-col gap-2" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-mono font-500" style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)", }}>
+              OG
             </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>George</p>
+                <p className="text-[10px] truncate" style={{ color: "var(--muted-foreground)" }}>IT Dept</p>
+              </div>
+            )}
+          </div>
+          {!collapsed && onLogout && (
+            <button onClick={onLogout} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors" title="Log Out">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           )}
         </div>
+        {collapsed && onLogout && (
+          <button onClick={onLogout} className="w-full py-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center" title="Log Out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
+        )}
       </div>
     </aside>
   )
@@ -257,7 +286,7 @@ const VIEW_TITLES: Record<View, string> = {
   analytics: "Analytics",
 }
 
-function Header({ view, sidebarW }: { view: View; sidebarW: number }) {
+function Header({ view, sidebarW, searchQuery, onSearchChange }: { view: View; sidebarW: number; searchQuery: string; onSearchChange: (q: string) => void }) {
   return (
     <header
       className="fixed top-0 right-0 flex items-center justify-between px-6 border-b z-10"
@@ -278,7 +307,7 @@ function Header({ view, sidebarW }: { view: View; sidebarW: number }) {
         <div
           className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
           style={{
-            borderColor: "var(--border)",
+            borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
             backgroundColor: "var(--card)",
             color: "var(--muted-foreground)",
           }}
@@ -287,7 +316,18 @@ function Header({ view, sidebarW }: { view: View; sidebarW: number }) {
             <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.2" />
             <path d="M9.5 9.5L12 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
-          <span>Search reports…</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search reports…"
+            className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-36 focus:w-52 transition-all"
+          />
+          {searchQuery && (
+            <button onClick={() => onSearchChange("")} className="text-muted-foreground hover:text-foreground text-xs">
+              ✕
+            </button>
+          )}
         </div>
         <button
           className="relative p-1.5 rounded-md transition-colors"
@@ -316,8 +356,19 @@ function Header({ view, sidebarW }: { view: View; sidebarW: number }) {
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 
-function DashboardView({ reports }: { reports: Report[] }) {
-  const recent = reports.slice(0, 5)
+function DashboardView({ reports, onInspect, searchQuery }: { reports: Report[]; onInspect: (r: Report) => void; searchQuery: string }) {
+  const filteredReports = useMemo(() => {
+    if (!searchQuery.trim()) return reports
+    const q = searchQuery.toLowerCase()
+    return reports.filter(
+      (r) =>
+        r.title.toLowerCase().includes(q) ||
+        r.author.toLowerCase().includes(q) ||
+        r.department.toLowerCase().includes(q) ||
+        r.summary.toLowerCase().includes(q)
+    )
+  }, [reports, searchQuery])
+  const recent = filteredReports.slice(0, 5)
   const now = new Date()
   let options = { day: "numeric", month: "short", year: "numeric" } as const
   let today = now.toLocaleDateString("en-US", options)
@@ -347,11 +398,14 @@ function DashboardView({ reports }: { reports: Report[] }) {
           </div>
           <div className="flex-1 divide-y" style={{ borderColor: "var(--border)" }}>
             {recent.map((r) => (
-              <div key={r.id} className="px-5 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white/2">
+              <div
+                key={r.id}
+                onClick={() => onInspect(r)}
+                className="px-5 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white/5 cursor-pointer"
+              >
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{r.title}</p>
-                  <p className="text-xs mt-0.5 font-mono" style={{ color: "var(--muted-foreground)" }}>{r.author} · {r.department}
-                  </p>
+                  <p className="text-xs mt-0.5 font-mono" style={{ color: "var(--muted-foreground)" }}>{r.author} · {r.department}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span
@@ -488,23 +542,33 @@ const REPORT_STATUSES: (ReportStatus | "All")[] = ["All", "Approved", "Submitted
 function ReportsView({
   reports,
   setReports,
+  onInspect,
+  onOpenFlagModal,
+  searchQuery,
 }: {
   reports: Report[]
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
+  onInspect: (r: Report) => void
+  onOpenFlagModal: (r: Report) => void
+  searchQuery: string
 }) {
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All")
   const [statusFilter, setStatusFilter] = useState<ReportStatus | "All">("All")
   const [expanded, setExpanded] = useState<number | null>(null)
 
-  const filtered = useMemo(
-    () =>
-      reports.filter(
-        (r) =>
-          (typeFilter === "All" || r.type === typeFilter) &&
-          (statusFilter === "All" || r.status === statusFilter),
-      ),
-    [reports, typeFilter, statusFilter],
-  )
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return reports.filter(
+      (r) =>
+        (typeFilter === "All" || r.type === typeFilter) &&
+        (statusFilter === "All" || r.status === statusFilter) &&
+        (!q ||
+          r.title.toLowerCase().includes(q) ||
+          r.author.toLowerCase().includes(q) ||
+          r.department.toLowerCase().includes(q) ||
+          r.summary.toLowerCase().includes(q)),
+    )
+  }, [reports, typeFilter, statusFilter, searchQuery])
 
   return (
     <div className="flex flex-col gap-5">
@@ -610,6 +674,7 @@ function ReportsView({
                 <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>{r.summary}</p>
                 <div className="flex gap-3 mt-4">
                   <button
+                    onClick={() => onInspect(r)}
                     className="text-xs font-mono px-3 py-1.5 rounded border transition-colors"
                     style={{
                       borderColor: "var(--primary)",
@@ -632,14 +697,14 @@ function ReportsView({
                   {r.status !== "Flagged" && (
                     <button onClick={(e) => {
                         e.stopPropagation();
-                        setReports((prev) => prev.map((item) => item.id === r.id ? { ...item, status: "Flagged" } : item));
+                        onOpenFlagModal(r);
                       }}
                       className="text-xs font-mono px-3 py-1.5 rounded border transition-colors" style={{
                         borderColor: "#7a4010",
                         color: "var(--accent)",
                         backgroundColor: "transparent",
                       }}>
-                      Flag
+                      Flag for Revision
                     </button>
                   )}
                 </div>
@@ -915,37 +980,257 @@ function BellIcon({ size = 16 }) {
 interface AdminViewProps {
   reports: Report[]
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
+  onLogout: () => void
 }
 
-export default function AdminView({ reports, setReports }: AdminViewProps) {
+// ─── Inspector & Flag Modals ───────────────────────────────────────────────────
+
+function FullReportModal({
+  report,
+  onClose,
+  onApprove,
+  onOpenFlagModal,
+}: {
+  report: Report
+  onClose: () => void
+  onApprove: (id: number) => void
+  onOpenFlagModal: (report: Report) => void
+}) {
+  const canFlag = isWithinPastMonth(report.submitted)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-body">
+      <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-muted-foreground uppercase">FORM RF-1099</span>
+              <Badge status={report.status} />
+            </div>
+            <h2 className="font-display font-700 text-lg text-foreground mt-1">{report.title}</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary">
+            ✕
+          </button>
+        </div>
+
+        {/* Metadata Grid */}
+        <div className="grid grid-cols-3 gap-4 px-6 py-3 border-b border-border bg-background/30 text-xs font-mono">
+          <div>
+            <span className="text-muted-foreground block text-[10px] uppercase">AUTHOR</span>
+            <span className="text-foreground font-medium">{report.author}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground block text-[10px] uppercase">DEPARTMENT</span>
+            <span className="text-foreground font-medium">{report.department}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground block text-[10px] uppercase">TYPE & SUBMITTED</span>
+            <span className="text-foreground font-medium">{report.type} · {new Date(report.submitted).toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          </div>
+        </div>
+
+        {/* Report Content Body */}
+        <div className="p-6 overflow-y-auto flex flex-col gap-4">
+          <div>
+            <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2">FULL SUMMARY & FINDINGS</h3>
+            <div className="p-4 rounded-md bg-secondary/50 border border-border text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+              {report.summary}
+            </div>
+          </div>
+
+          {report.feedback && (
+            <div className="p-4 rounded-md bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs font-mono">
+              <span className="block uppercase text-[10px] tracking-wider text-amber-400 font-bold mb-1">ADMIN REVISION FEEDBACK NOTES:</span>
+              {report.feedback}
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="px-6 py-4 border-t border-border bg-secondary/20 flex items-center justify-between">
+          <button onClick={onClose} className="px-4 py-2 rounded text-xs font-mono border border-border text-muted-foreground hover:bg-secondary hover:text-foreground">
+            Close Inspector
+          </button>
+
+          <div className="flex gap-3">
+            {report.status !== 'Approved' && (
+              <button
+                onClick={() => {
+                  onApprove(report.id)
+                  onClose()
+                }}
+                className="px-4 py-2 rounded text-xs font-mono bg-primary text-primary-foreground hover:bg-primary-hover transition-all"
+              >
+                Approve Report
+              </button>
+            )}
+            {report.status !== 'Flagged' && (
+              <button
+                onClick={() => {
+                  onClose()
+                  onOpenFlagModal(report)
+                }}
+                disabled={!canFlag}
+                title={canFlag ? "Flag for revision" : "Only reports submitted within the past 30 days can be flagged"}
+                className={`px-4 py-2 rounded text-xs font-mono border transition-all ${canFlag ? 'border-amber-700 text-accent hover:bg-amber-950/50' : 'border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'}`}
+              >
+                Flag for Revision
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FlagReportModal({
+  report,
+  onClose,
+  onSaveFlag,
+}: {
+  report: Report
+  onClose: () => void
+  onSaveFlag: (id: number, feedback: string) => void
+}) {
+  const canFlag = isWithinPastMonth(report.submitted)
+  const [feedback, setFeedback] = useState("")
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-body">
+      <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h3 className="font-display font-700 text-base text-foreground">Flag Report for Revision</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          <div className="text-xs text-muted-foreground">
+            Flagging report: <strong className="text-foreground">{report.title}</strong> by <strong className="text-foreground">{report.author}</strong>.
+          </div>
+
+          {!canFlag ? (
+            <div className="p-3 rounded bg-amber-950/40 border border-amber-800/40 text-amber-300 text-xs font-mono">
+              ⚠️ Policy Restriction: Reports older than 30 days (submitted on {new Date(report.submitted).toLocaleDateString()}) cannot be flagged for revision.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase">Reason / Feedback Notes for Reporter</label>
+              <textarea
+                rows={4}
+                required
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Explain what corrections, details, or clarifications are required from the staff member..."
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-border flex justify-end gap-3 bg-secondary/20">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-mono border border-border rounded text-muted-foreground hover:text-foreground">
+            Cancel
+          </button>
+          {canFlag && (
+            <button
+              onClick={() => {
+                onSaveFlag(report.id, feedback)
+                onClose()
+              }}
+              className="px-4 py-1.5 text-xs font-mono rounded bg-accent text-accent-foreground font-semibold hover:bg-amber-500 transition-all"
+            >
+              Submit Flag & Feedback
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AdminView({ reports, setReports, onLogout }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
+  const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
+  const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q)
+    if (q.trim() && view !== "reports") {
+      setView("reports")
+    }
+  }
 
   const sidebarW = collapsed ? 56 : 240
 
+  const handleApproveReport = (id: number) => {
+    setReports((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Approved" } : item)))
+  }
+
+  const handleSaveFlag = (id: number, feedback: string) => {
+    setReports((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: "Flagged", feedback: feedback || "Revision requested by admin." } : item))
+    )
+  }
+
   return (
-    <div style={{ backgroundColor: "var(--background)", minHeight: "100vh", fontFamily: "var(--font-body, DM Sans, sans-serif)", }}>
-      <Sidebar active={view} onChange={setView} collapsed={collapsed} />
-      <Header view={view} sidebarW={sidebarW} />
+    <div style={{ backgroundColor: "var(--background)", minHeight: "100vh", fontFamily: "var(--font-body, DM Sans, sans-serif)" }}>
+      <Sidebar active={view} onChange={setView} collapsed={collapsed} onLogout={onLogout} />
+      <Header view={view} sidebarW={sidebarW} searchQuery={searchQuery} onSearchChange={handleSearchChange} />
 
       {/* Collapse toggle */}
-      <button onClick={() => setCollapsed((c) => !c)}
-      className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
-      style={{top: 16,left: sidebarW - 12,width: 24,height: 24,backgroundColor: "var(--card)",borderColor: "var(--border)",color: "var(--muted-foreground)",}}
-      aria-label="Toggle sidebar">
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
+        style={{ top: 16, left: sidebarW - 12, width: 24, height: 24, backgroundColor: "var(--card)", borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+        aria-label="Toggle sidebar"
+      >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d={collapsed ? "M3 2l4 3-4 3" : "M7 2L3 5l4 3"} stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d={collapsed ? "M3 2l4 3-4 3" : "M7 2L3 5l4 3"} stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {/* Main content */}
-      <main className="transition-all duration-200" 
-        style={{marginLeft: sidebarW,paddingTop: 56 + 24,paddingBottom: 40,paddingLeft: 24,paddingRight: 24,minHeight: "100vh",}}>
-        {view === "dashboard" && <DashboardView reports={reports} />}
-        {view === "reports" && <ReportsView reports={reports} setReports={setReports} />}
+      <main
+        className="transition-all duration-200"
+        style={{ marginLeft: sidebarW, paddingTop: 56 + 24, paddingBottom: 40, paddingLeft: 24, paddingRight: 24, minHeight: "100vh" }}
+      >
+        {view === "dashboard" && <DashboardView reports={reports} onInspect={setInspectingReport} searchQuery={searchQuery} />}
+        {view === "reports" && (
+          <ReportsView
+            reports={reports}
+            setReports={setReports}
+            onInspect={setInspectingReport}
+            onOpenFlagModal={setFlaggingReport}
+            searchQuery={searchQuery}
+          />
+        )}
         {view === "teams" && <TeamView />}
         {view === "analytics" && <AnalyticsView />}
       </main>
+
+      {/* Inspector Modal */}
+      {inspectingReport && (
+        <FullReportModal
+          report={inspectingReport}
+          onClose={() => setInspectingReport(null)}
+          onApprove={handleApproveReport}
+          onOpenFlagModal={setFlaggingReport}
+        />
+      )}
+
+      {/* Flag Modal */}
+      {flaggingReport && (
+        <FlagReportModal
+          report={flaggingReport}
+          onClose={() => setFlaggingReport(null)}
+          onSaveFlag={handleSaveFlag}
+        />
+      )}
     </div>
   )
 }
