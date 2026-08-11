@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Report, ReportType, Member, Badge } from './AdminView'
+import { Report, Member, Badge } from './AdminView'
+import GveKukaHourlyForm from './components/GveKukaHourlyForm'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -55,15 +56,6 @@ function CalendarIcon({ size = 16 }) {
   )
 }
 
-function SignatureIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 20H4" />
-      <path d="M20 2c-1.381 0-2.5 1.119-2.5 2.5a2.502 2.502 0 0 0 1.25 2.165L6 17.5V20h2.5l10.835-12.75A2.49 2.49 0 0 0 20 7.5C21.381 7.5 22.5 6.381 22.5 5S21.381 2 20 2z" />
-    </svg>
-  )
-}
-
 // ─── Types & Props ──────────────────────────────────────────────────────────
 
 interface StaffViewProps {
@@ -83,11 +75,6 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
   // Composer Form State
   const [editingReportId, setEditingReportId] = useState<number | null>(null)
   const [formTitle, setFormTitle] = useState('')
-  const [formType, setFormType] = useState<ReportType>('Daily')
-  const [formSummary, setFormSummary] = useState('')
-  const [formSigned, setFormSigned] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   const sidebarW = collapsed ? 56 : 240
@@ -111,10 +98,6 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
     )
   }, [myReports, searchQuery])
 
-  const editingReport = useMemo(() => {
-    return myReports.find(r => r.id === editingReportId)
-  }, [myReports, editingReportId])
-
   // Compute metrics for the logged-in staff member
   const stats = useMemo(() => {
     const total = myReports.length
@@ -130,86 +113,12 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
   const handleEditReport = (report: Report) => {
     setEditingReportId(report.id)
     setFormTitle(report.title)
-    setFormType(report.type === 'Daily' || report.type === 'Weekly' ? report.type : 'Daily')
-    setFormSummary(report.summary)
-    setFormSigned(false)
-    setFormError('')
-    setSubmitSuccess(false)
     setActiveTab('submit')
-  }
-
-  // Handle Form Submission
-  const handleSubmitReport = (e: React.SyntheticEvent, status: 'Draft' | 'Submitted') => {
-    e.preventDefault()
-    setFormError('')
-    setSubmitSuccess(false)
-
-    if (formType !== 'Daily' && formType !== 'Weekly') {
-      setFormError('Staff members are only authorized to submit Daily and Weekly reports. Monthly and Yearly reports are restricted to Administrators.')
-      return
-    }
-
-    if (!formTitle.trim()) {
-      setFormError('Please enter a report title.')
-      return
-    }
-    if (!formSummary.trim()) {
-      setFormError('Please fill in the report details.')
-      return
-    }
-    if (status === 'Submitted' && !formSigned) {
-      setFormError('You must sign the verification box before submitting.')
-      return
-    }
-
-    if (editingReportId !== null) {
-      // Edit existing report
-      setReports(prev => prev.map(r => r.id === editingReportId ? {
-        ...r,
-        title: formTitle,
-        type: formType,
-        summary: formSummary,
-        status: status,
-        submitted: new Date()
-      } : r))
-    } else {
-      // Create new report
-      const newId = reports.length > 0 ? Math.max(...reports.map(r => r.id)) + 1 : 1
-      const newReport: Report = {
-        id: newId,
-        title: formTitle,
-        author: member.name,
-        department: member.department,
-        type: formType,
-        submitted: new Date(),
-        status: status,
-        summary: formSummary
-      }
-      setReports(prev => [newReport, ...prev])
-    }
-
-    // Success feedback
-    setSubmitSuccess(true)
-    setEditingReportId(null)
-    setFormTitle('')
-    setFormType('Daily')
-    setFormSummary('')
-    setFormSigned(false)
-    
-    // Switch to history tab on success
-    setTimeout(() => {
-      setActiveTab('history')
-      setSubmitSuccess(false)
-    }, 1500)
   }
 
   const handleCancelEdit = () => {
     setEditingReportId(null)
     setFormTitle('')
-    setFormType('Daily')
-    setFormSummary('')
-    setFormSigned(false)
-    setFormError('')
     setActiveTab('history')
   }
 
@@ -383,8 +292,7 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
       </header>
 
       {/* ─── Main Content ───────────────────────────────────────────────────── */}
-      <main
-        className="transition-all duration-200"
+      <main className="transition-all duration-200"
         style={{
           marginLeft: sidebarW,
           paddingTop: 56 + 24,
@@ -539,8 +447,22 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
                   
                   {expandedReportId === r.id && (
                     <div className="px-5 py-4 border-b border-border bg-background/50">
-                      <p className="text-xs font-mono uppercase tracking-wider mb-2 text-muted-foreground">Report Content / Summary</p>
-                      <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{r.summary}</p>
+                      {r.gveKukaData ? (
+                        <div className="mb-4">
+                          <p className="text-xs font-mono uppercase tracking-wider mb-2 text-emerald-400">
+                            Physical Form Replica — GVE Site Hourly Record
+                          </p>
+                          <GveKukaHourlyForm
+                            initialData={r.gveKukaData}
+                            readOnly={true}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs font-mono uppercase tracking-wider mb-2 text-muted-foreground">Report Content / Summary</p>
+                          <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{r.summary}</p>
+                        </>
+                      )}
                       
                       {r.status === 'Flagged' && r.feedback && (
                         <div className="mt-3 p-3 rounded bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs font-mono">
@@ -571,151 +493,63 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
 
         {/* Tab 3: Submit Report (Composer) */}
         {activeTab === 'submit' && (
-          <div className="max-w-3xl mx-auto rounded-lg border bg-card border-border shadow-lg relative overflow-hidden">
-            
-            {/* Header branding like physical sheets */}
-            <div className="bg-secondary/40 px-6 py-5 border-b border-border flex flex-col gap-1">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="font-display font-700 text-base text-foreground tracking-tight">
-                    {editingReportId ? 'REVISE REPORT' : 'OFFICIAL SUBMISSION FORM'}
-                  </h2>
-                  <p className="text-xs font-mono text-muted-foreground uppercase">Form RF-1099 · Digital Copy</p>
-                </div>
-                <div className="text-right font-mono text-[10px] text-muted-foreground">
-                  <div>DATE: {new Date().toLocaleDateString("en-US", { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>
-                  <div>DEPT: {member.department.toUpperCase()}</div>
-                </div>
+          <div className="max-w-4xl mx-auto flex flex-col gap-4">
+            {/* Form Selection Bar */}
+            <div className="bg-card border border-border rounded-lg p-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-mono font-bold uppercase text-foreground">Select Submission Format</h3>
+                <p className="text-[11px] text-muted-foreground">Choose physical site form replica or standard narrative format</p>
+              </div>
+              <div className="flex items-center gap-2 bg-secondary p-1 rounded-md border border-border">
+                <button
+                  type="button"
+                  className={`px-3 py-1 text-xs font-mono rounded transition-all ${
+                    formTitle.includes('GVE KUKA')
+                      ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 font-bold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  📄 Physical Form: GVE Hourly Log
+                </button>
               </div>
             </div>
 
-            {submitSuccess ? (
-              <div className="p-8 text-center flex flex-col items-center justify-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-900/60 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <h3 className="font-display font-600 text-base text-foreground">Report Processed Successfully</h3>
-                <p className="text-xs text-muted-foreground">Saving records and redirecting to Submission History...</p>
-              </div>
-            ) : (
-              <form className="p-6 flex flex-col gap-6" onSubmit={(e) => handleSubmitReport(e, 'Submitted')}>
-                
-                {editingReport?.status === 'Flagged' && editingReport.feedback && (
-                  <div className="p-4 rounded-md bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs font-mono">
-                    <span className="block uppercase text-[10px] tracking-wider text-amber-400 font-bold mb-1">
-                      ⚠️ ADMIN REVISION REQUEST NOTES:
-                    </span>
-                    {editingReport.feedback}
-                  </div>
-                )}
-                
-                {/* Metadata Sheet Block */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-border/80 rounded-md p-4 bg-background/25">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-mono text-muted-foreground uppercase">Reporter Profile</span>
-                    <span className="text-sm font-medium text-foreground">{member.name}</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-mono text-muted-foreground uppercase">Title / Role</span>
-                    <span className="text-sm font-medium text-foreground">{member.role}</span>
-                  </div>
-                </div>
-
-                {/* Form Fields */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Report Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="e.g. Weekly Operations Summary - W31"
-                    className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover transition-all"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Report Type</label>
-                    <span className="text-[10px] font-mono text-muted-foreground bg-secondary px-2 py-0.5 rounded border border-border/80">
-                      Staff Access: Daily &amp; Weekly
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 bg-secondary/55 border border-border/80 rounded-md p-1">
-                    {(['Daily', 'Weekly'] as ReportType[]).map(t => (
-                      <button key={t} type="button" onClick={() => setFormType(t)} className={`py-1.5 text-xs font-mono rounded transition-all ${formType === t ? 'bg-primary text-foreground font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/80 italic mt-0.5">
-                    * Note: Monthly and Yearly reports are restricted to Administrators.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Detailed summary / findings</label>
-                  <textarea required rows={6} value={formSummary} onChange={(e) => setFormSummary(e.target.value)}
-                    placeholder="Provide a concise bulleted list of completed work, blockages, outcomes, or financial metrics..."
-                    className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover transition-all resize-y"
-                  />
-                </div>
-
-                {/* Physical-style Signature and Attestation Block */}
-                <div className="border border-dashed border-border rounded-md p-4 bg-background/25 flex flex-col gap-3">
-                  <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                    <SignatureIcon size={14} /> Attestation & Signing
-                  </h3>
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={formSigned}
-                      onChange={(e) => setFormSigned(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-border bg-secondary text-primary accent-primary cursor-pointer"
-                    />
-                    <div className="text-xs leading-relaxed text-muted-foreground">
-                      I hereby verify and attest that the metrics and summary provided in this digital RF-1099 submission are complete, correct, and represent actual operations performed by me in the IT/Department operations.
-                    </div>
-                  </label>
-                </div>
-
-                {formError && (
-                  <div className="text-xs font-mono text-accent bg-accent/10 border border-accent/25 rounded p-2.5">
-                    {formError}
-                  </div>
-                )}
-
-                {/* Submission buttons */}
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-border/40">
-                  {editingReportId && (
-                    <button type="button" onClick={handleCancelEdit} 
-                    className="w-full sm:w-auto px-4 py-2 rounded text-xs font-mono border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-all">
-                      Cancel Edit
-                    </button>
-                  )}
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto ml-auto">
-                    <button type="button" onClick={(e) => handleSubmitReport(e, 'Draft')}
-                      className="w-full sm:w-auto px-4 py-2 rounded text-xs font-mono border border-primary text-primary-hover hover:bg-secondary transition-all">
-                      Save Draft
-                    </button>
-                    <button type="submit"
-                      className="w-full sm:w-auto px-5 py-2.5 rounded font-display font-600 text-xs bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px"
-                    >
-                      Submit Official Report
-                    </button>
-                  </div>
-                </div>
-
-              </form>
-            )}
-
+            {/* GVE KUKA Form Composer */}
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+              <GveKukaHourlyForm
+                onSave={(gveData) => {
+                  const newId = reports.length > 0 ? Math.max(...reports.map(r => r.id)) + 1 : 1
+                  const newReport: Report = {
+                    id: editingReportId ?? newId,
+                    title: `GVE Site Hourly Record — ${gveData.date}`,
+                    author: member.name,
+                    department: member.department,
+                    type: 'Daily',
+                    submitted: new Date(),
+                    status: 'Submitted',
+                    summary: `Official GVE Site Operational Hourly Record for ${gveData.date} (${gveData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
+                    gveKukaData: gveData
+                  }
+                  if (editingReportId !== null) {
+                    setReports(prev => prev.map(r => r.id === editingReportId ? newReport : r))
+                  } else {
+                    setReports(prev => [newReport, ...prev])
+                  }
+                  setTimeout(() => {
+                    setActiveTab('history')
+                    setEditingReportId(null)
+                  }, 1200)
+                }}
+                onCancel={() => handleCancelEdit()}
+              />
+            </div>
           </div>
         )}
 
       </main>
-
+      <footer className="text-xs text-muted-foreground/80 mt-1 italic">
+        {new Date().getFullYear()} &copy; ReportFlow. All rights reserved.
+      </footer>
     </div>
   )
 }
