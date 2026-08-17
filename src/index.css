@@ -51,3 +51,50 @@
 *::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Physical Sheet & Print Customizations ───────────────────────────────── */
+
+.paper-sheet {
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Arial, Helvetica, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.paper-sheet input {
+  background: transparent;
+  color: #000000;
+  border: none;
+  outline: none;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+}
+
+.paper-grid table, .paper-grid th, .paper-grid td {
+  border: 1px solid #000000;
+  border-collapse: collapse;
+}
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+}
+

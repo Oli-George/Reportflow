@@ -28,7 +28,7 @@ export default function GveKukaHourlyForm({
   const [date, setDate] = useState(initialData?.date || defaultDateStr)
   const [day, setDay] = useState(initialData?.day || defaultDayStr)
   const [year, setYear] = useState(initialData?.year || defaultYearStr)
-  const [title] = useState(initialData?.title || `GVE KUKA Site Hourly Record — ${defaultDateStr}`)
+  const [title] = useState(initialData?.title || `GVE Site Hourly Record — ${defaultDateStr}`)
 
   const [entries, setEntries] = useState<GveKukaHourlyEntry[]>(() => {
     if (initialData?.entries && initialData.entries.length > 0) {
@@ -316,12 +316,12 @@ export default function GveKukaHourlyForm({
                 {/* Row 1 Header Categories */}
                 <tr className="bg-zinc-200 text-black font-bold uppercase text-[9px]">
                   <th rowSpan={2} className="w-16 p-1 border border-black">TIME</th>
-                  <th colSpan={4} className="p-1 border border-black bg-emerald-100/60">PV</th>
-                  <th colSpan={4} className="p-1 border border-black bg-emerald-200/50">BATTERY</th>
-                  <th colSpan={8} className="p-1 border border-black bg-blue-100/50">LOAD</th>
-                  <th colSpan={8} className="p-1 border border-black bg-purple-100/50">GRID/DG</th>
-                  <th colSpan={2} className="p-1 border border-black bg-amber-100/50">SPD CONDITION</th>
-                  <th colSpan={2} className="p-1 border border-black bg-cyan-100/50">COOLING SYSTEM</th>
+                  <th colSpan={4} className="p-1 border border-black ">PV</th>
+                  <th colSpan={4} className="p-1 border border-black ">BATTERY</th>
+                  <th colSpan={8} className="p-1 border border-black ">LOAD</th>
+                  <th colSpan={8} className="p-1 border border-black ">GRID/DG</th>
+                  <th colSpan={2} className="p-1 border border-black ">SPD CONDITION</th>
+                  <th colSpan={2} className="p-1 border border-black ">COOLING SYSTEM</th>
                   <th rowSpan={2} className="w-28 p-1 border border-black">OPERATOR<br/><span className="text-[7px] font-normal lowercase">Name & signature</span></th>
                   {!readOnly && <th rowSpan={2} className="no-print w-8 border border-black">DEL</th>}
                 </tr>
@@ -645,7 +645,7 @@ export default function GveKukaHourlyForm({
                   <div className="paper-grid overflow-x-auto">
                     <table className="w-full text-center text-[8px] border-collapse bg-white">
                       <thead>
-                        <tr className="bg-zinc-200 text-black font-bold uppercase">
+                        <tr className= "text-black font-bold uppercase">
                           <th rowSpan={2} className="w-12 border border-black">TIME</th>
                           <th colSpan={4} className="border border-black bg-emerald-100">PV</th>
                           <th colSpan={4} className="border border-black bg-emerald-200">BATTERY</th>

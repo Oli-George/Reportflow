@@ -5,12 +5,18 @@ import {
   Cell, XAxis,YAxis,
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
+import GveKukaHourlyForm from "./components/GveKukaHourlyForm"
+import GveWeeklyForm from "./components/GveWeeklyForm"
+import GveQuarterlyForm from "./components/GveQuarterlyForm"
+import { GveKukaRecordData } from "./types/gveKuka"
+import { GveWeeklyRecordData } from "./types/gveWeekly"
+import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type View = "dashboard" | "reports" | "teams" | "analytics"
 export type ReportStatus = "Approved" | "Submitted" | "Draft" | "Flagged"
-export type ReportType = "Daily" | "Weekly" | "Monthly" | "Annual"
+export type ReportType = "Daily" | "Weekly" | "Monthly" | "Quarterly" | "Yearly"
 
 export interface Report {
   id: number
@@ -22,6 +28,9 @@ export interface Report {
   status: ReportStatus
   summary: string
   feedback?: string
+  gveKukaData?: GveKukaRecordData
+  gveWeeklyData?: GveWeeklyRecordData
+  gveQuarterlyData?: GveQuarterlyRecordData
 }
 
 export function isWithinPastMonth(date: Date | string) {
@@ -44,14 +53,48 @@ export interface Member {
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
 export const REPORTS: Report[] = [
-  { id: 1, title: "Q3 Infrastructure Rollout", author: "Amara Osei", department: "Engineering", type: "Weekly", submitted: new Date("2026-07-25T00:00:00Z"), status: "Approved", summary: "Completed Kubernetes cluster migration to v1.30. API latency reduced by 22%. Three remaining services pending containerization, scheduled for sprint 48.", },
+  {
+    id: 1,
+    title: "GVE KUKA Site Hourly Record — Jul 27",
+    author: "Amara Osei",
+    department: "Engineering",
+    type: "Daily",
+    submitted: new Date("2026-07-27T00:00:00Z"),
+    status: "Approved",
+    summary: "Official physical GVE KUKA Site Operational Hourly Record sheet filled out with 12-hour solar PV, battery storage, site load, and grid parameters.",
+    gveKukaData: {
+      siteName: "GVE KUKA SITE",
+      title: "GVE KUKA Site Hourly Record",
+      date: "2026-07-27",
+      day: "Monday",
+      year: "2026",
+      entries: [
+        { id: "e1", time: "06:00 AM", pv: { volt: "420", curr: "12.5", power: "5.25", energy: "5.25" }, battery: { volt: "51.2", curr: "24.0", soc: "85", soh: "99" }, load: { l1_v: "230", l1_a: "8.5", l2_v: "231", l2_c: "8.2", l3_v: "229", l3_c: "8.4", power: "5.8", energy: "5.8" }, grid: { l1_v: "0", l1_a: "0", l2_v: "0", l2_c: "0", l3_v: "0", l3_c: "0", power: "0", energy: "0" }, spd: { in: "GOOD", out: "GOOD" }, cooling: { ac1: "ON", ac2: "ON" }, operatorName: "Amara Osei" },
+        { id: "e2", time: "07:00 AM", pv: { volt: "435", curr: "18.2", power: "7.91", energy: "13.16" }, battery: { volt: "52.0", curr: "31.5", soc: "90", soh: "99" }, load: { l1_v: "230", l1_a: "9.1", l2_v: "230", l2_c: "9.0", l3_v: "231", l3_c: "8.9", power: "6.2", energy: "12.0" }, grid: { l1_v: "0", l1_a: "0", l2_v: "0", l2_c: "0", l3_v: "0", l3_c: "0", power: "0", energy: "0" }, spd: { in: "GOOD", out: "GOOD" }, cooling: { ac1: "ON", ac2: "ON" }, operatorName: "Amara Osei" },
+        { id: "e3", time: "08:00 AM", pv: { volt: "450", curr: "25.0", power: "11.25", energy: "24.41" }, battery: { volt: "53.5", curr: "42.0", soc: "96", soh: "99" }, load: { l1_v: "231", l1_a: "11.0", l2_v: "231", l2_c: "10.8", l3_v: "230", l3_c: "11.2", power: "7.6", energy: "19.6" }, grid: { l1_v: "0", l1_a: "0", l2_v: "0", l2_c: "0", l3_v: "0", l3_c: "0", power: "0", energy: "0" }, spd: { in: "GOOD", out: "GOOD" }, cooling: { ac1: "ON", ac2: "ON" }, operatorName: "Amara Osei" },
+        { id: "e4", time: "09:00 AM", pv: { volt: "460", curr: "30.4", power: "13.98", energy: "38.39" }, battery: { volt: "54.1", curr: "15.0", soc: "100", soh: "99" }, load: { l1_v: "230", l1_a: "14.2", l2_v: "229", l2_c: "14.0", l3_v: "230", l3_c: "14.1", power: "9.7", energy: "29.3" }, grid: { l1_v: "0", l1_a: "0", l2_v: "0", l2_c: "0", l3_v: "0", l3_c: "0", power: "0", energy: "0" }, spd: { in: "GOOD", out: "GOOD" }, cooling: { ac1: "ON", ac2: "ON" }, operatorName: "Amara Osei" },
+        { id: "e5", time: "10:00 AM", pv: { volt: "465", curr: "32.1", power: "14.92", energy: "53.31" }, battery: { volt: "54.2", curr: "5.0", soc: "100", soh: "99" }, load: { l1_v: "230", l1_a: "16.0", l2_v: "231", l2_c: "15.8", l3_v: "230", l3_c: "16.1", power: "11.0", energy: "40.3" }, grid: { l1_v: "0", l1_a: "0", l2_v: "0", l2_c: "0", l3_v: "0", l3_c: "0", power: "0", energy: "0" }, spd: { in: "GOOD", out: "GOOD" }, cooling: { ac1: "ON", ac2: "ON" }, operatorName: "Amara Osei" },
+      ]
+    }
+  },
   { id: 2, title: "Campaign Performance — July", author: "Lena Brandt", department: "Marketing", type: "Monthly", submitted: new Date("2026-07-24T00:00:00Z"), status: "Submitted", summary: "Email open rate at 31.4%, up from 27.1% in June. LinkedIn ad spend delivered 14% lower CPL. Retargeting cohort underperforming — recommend budget reallocation.", },
   { id: 3, title: "Daily Ops Standup — Jul 27", author: "Marcus Chen", department: "Operations", type: "Daily", submitted: new Date("2026-07-27T00:00:00Z"), status: "Approved", summary: "Fulfillment at 98.2% on-time. One supplier delay flagged for packaging materials — estimated 3-day impact. Escalated to procurement.", },
-  { id: 4, title: "H1 Budget Reconciliation", author: "Priya Nair", department: "Finance", type: "Annual", submitted: new Date("2026-07-22T00:00:00Z"), status: "Flagged", summary: "Variance of $142k identified in Engineering capex line. Pending clarification from department heads. CFO review scheduled Jul 30.", },
+  { id: 4, title: "H1 Budget Reconciliation", author: "Priya Nair", department: "Finance", type: "Yearly", submitted: new Date("2026-07-22T00:00:00Z"), status: "Flagged", summary: "Variance of $142k identified in Engineering capex line. Pending clarification from department heads. CFO review scheduled Jul 30.", },
   { id: 5, title: "Talent Pipeline — July", author: "James Okafor", department: "HR", type: "Monthly", submitted: new Date("2026-07-23T00:00:00Z"), status: "Submitted", summary: "7 open roles across Engineering and Sales. Offer acceptance rate at 88%. Two senior hires in final-round interviews.", },
   { id: 6, title: "Deployment Log — Jul 27", author: "Sofia Alvarez", department: "Engineering", type: "Daily", submitted: new Date("2026-07-27T00:00:00Z"), status: "Draft", summary: "Service mesh upgrade in staging. No production deployments today. Canary tests for payment service running at 5% traffic split.", },
   { id: 7, title: "Weekly Sales Summary — W30", author: "Daniel Ruiz", department: "Sales", type: "Weekly", submitted: new Date("2026-07-25T00:00:00Z"), status: "Approved", summary: "Closed $480k ARR this week. Pipeline at $2.1M. Three enterprise deals slipped to August. Renewal rate holding at 94%.", },
-  { id: 8, title: "Compliance Audit — Q2", author: "Yuki Tanaka", department: "Legal", type: "Annual", submitted: new Date("2026-07-20T00:00:00Z"), status: "Approved", summary: "Zero critical findings. Two low-severity observations addressed inline. SOC2 Type II audit window opens August 12.", },
+  { id: 8, title: "Compliance Audit — Q2", author: "Yuki Tanaka", department: "Legal", type: "Yearly", submitted: new Date("2026-07-20T00:00:00Z"), status: "Approved", summary: "Zero critical findings. Two low-severity observations addressed inline. SOC2 Type II audit window opens August 12.", },
+  {
+    id: 9,
+    title: "Site Quarterly Maintenance Template — Q2 Audit",
+    author: "George (Admin)",
+    department: "Engineering",
+    type: "Quarterly",
+    submitted: new Date("2026-07-28T00:00:00Z"),
+    status: "Approved",
+    summary: "Official Site Quarterly Maintenance Audit Report covering general power plant condition, support structures, PV arrays, indoor/outdoor switchgear, MPPTs, CL/Battery inverters, BESS strings, grid distribution, earthing system, equipment maintenance, and PPE/tool inventories.",
+    gveQuarterlyData: createEmptyGveQuarterlyData(),
+  },
 ]
 
 export const MEMBERS: Member[] = [
@@ -83,7 +126,7 @@ const TYPE_DIST = [
   { name: "Daily", value: 38 },
   { name: "Weekly", value: 29 },
   { name: "Monthly", value: 21 },
-  { name: "Annual", value: 12 },
+  { name: "Yearly", value: 12 },
 ]
 
 const TURNAROUND = [
@@ -189,12 +232,7 @@ function Sidebar({
           className="shrink-0 w-7 h-7 rounded flex items-center justify-center"
           style={{ backgroundColor: "var(--primary)" }}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="5" height="5" rx="1" fill="#e8f0eb" />
-            <rect x="8" y="1" width="5" height="5" rx="1" fill="#e8f0eb" opacity="0.5" />
-            <rect x="1" y="8" width="5" height="5" rx="1" fill="#e8f0eb" opacity="0.5" />
-            <rect x="8" y="8" width="5" height="5" rx="1" fill="#e8f0eb" />
-          </svg>
+          <img src="./src/components/logo.jpeg" alt="GVE Logo" />
         </div>
         {!collapsed && (
           <span
@@ -286,7 +324,19 @@ const VIEW_TITLES: Record<View, string> = {
   analytics: "Analytics",
 }
 
-function Header({ view, sidebarW, searchQuery, onSearchChange }: { view: View; sidebarW: number; searchQuery: string; onSearchChange: (q: string) => void }) {
+function Header({
+  view,
+  sidebarW,
+  searchQuery,
+  onSearchChange,
+  onOpenCreateModal,
+}: {
+  view: View
+  sidebarW: number
+  searchQuery: string
+  onSearchChange: (q: string) => void
+  onOpenCreateModal: () => void
+}) {
   return (
     <header
       className="fixed top-0 right-0 flex items-center justify-between px-6 border-b z-10"
@@ -297,12 +347,20 @@ function Header({ view, sidebarW, searchQuery, onSearchChange }: { view: View; s
         borderColor: "var(--border)",
       }}
     >
-      <h1
-        className="font-display font-600 text-lg"
-        style={{ color: "var(--foreground)" }}
-      >
-        {VIEW_TITLES[view]}
-      </h1>
+      <div className="flex items-center gap-3">
+        <h1
+          className="font-display font-600 text-lg"
+          style={{ color: "var(--foreground)" }}
+        >
+          {VIEW_TITLES[view]}
+        </h1>
+        <button
+          onClick={onOpenCreateModal}
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-primary hover:bg-primary-hover text-foreground transition-all shadow-sm active:translate-y-px"
+        >
+          <span className="text-sm font-bold leading-none">+</span> Write Report
+        </button>
+      </div>
       <div className="flex items-center gap-4">
         <div
           className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
@@ -347,8 +405,7 @@ function Header({ view, sidebarW, searchQuery, onSearchChange }: { view: View; s
           }}
         >
           OG
-        </div>{" "}
-        {/* User avatar should go here */}
+        </div>
       </div>
     </header>
   )
@@ -372,15 +429,19 @@ function DashboardView({ reports, onInspect, searchQuery }: { reports: Report[];
   const now = new Date()
   let options = { day: "numeric", month: "short", year: "numeric" } as const
   let today = now.toLocaleDateString("en-US", options)
+  const totalCount = reports.length
+  const pendingCount = reports.filter(r => r.status === 'Submitted').length
+  const flaggedCount = reports.filter(r => r.status === 'Flagged').length
+  const teamCount = MEMBERS.length
+
   return (
     <div className="flex flex-col gap-6">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Reports" value="402" sub="This month" />
-        <StatCard label="Pending Approval" value="14" sub="Needs review" accent />
-        <StatCard label="Open Issues" value="3" sub="Flagged items" />
-        <StatCard label="Team Members" value="12" sub="Active reporters" />
-        {/*The API should also get these values, instead of them being hard-coded*/}
+        <StatCard label="Total Reports" value={totalCount.toString()} sub="Total submitted & filed" />
+        <StatCard label="Pending Approval" value={pendingCount.toString()} sub="Needs review" accent />
+        <StatCard label="Open Issues" value={flaggedCount.toString()} sub="Flagged items" />
+        <StatCard label="Team Members" value={teamCount.toString()} sub="Active reporters" />
       </div>
 
       {/* Two-column layout */}
@@ -536,20 +597,22 @@ function DashboardView({ reports, onInspect, searchQuery }: { reports: Report[];
 
 // ─── Reports View ─────────────────────────────────────────────────────────────
 
-const REPORT_TYPES: (ReportType | "All")[] = ["All","Daily","Weekly","Monthly","Annual",]
-const REPORT_STATUSES: (ReportStatus | "All")[] = ["All", "Approved", "Submitted", "Draft", "Flagged"]
+const REPORT_TYPES: (ReportType | "All")[] = ["All", "Daily", "Weekly", "Monthly", "Quarterly", "Yearly"]
+const REPORT_STATUSES: (ReportStatus | "All")[] = ["All", "Approved", "Submitted", "Flagged"]
 
 function ReportsView({
   reports,
   setReports,
   onInspect,
   onOpenFlagModal,
+  onOpenCreateModal,
   searchQuery,
 }: {
   reports: Report[]
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
   onInspect: (r: Report) => void
   onOpenFlagModal: (r: Report) => void
+  onOpenCreateModal: () => void
   searchQuery: string
 }) {
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All")
@@ -572,7 +635,7 @@ function ReportsView({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Filters */}
+      {/* Filters & Actions */}
       <div className="flex flex-wrap gap-4 items-center justify-between">
         <div className="flex gap-1.5 flex-wrap">
           {REPORT_TYPES.map((t) => (
@@ -593,17 +656,25 @@ function ReportsView({
             </button>
           ))}
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {REPORT_STATUSES.map((s) => (
-            <button key={s} onClick={() => setStatusFilter(s)} className="px-3 py-1.5 rounded text-xs font-mono border transition-all duration-100"
-              style={{
-                backgroundColor:statusFilter === s ? "var(--secondary)" : "transparent",
-                borderColor:statusFilter === s ? "var(--border)" : "var(--border)",
-                color:statusFilter === s ? "var(--foreground)" : "var(--muted-foreground)",
-              }}>
-              {s}
-            </button>
-          ))}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
+            {REPORT_STATUSES.map((s) => (
+              <button key={s} onClick={() => setStatusFilter(s)} className="px-3 py-1.5 rounded text-xs font-mono border transition-all duration-100"
+                style={{
+                  backgroundColor:statusFilter === s ? "var(--secondary)" : "transparent",
+                  borderColor:statusFilter === s ? "var(--border)" : "var(--border)",
+                  color:statusFilter === s ? "var(--foreground)" : "var(--muted-foreground)",
+                }}>
+                {s}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onOpenCreateModal}
+            className="px-3 py-1.5 rounded text-xs font-mono font-semibold bg-primary hover:bg-primary-hover text-foreground transition-all shadow flex items-center gap-1.5"
+          >
+            <span>+</span> Write Admin Report
+          </button>
         </div>
       </div>
 
@@ -1000,7 +1071,7 @@ function FullReportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-body">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-6xl bg-card border border-border rounded-xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
           <div>
@@ -1033,12 +1104,47 @@ function FullReportModal({
 
         {/* Report Content Body */}
         <div className="p-6 overflow-y-auto flex flex-col gap-4">
-          <div>
-            <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2">FULL SUMMARY & FINDINGS</h3>
-            <div className="p-4 rounded-md bg-secondary/50 border border-border text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-              {report.summary}
+          {report.gveKukaData ? (
+            <div>
+              <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
+                <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
+                <span className="text-emerald-400">GVE KUKA SITE</span>
+              </h3>
+              <GveKukaHourlyForm
+                initialData={report.gveKukaData}
+                readOnly={true}
+              />
             </div>
-          </div>
+          ) : report.gveWeeklyData ? (
+            <div>
+              <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
+                <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
+                <span className="text-emerald-400">WEEKLY SITE REPORT FORM</span>
+              </h3>
+              <GveWeeklyForm
+                initialData={report.gveWeeklyData}
+                readOnly={true}
+              />
+            </div>
+          ) : report.gveQuarterlyData ? (
+            <div>
+              <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
+                <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
+                <span className="text-emerald-400">SITE QUARTERLY MAINTENANCE TEMPLATE</span>
+              </h3>
+              <GveQuarterlyForm
+                initialData={report.gveQuarterlyData}
+                readOnly={true}
+              />
+            </div>
+          ) : (
+            <div>
+              <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2">FULL SUMMARY & FINDINGS</h3>
+              <div className="p-4 rounded-md bg-secondary/50 border border-border text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                {report.summary}
+              </div>
+            </div>
+          )}
 
           {report.feedback && (
             <div className="p-4 rounded-md bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs font-mono">
@@ -1151,12 +1257,180 @@ function FlagReportModal({
   )
 }
 
+function AdminCreateReportModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void
+  onSubmit: (report: Omit<Report, "id" | "submitted" | "status">) => void
+}) {
+  const [title, setTitle] = useState("")
+  const [author, setAuthor] = useState("")
+  const [department, setDepartment] = useState("Engineering")
+  const [type, setType] = useState<ReportType>("Quarterly")
+  const [summary, setSummary] = useState("")
+  const [error, setError] = useState("")
+  const [quarterlyData, setQuarterlyData] = useState<GveQuarterlyRecordData>(createEmptyGveQuarterlyData())
+
+  const handleSubmit = (e: React.SubmitEvent) => {
+    e.preventDefault()
+    if (!title.trim()) {
+      setError("Please enter a report title.")
+      return
+    }
+    if (!summary.trim()) {
+      setError("Please enter detailed summary/findings.")
+      return
+    }
+    onSubmit({
+      title,
+      author,
+      department,
+      type,
+      summary,
+      ...(type === "Quarterly" ? { gveQuarterlyData: quarterlyData } : {}),
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-body overflow-y-auto">
+      <div className={`w-full ${type === "Quarterly" ? "max-w-6xl max-h-[92vh]" : "max-w-lg"} bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden my-auto`}>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-primary text-foreground flex items-center justify-center font-bold text-xs">
+              +
+            </div>
+            <h3 className="font-display font-700 text-base text-foreground">
+              {type === "Quarterly" ? "Compose Site Quarterly Maintenance Audit" : "Create Official Admin Report"}
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1.5 md:col-span-3">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Report Title</label>
+              <input type="text" required value={title}onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Site Quarterly Maintenance Template — Q2 Audit"
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Author Name</label>
+              <input type="text" required value={author} onChange={(e) => setAuthor(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Department</label>
+              <select value={department} onChange={(e) => setDepartment(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover cursor-pointer"
+              >
+                {["Executive", "Engineering", "Marketing", "Finance", "Operations", "HR", "Legal"].map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Report Type</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as ReportType)}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover cursor-pointer font-semibold text-emerald-400"
+              >
+                <option value="Quarterly">Quarterly (Admin Only Audit Form)</option>
+                <option value="Yearly">Yearly (Admin Only)</option>
+                <option value="Monthly">Monthly (Admin Only)</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Daily">Daily</option>
+              </select>
+            </div>
+          </div>
+
+          {type === "Quarterly" ? (
+            <div className="flex flex-col gap-3 mt-1">
+              <div className="p-3 rounded bg-primary/10 border border-primary/25 text-xs text-primary-hover font-mono flex items-center justify-between">
+                <span><strong>Quarterly Maintenance Audit Form</strong> — Fill in audit entries across tabs or use the interactive grid.</span>
+                <span className="text-[10px] uppercase font-bold text-emerald-400">ADMIN EXCLUSIVE FORM</span>
+              </div>
+              <div className="border border-border rounded-lg p-2 bg-background max-h-[55vh] overflow-y-auto">
+                <GveQuarterlyForm
+                  initialData={quarterlyData}
+                  onChange={setQuarterlyData}
+                  readOnly={false}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              {type === "Yearly" && (
+                <div className="p-3 rounded bg-primary/10 border border-primary/25 text-xs text-primary-hover font-mono flex items-center gap-2">
+                  <span><strong>Yearly Reports</strong> are exclusive to Administrators and departmental leadership.</span>
+                </div>
+              )}
+
+              {type === "Monthly" && (
+                <div className="p-3 rounded bg-primary/10 border border-primary/25 text-xs text-primary-hover font-mono flex items-center gap-2">
+                  <span><strong>Monthly Reports</strong> are restricted to Administrators.</span>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Executive Summary / Audit Remarks</label>
+            <textarea
+              rows={3}
+              required
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Provide comprehensive executive overview, annual performance metrics, or audit findings..."
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover resize-y"
+            />
+          </div>
+
+          {error && (
+            <div className="text-xs font-mono text-accent bg-accent/10 border border-accent/25 rounded p-2.5">
+              {error}
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-border flex justify-end gap-3 bg-secondary/20 -mx-5 -mb-5 px-5 py-3 mt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-mono border border-border rounded text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-mono font-semibold rounded bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px"
+            >
+              Publish Report & Audit Form
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminView({ reports, setReports, onLogout }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
   const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+
+  // Filter out any reports in Draft stage so they are not accessible to admins
+  const adminReports = useMemo(() => reports.filter((r) => r.status !== "Draft"), [reports])
 
   const handleSearchChange = (q: string) => {
     setSearchQuery(q)
@@ -1177,10 +1451,27 @@ export default function AdminView({ reports, setReports, onLogout }: AdminViewPr
     )
   }
 
+  const handleCreateAdminReport = (data: Omit<Report, "id" | "submitted" | "status">) => {
+    const newId = reports.length > 0 ? Math.max(...reports.map((r) => r.id)) + 1 : 1
+    const newReport: Report = {
+      id: newId,
+      ...data,
+      submitted: new Date(),
+      status: "Approved",
+    }
+    setReports((prev) => [newReport, ...prev])
+  }
+
   return (
     <div style={{ backgroundColor: "var(--background)", minHeight: "100vh", fontFamily: "var(--font-body, DM Sans, sans-serif)" }}>
       <Sidebar active={view} onChange={setView} collapsed={collapsed} onLogout={onLogout} />
-      <Header view={view} sidebarW={sidebarW} searchQuery={searchQuery} onSearchChange={handleSearchChange} />
+      <Header
+        view={view}
+        sidebarW={sidebarW}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+      />
 
       {/* Collapse toggle */}
       <button
@@ -1199,19 +1490,28 @@ export default function AdminView({ reports, setReports, onLogout }: AdminViewPr
         className="transition-all duration-200"
         style={{ marginLeft: sidebarW, paddingTop: 56 + 24, paddingBottom: 40, paddingLeft: 24, paddingRight: 24, minHeight: "100vh" }}
       >
-        {view === "dashboard" && <DashboardView reports={reports} onInspect={setInspectingReport} searchQuery={searchQuery} />}
+        {view === "dashboard" && <DashboardView reports={adminReports} onInspect={setInspectingReport} searchQuery={searchQuery} />}
         {view === "reports" && (
           <ReportsView
-            reports={reports}
+            reports={adminReports}
             setReports={setReports}
             onInspect={setInspectingReport}
             onOpenFlagModal={setFlaggingReport}
+            onOpenCreateModal={() => setIsCreateModalOpen(true)}
             searchQuery={searchQuery}
           />
         )}
         {view === "teams" && <TeamView />}
         {view === "analytics" && <AnalyticsView />}
       </main>
+
+      {/* Admin Create Report Modal */}
+      {isCreateModalOpen && (
+        <AdminCreateReportModal
+          onClose={() => setIsCreateModalOpen(false)}
+          onSubmit={handleCreateAdminReport}
+        />
+      )}
 
       {/* Inspector Modal */}
       {inspectingReport && (
@@ -1230,7 +1530,8 @@ export default function AdminView({ reports, setReports, onLogout }: AdminViewPr
           onClose={() => setFlaggingReport(null)}
           onSaveFlag={handleSaveFlag}
         />
-      )}
+      )}    
+    <footer>{new Date().getFullYear()} &copy; ReportFlow. All rights reserved.</footer>
     </div>
   )
 }
