@@ -50,16 +50,17 @@ export interface Member {
   color: string
 }
 
+export interface AdminViewProps {
+  reports: Report[]
+  setReports: React.Dispatch<React.SetStateAction<Report[]>>
+  members?: Member[]
+  onLogout?: () => void
+}
+
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
 export const REPORTS: Report[] = [
-  {
-    id: 1,
-    title: "GVE KUKA Site Hourly Record — Jul 27",
-    author: "Amara Osei",
-    department: "Engineering",
-    type: "Daily",
-    submitted: new Date("2026-07-27T00:00:00Z"),
+  {id: 1,title: "GVE KUKA Site Hourly Record — Jul 27",author: "Amara Osei",department: "Engineering",type: "Daily",submitted: new Date("2026-07-27T00:00:00Z"),
     status: "Approved",
     summary: "Official physical GVE KUKA Site Operational Hourly Record sheet filled out with 12-hour solar PV, battery storage, site load, and grid parameters.",
     gveKukaData: {
@@ -84,17 +85,7 @@ export const REPORTS: Report[] = [
   { id: 6, title: "Deployment Log — Jul 27", author: "Sofia Alvarez", department: "Engineering", type: "Daily", submitted: new Date("2026-07-27T00:00:00Z"), status: "Draft", summary: "Service mesh upgrade in staging. No production deployments today. Canary tests for payment service running at 5% traffic split.", },
   { id: 7, title: "Weekly Sales Summary — W30", author: "Daniel Ruiz", department: "Sales", type: "Weekly", submitted: new Date("2026-07-25T00:00:00Z"), status: "Approved", summary: "Closed $480k ARR this week. Pipeline at $2.1M. Three enterprise deals slipped to August. Renewal rate holding at 94%.", },
   { id: 8, title: "Compliance Audit — Q2", author: "Yuki Tanaka", department: "Legal", type: "Yearly", submitted: new Date("2026-07-20T00:00:00Z"), status: "Approved", summary: "Zero critical findings. Two low-severity observations addressed inline. SOC2 Type II audit window opens August 12.", },
-  {
-    id: 9,
-    title: "Site Quarterly Maintenance Template — Q2 Audit",
-    author: "George (Admin)",
-    department: "Engineering",
-    type: "Quarterly",
-    submitted: new Date("2026-07-28T00:00:00Z"),
-    status: "Approved",
-    summary: "Official Site Quarterly Maintenance Audit Report covering general power plant condition, support structures, PV arrays, indoor/outdoor switchgear, MPPTs, CL/Battery inverters, BESS strings, grid distribution, earthing system, equipment maintenance, and PPE/tool inventories.",
-    gveQuarterlyData: createEmptyGveQuarterlyData(),
-  },
+  { id: 9, title: "Site Quarterly Maintenance Template — Q2 Audit",author: "George (Admin)",department: "Engineering",type: "Quarterly",submitted: new Date("2026-07-28T00:00:00Z"),status: "Approved",summary: "Official Site Quarterly Maintenance Audit Report covering general power plant condition, support structures, PV arrays, indoor/outdoor switchgear, MPPTs, CL/Battery inverters, BESS strings, grid distribution, earthing system, equipment maintenance, and PPE/tool inventories.",gveQuarterlyData: createEmptyGveQuarterlyData(),},
 ]
 
 export const MEMBERS: Member[] = [
@@ -790,10 +781,10 @@ function ReportsView({
 
 // ─── Team View ────────────────────────────────────────────────────────────────
 
-function TeamView() {
+function TeamView({ members = MEMBERS }: { members?: Member[] }) {
   const [dept, setDept] = useState("All")
   const filtered =
-    dept === "All" ? MEMBERS : MEMBERS.filter((m) => m.department === dept)
+    dept === "All" ? members : members.filter((m) => m.department === dept)
 
   return (
     <div className="flex flex-col gap-5">
@@ -1048,12 +1039,6 @@ function BellIcon({ size = 16 }) {
   )
 }
 
-interface AdminViewProps {
-  reports: Report[]
-  setReports: React.Dispatch<React.SetStateAction<Report[]>>
-  onLogout: () => void
-}
-
 // ─── Inspector & Flag Modals ───────────────────────────────────────────────────
 
 function FullReportModal({
@@ -1272,7 +1257,7 @@ function AdminCreateReportModal({
   const [error, setError] = useState("")
   const [quarterlyData, setQuarterlyData] = useState<GveQuarterlyRecordData>(createEmptyGveQuarterlyData())
 
-  const handleSubmit = (e: React.SubmitEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
       setError("Please enter a report title.")
@@ -1421,7 +1406,7 @@ function AdminCreateReportModal({
   )
 }
 
-export default function AdminView({ reports, setReports, onLogout }: AdminViewProps) {
+export default function AdminView({ reports, setReports, members = MEMBERS, onLogout }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
@@ -1501,7 +1486,7 @@ export default function AdminView({ reports, setReports, onLogout }: AdminViewPr
             searchQuery={searchQuery}
           />
         )}
-        {view === "teams" && <TeamView />}
+        {view === "teams" && <TeamView members={members} />}
         {view === "analytics" && <AnalyticsView />}
       </main>
 
