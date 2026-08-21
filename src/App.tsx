@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import AdminView, { REPORTS, MEMBERS, Report, Member } from './AdminView'
+import AdminView, { REPORTS, MEMBERS, Report, Member, Deadline, DEFAULT_DEADLINES } from './AdminView'
 import StaffView from './StaffView'
 import { supabase, isValidGveEmail } from './lib/supabase'
 import { initOfflineSyncListener, getOfflineQueue, flushOfflineQueue, queueOfflineReport } from './lib/syncQueue'
@@ -34,10 +34,31 @@ const ROLES = [
 function App() {
   const [reports, setReports] = useState<Report[]>(REPORTS)
   const [members, setMembers] = useState<Member[]>(MEMBERS)
+  const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
+    try {
+      const saved = localStorage.getItem('reportflow_deadlines')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached deadlines', e)
+    }
+    return DEFAULT_DEADLINES
+  })
   const [session, setSession] = useState<UserSession | null>(null)
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(0)
   const [syncToast, setSyncToast] = useState<string | null>(null)
+
+  // Persist deadlines to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('reportflow_deadlines', JSON.stringify(deadlines))
+    } catch (e) {
+      console.warn('Failed to cache deadlines', e)
+    }
+  }, [deadlines])
 
   // Login & Sign-up states
   const [email, setEmail] = useState('')
@@ -118,10 +139,41 @@ function App() {
     }
   }, [])
 
+  // Fetch deadlines from Supabase
+  const fetchDeadlinesFromSupabase = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('deadlines')
+        .select('*')
+        .order('due_date', { ascending: true })
+
+      if (error) {
+        console.warn('Supabase deadlines fetch error, using local fallback:', error.message)
+        return
+      }
+
+      if (data && data.length > 0) {
+        const mapped: Deadline[] = data.map((row: any) => ({
+          id: Number(row.id),
+          title: row.title,
+          department: row.department,
+          dueDate: row.due_date,
+          description: row.description || undefined,
+          priority: row.priority || 'Medium',
+          createdAt: row.created_at,
+        }))
+        setDeadlines(mapped)
+      }
+    } catch (err) {
+      console.warn('Failed to load deadlines from Supabase:', err)
+    }
+  }, [])
+
   // Initial setup & network listeners
   useEffect(() => {
     fetchReportsFromSupabase()
     fetchMembersFromSupabase()
+    fetchDeadlinesFromSupabase()
 
     // Real-time subscription to reports table
     const reportsChannel = supabase
@@ -139,6 +191,14 @@ function App() {
       })
       .subscribe()
 
+    // Real-time subscription to deadlines table
+    const deadlinesChannel = supabase
+      .channel('public:deadlines')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deadlines' }, () => {
+        fetchDeadlinesFromSupabase()
+      })
+      .subscribe()
+
     // Offline sync queue listener
     const updateQueueState = () => {
       setPendingQueueCount(getOfflineQueue().length)
@@ -149,6 +209,7 @@ function App() {
       setSyncToast('Offline reports successfully synced to Supabase!')
       setTimeout(() => setSyncToast(null), 4000)
       fetchReportsFromSupabase()
+      fetchDeadlinesFromSupabase()
       updateQueueState()
     })
 
@@ -161,11 +222,12 @@ function App() {
     return () => {
       supabase.removeChannel(reportsChannel)
       supabase.removeChannel(membersChannel)
+      supabase.removeChannel(deadlinesChannel)
       cleanupSync()
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [fetchReportsFromSupabase, fetchMembersFromSupabase])
+  }, [fetchReportsFromSupabase, fetchMembersFromSupabase, fetchDeadlinesFromSupabase])
 
   // Custom setReports wrapper that pushes updates to Supabase & Sync Queue
   const handleUpdateReports: React.Dispatch<React.SetStateAction<Report[]>> = (action) => {
@@ -224,6 +286,52 @@ function App() {
 
       return nextReports
     })
+  }
+
+  // Handle Admin creating a new department deadline
+  const handleCreateDeadline = async (deadlineData: Omit<Deadline, 'id' | 'createdAt'>) => {
+    const tempId = Date.now()
+    const newDeadline: Deadline = {
+      id: tempId,
+      ...deadlineData,
+      createdAt: new Date().toISOString(),
+    }
+
+    setDeadlines((prev) => [newDeadline, ...prev])
+
+    if (navigator.onLine) {
+      try {
+        const dbRow = {
+          title: deadlineData.title,
+          department: deadlineData.department,
+          due_date: deadlineData.dueDate,
+          description: deadlineData.description || null,
+          priority: deadlineData.priority || 'Medium',
+        }
+        const { data, error } = await supabase.from('deadlines').insert(dbRow).select()
+        if (!error && data && data[0]) {
+          const dbId = Number(data[0].id)
+          setDeadlines((prev) => prev.map((d) => (d.id === tempId ? { ...d, id: dbId } : d)))
+        } else if (error) {
+          console.warn('Supabase deadline insert notice:', error.message)
+        }
+      } catch (e) {
+        console.error('Failed to sync new deadline to Supabase', e)
+      }
+    }
+  }
+
+  // Handle Admin deleting a deadline
+  const handleDeleteDeadline = async (id: number) => {
+    setDeadlines((prev) => prev.filter((d) => d.id !== id))
+
+    if (navigator.onLine) {
+      try {
+        await supabase.from('deadlines').delete().eq('id', id)
+      } catch (e) {
+        console.error('Failed to delete deadline from Supabase', e)
+      }
+    }
   }
 
   // Handle Login & Signup with @gve-group.com Domain Enforcement
@@ -765,9 +873,23 @@ function App() {
       )}
 
       {session.role === 'admin' ? (
-        <AdminView reports={reports} setReports={handleUpdateReports} members={members} onLogout={handleLogout} />
+        <AdminView
+          reports={reports}
+          setReports={handleUpdateReports}
+          members={members}
+          deadlines={deadlines}
+          onCreateDeadline={handleCreateDeadline}
+          onDeleteDeadline={handleDeleteDeadline}
+          onLogout={handleLogout}
+        />
       ) : (
-        <StaffView reports={reports} setReports={handleUpdateReports} member={session.member!} onLogout={handleLogout} />
+        <StaffView
+          reports={reports}
+          setReports={handleUpdateReports}
+          member={session.member!}
+          deadlines={deadlines}
+          onLogout={handleLogout}
+        />
       )}
       <footer className="text-center py-4 bg-background border-t border-border/40 text-xs text-muted-foreground/80 font-mono">
         {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field Infrastructure Network.

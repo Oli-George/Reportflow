@@ -50,10 +50,63 @@ export interface Member {
   color: string
 }
 
+export interface Deadline {
+  id: number
+  title: string
+  department: string
+  dueDate: string
+  description?: string
+  priority?: "High" | "Medium" | "Low"
+  createdAt?: string
+}
+
+export function formatDeadlineDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"))
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  } catch (e) {
+    return dateStr
+  }
+}
+
+export function getDeadlineUrgency(dateStr: string): { label: string; isOverdue: boolean; isUrgent: boolean } {
+  try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const due = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"))
+    due.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) {
+      return { label: `Overdue (${Math.abs(diffDays)}d ago)`, isOverdue: true, isUrgent: true }
+    } else if (diffDays === 0) {
+      return { label: "Due Today", isOverdue: false, isUrgent: true }
+    } else if (diffDays === 1) {
+      return { label: "Due Tomorrow", isOverdue: false, isUrgent: true }
+    } else if (diffDays <= 3) {
+      return { label: `Due in ${diffDays} days`, isOverdue: false, isUrgent: true }
+    } else {
+      return { label: `In ${diffDays} days`, isOverdue: false, isUrgent: false }
+    }
+  } catch (e) {
+    return { label: dateStr, isOverdue: false, isUrgent: false }
+  }
+}
+
+export const DEFAULT_DEADLINES: Deadline[] = [
+  { id: 1, title: "Weekly Site Operational Log", department: "Engineering", dueDate: "2026-08-28", priority: "High", description: "Submission of all 12-hour solar PV, inverter remarks, and battery bank parameters." },
+  { id: 2, title: "Q3 Facility & Safety Audit", department: "Operations", dueDate: "2026-08-30", priority: "Medium", description: "Quarterly inspection of fire suppression and earthing grids." },
+  { id: 3, title: "Monthly Capex & Field Reconciliation", department: "Finance", dueDate: "2026-08-31", priority: "High", description: "Reconciliation of site diesel procurement and technician allowances." },
+  { id: 4, title: "Monthly Performance & KPI Review", department: "All Departments", dueDate: "2026-08-31", priority: "Medium", description: "General monthly reporting cycle across all departmental teams." },
+]
+
 export interface AdminViewProps {
   reports: Report[]
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
   members?: Member[]
+  deadlines?: Deadline[]
+  onCreateDeadline?: (deadline: Omit<Deadline, "id" | "createdAt">) => void
+  onDeleteDeadline?: (id: number) => void
   onLogout?: () => void
 }
 
@@ -404,7 +457,24 @@ function Header({
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 
-function DashboardView({ reports, onInspect, searchQuery }: { reports: Report[]; onInspect: (r: Report) => void; searchQuery: string }) {
+function DashboardView({
+  reports,
+  onInspect,
+  searchQuery,
+  deadlines = [],
+  onOpenDeadlineModal,
+  onDeleteDeadline,
+}: {
+  reports: Report[]
+  onInspect: (r: Report) => void
+  searchQuery: string
+  deadlines?: Deadline[]
+  onOpenDeadlineModal?: () => void
+  onDeleteDeadline?: (id: number) => void
+}) {
+  const [selectedDeadlineId, setSelectedDeadlineId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+
   const filteredReports = useMemo(() => {
     if (!searchQuery.trim()) return reports
     const q = searchQuery.toLowerCase()
@@ -488,49 +558,130 @@ function DashboardView({ reports, onInspect, searchQuery }: { reports: Report[];
             }}
           >
             <div
-              className="px-5 py-4 border-b"
+              className="px-5 py-3.5 border-b flex items-center justify-between"
               style={{ borderColor: "var(--border)" }}
             >
-              <h2
-                className="font-display font-600 text-sm"
-                style={{ color: "var(--foreground)" }}
-              >
-                Upcoming Deadlines
-              </h2>
-            </div>
-            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-              {[
-                { label: "Monthly Reports", date: "Jul 31", dept: "All Departments",},
-                { label: "Q2 Finance Review", date: "Jul 30", dept: "Finance" },
-                {label: "Weekly Team Update", date: "Jul 28", dept: "Engineering",},
-              ].map((d, i) => (
-                <div
-                  key={i}
-                  className="px-5 py-3 flex items-center justify-between"
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📅</span>
+                <h2
+                  className="font-display font-600 text-sm"
+                  style={{ color: "var(--foreground)" }}
                 >
-                  <div>
-                    <p
-                      className="text-sm font-medium"
-                      style={{ color: "var(--foreground)" }}
-                    >
-                      {d.label}
-                    </p>
-                    <p className="text-xs font-mono" style={{ color: "var(--muted-foreground)" }}>
-                      {d.dept}
-                    </p>
-                  </div>
-                  <span
-                    className="text-xs font-mono px-2 py-1 rounded border"
-                    style={{
-                      color: "var(--accent)",
-                      borderColor: "#7a4010",
-                      backgroundColor: "#1a0e00",
-                    }}
-                  >
-                    {d.date}
-                  </span>
+                  Upcoming Deadlines
+                </h2>
+              </div>
+              {onOpenDeadlineModal && (
+                <button
+                  type="button"
+                  onClick={onOpenDeadlineModal}
+                  className="px-2.5 py-1 rounded text-xs font-mono font-semibold bg-primary hover:bg-primary-hover text-foreground border border-border/60 transition-all flex items-center gap-1 shadow-sm active:translate-y-px"
+                >
+                  <span>+</span> Set Deadline
+                </button>
+              )}
+            </div>
+            <div className="divide-y max-h-[360px] overflow-y-auto" style={{ borderColor: "var(--border)" }}>
+              {deadlines.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground font-mono">
+                  No deadlines set. Click <strong className="text-primary-hover">"+ Set Deadline"</strong> to schedule departmental submission targets.
                 </div>
-              ))}
+              ) : (
+                [...deadlines]
+                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+                  .map((d) => {
+                    const urgency = getDeadlineUrgency(d.dueDate)
+                    const isSelected = selectedDeadlineId === d.id
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => {
+                          setSelectedDeadlineId((prev) => (prev === d.id ? null : d.id))
+                          setConfirmDeleteId(null)
+                        }}
+                        className={`px-5 py-3 transition-colors cursor-pointer ${
+                          isSelected ? "bg-secondary/60 border-l-2 border-l-primary" : "hover:bg-white/[0.02]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p
+                                className="text-sm font-medium truncate"
+                                style={{ color: "var(--foreground)" }}
+                                title={d.title}
+                              >
+                                {d.title}
+                              </p>
+                              {d.priority === 'High' && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
+                                  High
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                                {d.department}
+                              </span>
+                              {d.description && !isSelected && (
+                                <span className="text-[11px] text-muted-foreground truncate hidden sm:inline" title={d.description}>
+                                  · {d.description}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span
+                              className={`text-xs font-mono px-2 py-1 rounded border block ${
+                                urgency.isOverdue
+                                  ? 'bg-rose-950/40 border-rose-800 text-rose-400'
+                                  : urgency.isUrgent
+                                  ? 'bg-amber-950/40 border-amber-800 text-amber-300'
+                                  : 'bg-emerald-950/30 border-emerald-800/40 text-emerald-400'
+                              }`}
+                            >
+                              {formatDeadlineDate(d.dueDate)}
+                            </span>
+                            <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                              {urgency.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expanded details & delete button shown only when tapped */}
+                        {isSelected && (
+                          <div className="mt-2.5 pt-2.5 border-t border-border/60 flex items-center justify-between gap-3 animate-fadeIn">
+                            <p className="text-[11px] text-muted-foreground font-mono truncate">
+                              {d.description || `Target: ${d.department} • Due: ${formatDeadlineDate(d.dueDate)}`}
+                            </p>
+                            {onDeleteDeadline && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (confirmDeleteId === d.id) {
+                                    onDeleteDeadline(d.id)
+                                    setSelectedDeadlineId(null)
+                                    setConfirmDeleteId(null)
+                                  } else {
+                                    setConfirmDeleteId(d.id)
+                                  }
+                                }}
+                                className={`px-2.5 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-all shadow-sm shrink-0 ${
+                                  confirmDeleteId === d.id
+                                    ? "bg-rose-600 text-white font-bold animate-pulse"
+                                    : "bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300"
+                                }`}
+                              >
+                                <span>🗑️</span>
+                                <span>{confirmDeleteId === d.id ? "Confirm Delete?" : "Delete Deadline"}</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+              )}
             </div>
           </div>
 
@@ -1406,12 +1557,199 @@ function AdminCreateReportModal({
   )
 }
 
-export default function AdminView({ reports, setReports, members = MEMBERS, onLogout }: AdminViewProps) {
+// ─── Create Deadline Modal ───────────────────────────────────────────────────
+
+function CreateDeadlineModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void
+  onSubmit: (deadline: Omit<Deadline, "id" | "createdAt">) => void
+}) {
+  const [title, setTitle] = useState("")
+  const [department, setDepartment] = useState("All Departments")
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().split("T")[0]
+  })
+  const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium")
+  const [description, setDescription] = useState("")
+  const [error, setError] = useState("")
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!title.trim()) {
+      setError("Please enter a deadline title.")
+      return
+    }
+    if (!dueDate) {
+      setError("Please select a due date.")
+      return
+    }
+    onSubmit({
+      title: title.trim(),
+      department,
+      dueDate,
+      priority,
+      description: description.trim() || undefined,
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-fadeIn">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center text-primary-foreground font-mono font-bold text-sm">
+              📅
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-base text-foreground">Set Department Deadline</h2>
+              <p className="text-xs text-muted-foreground font-mono">Assign submission requirement & due date</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground text-sm font-mono transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+              Deadline Title / Requirement <span className="text-accent">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Weekly Site Operations Log, Q3 Solar Array Audit..."
+              className="w-full bg-secondary border border-border rounded-md px-3.5 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                Target Department <span className="text-accent">*</span>
+              </label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover"
+              >
+                <option value="All Departments">All Departments</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Operations">Operations</option>
+                <option value="Finance">Finance</option>
+                <option value="Marketing">Marketing</option>
+                <option value="HR">HR</option>
+                <option value="Sales">Sales</option>
+                <option value="Legal">Legal</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                Due Date <span className="text-accent">*</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Priority Level</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["High", "Medium", "Low"] as const).map((p) => {
+                const isSelected = priority === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPriority(p)}
+                    className={`py-2 px-3 rounded-md text-xs font-mono font-medium border transition-all ${
+                      isSelected
+                        ? p === "High"
+                          ? "bg-rose-950/80 border-rose-600 text-rose-300 font-bold"
+                          : p === "Medium"
+                          ? "bg-amber-950/80 border-amber-600 text-amber-300 font-bold"
+                          : "bg-emerald-950/80 border-emerald-600 text-emerald-300 font-bold"
+                        : "bg-secondary/60 border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {p === "High" ? "🔴 High" : p === "Medium" ? "🟡 Medium" : "🟢 Low"}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+              Instructions / Description (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Provide specific notes, guidelines, or checklists for field staff..."
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="text-xs font-mono text-rose-400 bg-rose-950/40 border border-rose-800 rounded p-2.5">
+              {error}
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-border flex justify-end gap-3 -mx-6 -mb-6 px-6 py-4 bg-secondary/30">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-mono border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-mono font-semibold rounded-md bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px"
+            >
+              Publish Deadline
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default function AdminView({
+  reports,
+  setReports,
+  members = MEMBERS,
+  deadlines = DEFAULT_DEADLINES,
+  onCreateDeadline,
+  onDeleteDeadline,
+  onLogout,
+}: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
   const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   // Filter out any reports in Draft stage so they are not accessible to admins
@@ -1475,7 +1813,16 @@ export default function AdminView({ reports, setReports, members = MEMBERS, onLo
         className="transition-all duration-200"
         style={{ marginLeft: sidebarW, paddingTop: 56 + 24, paddingBottom: 40, paddingLeft: 24, paddingRight: 24, minHeight: "100vh" }}
       >
-        {view === "dashboard" && <DashboardView reports={adminReports} onInspect={setInspectingReport} searchQuery={searchQuery} />}
+        {view === "dashboard" && (
+          <DashboardView
+            reports={adminReports}
+            onInspect={setInspectingReport}
+            searchQuery={searchQuery}
+            deadlines={deadlines}
+            onOpenDeadlineModal={() => setIsDeadlineModalOpen(true)}
+            onDeleteDeadline={onDeleteDeadline}
+          />
+        )}
         {view === "reports" && (
           <ReportsView
             reports={adminReports}
@@ -1495,6 +1842,14 @@ export default function AdminView({ reports, setReports, members = MEMBERS, onLo
         <AdminCreateReportModal
           onClose={() => setIsCreateModalOpen(false)}
           onSubmit={handleCreateAdminReport}
+        />
+      )}
+
+      {/* Admin Create Deadline Modal */}
+      {isDeadlineModalOpen && onCreateDeadline && (
+        <CreateDeadlineModal
+          onClose={() => setIsDeadlineModalOpen(false)}
+          onSubmit={onCreateDeadline}
         />
       )}
 
@@ -1520,3 +1875,4 @@ export default function AdminView({ reports, setReports, members = MEMBERS, onLo
     </div>
   )
 }
+

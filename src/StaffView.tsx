@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Report, Member, Badge } from './AdminView'
+import { Report, Member, Badge, Deadline, formatDeadlineDate, getDeadlineUrgency, DEFAULT_DEADLINES } from './AdminView'
 import GveKukaHourlyForm from './components/GveKukaHourlyForm'
 import GveWeeklyForm from './components/GveWeeklyForm'
 
@@ -63,12 +63,13 @@ interface StaffViewProps {
   reports: Report[]
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
   member: Member
+  deadlines?: Deadline[]
   onLogout: () => void
 }
 
 type StaffTab = 'dashboard' | 'history' | 'submit'
 
-export default function StaffView({ reports, setReports, member, onLogout }: StaffViewProps) {
+export default function StaffView({ reports, setReports, member, deadlines = DEFAULT_DEADLINES, onLogout }: StaffViewProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>('dashboard')
   const [collapsed, setCollapsed] = useState(false)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
@@ -100,6 +101,18 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
         r.summary.toLowerCase().includes(q)
     )
   }, [myReports, searchQuery])
+
+  // Filter deadlines for this staff member's department and general organizational deadlines
+  const myDeadlines = useMemo(() => {
+    if (!deadlines || deadlines.length === 0) return []
+    const memberDept = member.department.trim().toLowerCase()
+    return [...deadlines]
+      .filter((d) => {
+        const dDept = d.department.trim().toLowerCase()
+        return dDept === memberDept || dDept === 'all departments' || dDept === 'all'
+      })
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+  }, [deadlines, member.department])
 
   // Compute metrics for the logged-in staff member
   const stats = useMemo(() => {
@@ -357,22 +370,62 @@ export default function StaffView({ reports, setReports, member, onLogout }: Sta
                     <h2 className="font-display font-600 text-sm text-foreground flex items-center gap-2">
                       <CalendarIcon size={16} /> Upcoming Deadlines
                     </h2>
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                      {member.department}
+                    </span>
                   </div>
-                  <div className="divide-y divide-border">
-                    {[
-                      { label: "Weekly Update", date: "Jul 28", dept: member.department },
-                      { label: "Monthly Summary", date: "Jul 31", dept: member.department },
-                    ].map((d, i) => (
-                      <div key={i} className="px-5 py-3 flex items-center justify-between text-sm">
-                        <div>
-                          <p className="font-medium text-foreground">{d.label}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{d.dept}</p>
-                        </div>
-                        <span className="text-xs font-mono px-2 py-1 rounded border border-accent/20 bg-accent/5 text-accent">
-                          {d.date}
-                        </span>
+                  <div className="divide-y divide-border max-h-[340px] overflow-y-auto">
+                    {myDeadlines.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-muted-foreground font-mono">
+                        No upcoming submission deadlines scheduled for {member.department}.
                       </div>
-                    ))}
+                    ) : (
+                      myDeadlines.map((d) => {
+                        const urgency = getDeadlineUrgency(d.dueDate)
+                        return (
+                          <div key={d.id} className="px-5 py-3.5 flex items-center justify-between gap-3 text-sm hover:bg-white/[0.02] transition-colors">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-foreground text-xs sm:text-sm truncate" title={d.title}>
+                                  {d.title}
+                                </p>
+                                {d.priority === 'High' && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
+                                    High
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                                  {d.department}
+                                </span>
+                                {d.description && (
+                                  <span className="text-[11px] text-muted-foreground truncate hidden sm:inline" title={d.description}>
+                                    · {d.description}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`text-xs font-mono px-2 py-1 rounded border block ${
+                                  urgency.isOverdue
+                                    ? 'bg-rose-950/40 border-rose-800 text-rose-400'
+                                    : urgency.isUrgent
+                                    ? 'bg-amber-950/40 border-amber-800 text-amber-300'
+                                    : 'bg-emerald-950/30 border-emerald-800/40 text-emerald-400'
+                                }`}
+                              >
+                                {formatDeadlineDate(d.dueDate)}
+                              </span>
+                              <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                                {urgency.label}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
                   </div>
                 </div>
               </div>
