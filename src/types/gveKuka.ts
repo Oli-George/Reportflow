@@ -45,6 +45,8 @@ export interface GveKukaHourlyEntry {
   operatorSignature?: string
 }
 
+import { ReportAttachment } from './attachment'
+
 export interface GveKukaRecordData {
   siteName: string
   title: string
@@ -52,6 +54,7 @@ export interface GveKukaRecordData {
   day: string
   year: string
   entries: GveKukaHourlyEntry[]
+  attachments?: ReportAttachment[]
 }
 
 // Default initial hourly entries in 12-hour format

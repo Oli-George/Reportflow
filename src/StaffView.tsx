@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Report, Member, Badge, Deadline, formatDeadlineDate, getDeadlineUrgency, DEFAULT_DEADLINES } from './AdminView'
 import GveKukaHourlyForm from './components/GveKukaHourlyForm'
 import GveWeeklyForm from './components/GveWeeklyForm'
+import ReportPhotoUploader from './components/ReportPhotoUploader'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -536,6 +537,15 @@ export default function StaffView({ reports, setReports, member, deadlines = DEF
                         <>
                           <p className="text-xs font-mono uppercase tracking-wider mb-2 text-muted-foreground">Report Content / Summary</p>
                           <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{r.summary}</p>
+                          {r.attachments && r.attachments.length > 0 && (
+                            <div className="mt-3">
+                              <ReportPhotoUploader
+                                attachments={r.attachments}
+                                readOnly={true}
+                                title="Attached Site Photos"
+                              />
+                            </div>
+                          )}
                         </>
                       )}
                       
@@ -629,6 +639,7 @@ export default function StaffView({ reports, setReports, member, deadlines = DEF
                       submitted: new Date(),
                       status: status,
                       summary: `Official GVE Site Operational Hourly Record for ${gveData.date} (${gveData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
+                      attachments: gveData.attachments || [],
                       gveKukaData: gveData
                     }
                     if (editingReportId !== null) {
@@ -661,6 +672,7 @@ export default function StaffView({ reports, setReports, member, deadlines = DEF
                       submitted: new Date(),
                       status: status,
                       summary: `Official GVE Weekly Site Report Form containing overall facility cleanliness, outages/faults log over the week, and complete weekly equipment remarks.`,
+                      attachments: weeklyData.attachments || [],
                       gveWeeklyData: weeklyData
                     }
                     if (editingReportId !== null) {

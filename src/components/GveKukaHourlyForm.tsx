@@ -6,6 +6,8 @@ import {
   DEFAULT_12HR_TIMES,
   createEmptyGveEntry,
 } from '../types/gveKuka'
+import { ReportAttachment } from '../types/attachment'
+import ReportPhotoUploader from './ReportPhotoUploader'
 
 interface GveKukaHourlyFormProps {
   initialData?: GveKukaRecordData
@@ -36,6 +38,10 @@ export default function GveKukaHourlyForm({
     }
     return DEFAULT_12HR_TIMES.map((time, idx) => createEmptyGveEntry(time, idx))
   })
+
+  const [attachments, setAttachments] = useState<ReportAttachment[]>(
+    initialData?.attachments || []
+  )
 
   const [viewMode, setViewMode] = useState<'paper' | 'interactive'>('paper')
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -140,6 +146,7 @@ export default function GveKukaHourlyForm({
         day,
         year,
         entries,
+        attachments,
       }, 'Draft')
     }
   }
@@ -154,6 +161,7 @@ export default function GveKukaHourlyForm({
         day,
         year,
         entries,
+        attachments,
       }, 'Submitted')
     }
   }
@@ -588,6 +596,15 @@ export default function GveKukaHourlyForm({
         </div>
       )}
 
+      {/* Report Photo & Evidence Uploader at End of Report */}
+      <ReportPhotoUploader
+        attachments={attachments}
+        onChange={setAttachments}
+        readOnly={readOnly}
+        title="Site Photos & Operational Evidence"
+        description="Attach photos of the solar PV field, inverter readings, battery room, or site damages. Available offline and syncs automatically."
+      />
+
       {/* Live PDF Export & Print Modal */}
       {showPdfModal && (
         <div className="no-print fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -707,6 +724,30 @@ export default function GveKukaHourlyForm({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Print Attached Photos Section */}
+                  {attachments.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-black">
+                      <h4 className="text-[10px] font-bold uppercase text-black mb-2">
+                        ATTACHED SITE PHOTOS & EVIDENCE ({attachments.length})
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {attachments.map((att) => (
+                          <div key={att.id} className="border border-black p-1 bg-white flex flex-col gap-1">
+                            <img
+                              src={att.dataUrl || att.url}
+                              alt={att.caption || att.name}
+                              className="w-full h-28 object-cover border border-zinc-300"
+                            />
+                            <div className="text-[8px] font-mono leading-tight">
+                              <span className="font-bold uppercase">[{att.category || 'GENERAL'}]: </span>
+                              <span>{att.caption || att.name}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -1,3 +1,5 @@
+import { ReportAttachment } from './attachment'
+
 export interface OutageFaultEntry {
   id: string
   day: string // "DAY 1", "DAY 2", etc.
@@ -39,6 +41,9 @@ export interface GveWeeklyRecordData {
   maintenanceCarriedOut: string
   housekeepingActivities: string
   anyOtherComment: string
+
+  // Attachments
+  attachments?: ReportAttachment[]
 }
 
 export const DEFAULT_WEEKLY_DAYS = [

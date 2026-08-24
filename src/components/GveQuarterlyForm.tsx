@@ -7,6 +7,8 @@ import {
   MPPT_KEYS_15,
   STRING_KEYS_15,
 } from '../types/gveQuarterly'
+import { ReportAttachment } from '../types/attachment'
+import ReportPhotoUploader from './ReportPhotoUploader'
 
 interface GveQuarterlyFormProps {
   initialData?: GveQuarterlyRecordData
@@ -954,6 +956,15 @@ export default function GveQuarterlyForm({
         </div>
       )}
 
+      {/* Report Photo & Evidence Uploader at End of Report */}
+      <ReportPhotoUploader
+        attachments={formData.attachments || []}
+        onChange={(attachments) => updateField('attachments', attachments)}
+        readOnly={readOnly}
+        title="Quarterly Site Audit Photos & Visual Evidence"
+        description="Attach photos for all 9 audit categories (PV, Inverters, BESS, Earthing, PPEs, Switchgear, Site condition). Works offline and auto-syncs."
+      />
+
       {/* PDF Export & Print Modal (No emojis) */}
       {showPdfModal && (
         <div className="no-print fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -1006,6 +1017,30 @@ export default function GveQuarterlyForm({
                   <p className="font-bold border-b border-black pb-1 mb-1">GENERAL REMARK</p>
                   <p>{formData.generalRemark}</p>
                 </div>
+
+                {/* Print Attached Photos Section */}
+                {formData.attachments && formData.attachments.length > 0 && (
+                  <div className="mt-4 pt-3 border-t-2 border-black">
+                    <h4 className="text-[10px] font-bold uppercase text-black mb-2">
+                      ATTACHED AUDIT PHOTOS & VISUAL FINDINGS ({formData.attachments.length})
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {formData.attachments.map((att) => (
+                        <div key={att.id} className="border border-black p-1 bg-white flex flex-col gap-1">
+                          <img
+                            src={att.dataUrl || att.url}
+                            alt={att.caption || att.name}
+                            className="w-full h-28 object-cover border border-zinc-300"
+                          />
+                          <div className="text-[8px] font-mono leading-tight">
+                            <span className="font-bold uppercase">[{att.category || 'GENERAL'}]: </span>
+                            <span>{att.caption || att.name}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

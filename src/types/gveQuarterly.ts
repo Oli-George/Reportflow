@@ -1,3 +1,5 @@
+import { ReportAttachment } from './attachment'
+
 export interface ArrayColumnValues {
   [arrayKey: string]: string // e.g. "ARRAY 1", "ARRAY 2" ... "ARRAY 15"
 }
@@ -259,6 +261,9 @@ export interface GveQuarterlyRecordData {
   commentOnSafetySignage: string
   commentOnMeteringVendingCustomers: string
   generalRemark: string
+
+  // Photo Attachments & Visual Evidence
+  attachments?: ReportAttachment[]
 }
 
 // Generate default array keys for 15 columns

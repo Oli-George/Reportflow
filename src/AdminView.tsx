@@ -8,9 +8,11 @@ import {
 import GveKukaHourlyForm from "./components/GveKukaHourlyForm"
 import GveWeeklyForm from "./components/GveWeeklyForm"
 import GveQuarterlyForm from "./components/GveQuarterlyForm"
+import ReportPhotoUploader from "./components/ReportPhotoUploader"
 import { GveKukaRecordData } from "./types/gveKuka"
 import { GveWeeklyRecordData } from "./types/gveWeekly"
 import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
+import { ReportAttachment } from "./types/attachment"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ export interface Report {
   status: ReportStatus
   summary: string
   feedback?: string
+  attachments?: ReportAttachment[]
   gveKukaData?: GveKukaRecordData
   gveWeeklyData?: GveWeeklyRecordData
   gveQuarterlyData?: GveQuarterlyRecordData
@@ -1288,6 +1291,16 @@ function FullReportModal({
               {report.feedback}
             </div>
           )}
+
+          {/* Attached Photos & Evidence Gallery */}
+          {report.attachments && report.attachments.length > 0 && !report.gveKukaData && !report.gveWeeklyData && !report.gveQuarterlyData && (
+            <ReportPhotoUploader
+              attachments={report.attachments}
+              readOnly={true}
+              title="Attached Report Photos & Evidence"
+              description="Visual documentation and photographic evidence attached to this report submission."
+            />
+          )}
         </div>
 
         {/* Footer Actions */}
@@ -1405,6 +1418,7 @@ function AdminCreateReportModal({
   const [department, setDepartment] = useState("Engineering")
   const [type, setType] = useState<ReportType>("Quarterly")
   const [summary, setSummary] = useState("")
+  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
   const [error, setError] = useState("")
   const [quarterlyData, setQuarterlyData] = useState<GveQuarterlyRecordData>(createEmptyGveQuarterlyData())
 
@@ -1424,6 +1438,7 @@ function AdminCreateReportModal({
       department,
       type,
       summary,
+      attachments,
       ...(type === "Quarterly" ? { gveQuarterlyData: quarterlyData } : {}),
     })
     onClose()
@@ -1529,6 +1544,15 @@ function AdminCreateReportModal({
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover resize-y"
             />
           </div>
+
+          {/* Photo & File Uploader at End of Admin Composer */}
+          <ReportPhotoUploader
+            attachments={attachments}
+            onChange={setAttachments}
+            readOnly={false}
+            title="Attached Photos & Inspection Evidence"
+            description="Add site photos, charts, or visual evidence for this report."
+          />
 
           {error && (
             <div className="text-xs font-mono text-accent bg-accent/10 border border-accent/25 rounded p-2.5">
