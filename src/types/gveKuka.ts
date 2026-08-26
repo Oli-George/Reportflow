@@ -45,7 +45,7 @@ export interface GveKukaHourlyEntry {
   operatorSignature?: string
 }
 
-import { ReportAttachment } from './attachment'
+import { ReportAttachment } from "./attachment"
 
 export interface GveKukaRecordData {
   siteName: string
@@ -59,32 +59,53 @@ export interface GveKukaRecordData {
 
 // Default initial hourly entries in 12-hour format
 export const DEFAULT_12HR_TIMES = [
-  '06:00 AM',
-  '07:00 AM',
-  '08:00 AM',
-  '09:00 AM',
-  '10:00 AM',
-  '11:00 AM',
-  '12:00 PM',
-  '01:00 PM',
-  '02:00 PM',
-  '03:00 PM',
-  '04:00 PM',
-  '05:00 PM',
-  '06:00 PM',
+  "06:00 AM",
+  "07:00 AM",
+  "08:00 AM",
+  "09:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "01:00 PM",
+  "02:00 PM",
+  "03:00 PM",
+  "04:00 PM",
+  "05:00 PM",
+  "06:00 PM",
 ]
 
-export function createEmptyGveEntry(time: string, idSuffix: number): GveKukaHourlyEntry {
+export function createEmptyGveEntry(
+  time: string,
+  idSuffix: number,
+): GveKukaHourlyEntry {
   return {
     id: `entry-${Date.now()}-${idSuffix}`,
     time,
-    pv: { volt: '', curr: '', power: '', energy: '' },
-    battery: { volt: '', curr: '', soc: '', soh: '' },
-    load: { l1_v: '', l1_a: '', l2_v: '', l2_c: '', l3_v: '', l3_c: '', power: '', energy: '' },
-    grid: { l1_v: '', l1_a: '', l2_v: '', l2_c: '', l3_v: '', l3_c: '', power: '', energy: '' },
-    spd: { in: 'GOOD', out: 'GOOD' },
-    cooling: { ac1: 'ON', ac2: 'ON' },
-    operatorName: '',
-    operatorSignature: '',
+    pv: { volt: "", curr: "", power: "", energy: "" },
+    battery: { volt: "", curr: "", soc: "", soh: "" },
+    load: {
+      l1_v: "",
+      l1_a: "",
+      l2_v: "",
+      l2_c: "",
+      l3_v: "",
+      l3_c: "",
+      power: "",
+      energy: "",
+    },
+    grid: {
+      l1_v: "",
+      l1_a: "",
+      l2_v: "",
+      l2_c: "",
+      l3_v: "",
+      l3_c: "",
+      power: "",
+      energy: "",
+    },
+    spd: { in: "GOOD", out: "GOOD" },
+    cooling: { ac1: "ON", ac2: "ON" },
+    operatorName: "",
+    operatorSignature: "",
   }
 }

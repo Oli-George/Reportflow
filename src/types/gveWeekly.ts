@@ -1,4 +1,4 @@
-import { ReportAttachment } from './attachment'
+import { ReportAttachment } from "./attachment"
 
 export interface OutageFaultEntry {
   id: string
@@ -47,55 +47,67 @@ export interface GveWeeklyRecordData {
 }
 
 export const DEFAULT_WEEKLY_DAYS = [
-  'DAY 1', 'DAY 1',
-  'DAY 2', 'DAY 2',
-  'DAY 3', 'DAY 3',
-  'DAY 4', 'DAY 4',
-  'DAY 5', 'DAY 5',
-  'DAY 6', 'DAY 6',
-  'DAY 7', 'DAY 7',
+  "DAY 1",
+  "DAY 1",
+  "DAY 2",
+  "DAY 2",
+  "DAY 3",
+  "DAY 3",
+  "DAY 4",
+  "DAY 4",
+  "DAY 5",
+  "DAY 5",
+  "DAY 6",
+  "DAY 6",
+  "DAY 7",
+  "DAY 7",
 ]
 
-export function createDefaultOutageEntry(day: string, idx: number): OutageFaultEntry {
+export function createDefaultOutageEntry(
+  day: string,
+  idx: number,
+): OutageFaultEntry {
   return {
     id: `outage-${Date.now()}-${idx}`,
     day,
-    date: '',
-    timeOut: '',
-    timeRestored: '',
-    remark: '',
+    date: "",
+    timeOut: "",
+    timeRestored: "",
+    remark: "",
   }
 }
 
 export function createEmptyGveWeeklyData(): GveWeeklyRecordData {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toISOString().split("T")[0]
   return {
-    siteName: '',
-    supervisorName: '',
-    supervisorSignature: '',
+    siteName: "",
+    supervisorName: "",
+    supervisorSignature: "",
     supervisorDate: today,
-    operatorName: '',
-    operatorSignature: '',
+    operatorName: "",
+    operatorSignature: "",
     operatorDate: today,
 
-    powerHouseComment: '',
-    environmentComment: '',
+    powerHouseComment: "",
+    environmentComment: "",
 
-    outages: DEFAULT_WEEKLY_DAYS.map((dayLabel, idx) => createDefaultOutageEntry(dayLabel, idx)),
+    outages: DEFAULT_WEEKLY_DAYS.map((dayLabel, idx) =>
+      createDefaultOutageEntry(dayLabel, idx),
+    ),
 
-    remarkBess: '',
-    remarkInverters: '',
-    remarkChargeControllers: '',
-    remarkDieselGenerator: '',
-    remarkCoolingSystem: '',
-    remarkMeteringVending: '',
-    remarkGridLine: '',
-    remarkFireExtinguisherSafetyTools: '',
-    remarkSpds: '',
+    remarkBess: "",
+    remarkInverters: "",
+    remarkChargeControllers: "",
+    remarkDieselGenerator: "",
+    remarkCoolingSystem: "",
+    remarkMeteringVending: "",
+    remarkGridLine: "",
+    remarkFireExtinguisherSafetyTools: "",
+    remarkSpds: "",
 
-    visitorReceived: '',
-    maintenanceCarriedOut: '',
-    housekeepingActivities: '',
-    anyOtherComment: '',
+    visitorReceived: "",
+    maintenanceCarriedOut: "",
+    housekeepingActivities: "",
+    anyOtherComment: "",
   }
 }

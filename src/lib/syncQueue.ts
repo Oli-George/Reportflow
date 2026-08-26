@@ -1,16 +1,16 @@
-import { supabase } from './supabase'
-import { Report } from '../AdminView'
-import { ReportAttachment } from '../types/attachment'
-import { offlineStorage, StoredOfflineReport } from './offlineStorage'
-import { uploadAttachmentFile } from './storageProviders'
+import { supabase } from "./supabase"
+import { Report } from "../AdminView"
+import { ReportAttachment } from "../types/attachment"
+import { offlineStorage } from "./offlineStorage"
+import { uploadAttachmentFile } from "./storageProviders"
 
-const QUEUE_STORAGE_KEY = 'reportflow_offline_queue'
+const QUEUE_STORAGE_KEY = "reportflow_offline_queue"
 
 export interface OfflineReportQueueItem {
   id: string
   report: Partial<Report>
   createdAt: string
-  status: 'pending_sync' | 'syncing' | 'failed'
+  status: "pending_sync" | "syncing" | "failed"
   errorMessage?: string
 }
 
@@ -21,7 +21,7 @@ export function getOfflineQueue(): OfflineReportQueueItem[] {
     const raw = localStorage.getItem(QUEUE_STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch (e) {
-    console.error('Failed to read offline queue from localStorage', e)
+    console.error("Failed to read offline queue from localStorage", e)
     return []
   }
 }
@@ -30,22 +30,24 @@ export function saveOfflineQueue(queue: OfflineReportQueueItem[]): void {
   try {
     localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
   } catch (e) {
-    console.error('Failed to write offline queue to localStorage', e)
+    console.error("Failed to write offline queue to localStorage", e)
   }
 }
 
 // Add report to offline queue and IndexedDB
-export async function queueOfflineReport(report: Partial<Report>): Promise<OfflineReportQueueItem> {
+export async function queueOfflineReport(
+  report: Partial<Report>,
+): Promise<OfflineReportQueueItem> {
   const queue = getOfflineQueue()
   const tempId = `offline_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   const item: OfflineReportQueueItem = {
     id: tempId,
     report: {
       ...report,
-      id: typeof report.id === 'number' ? report.id : Date.now(),
+      id: typeof report.id === "number" ? report.id : Date.now(),
     },
     createdAt: new Date().toISOString(),
-    status: 'pending_sync',
+    status: "pending_sync",
   }
 
   // Save to memory/localStorage queue
@@ -80,7 +82,10 @@ export async function queueOfflineReport(report: Partial<Report>): Promise<Offli
       }
     }
   } catch (idbErr) {
-    console.warn('Could not save to IndexedDB, fallback to localStorage used:', idbErr)
+    console.warn(
+      "Could not save to IndexedDB, fallback to localStorage used:",
+      idbErr,
+    )
   }
 
   return item
@@ -88,7 +93,7 @@ export async function queueOfflineReport(report: Partial<Report>): Promise<Offli
 
 // Flush pending reports to Supabase when online
 export async function flushOfflineQueue(
-  onStatusChange?: (count: number) => void
+  onStatusChange?: (count: number) => void,
 ): Promise<{ synced: number; failed: number }> {
   if (!navigator.onLine) {
     return { synced: 0, failed: 0 }
@@ -113,7 +118,10 @@ export async function flushOfflineQueue(
             }
 
             try {
-              const uploadRes = await uploadAttachmentFile(att, item.report.author || 'technician')
+              const uploadRes = await uploadAttachmentFile(
+                att,
+                item.report.author || "technician",
+              )
               return {
                 ...att,
                 url: uploadRes.url,
@@ -122,15 +130,18 @@ export async function flushOfflineQueue(
                 isOfflineOnly: false,
               }
             } catch (upErr) {
-              console.warn('Failed to upload image to cloud storage, keeping inline fallback:', upErr)
+              console.warn(
+                "Failed to upload image to cloud storage, keeping inline fallback:",
+                upErr,
+              )
               return {
                 ...att,
-                url: att.dataUrl || '',
-                storageProvider: 'inline' as const,
+                url: att.dataUrl || "",
+                storageProvider: "inline" as const,
                 isOfflineOnly: false,
               }
             }
-          })
+          }),
         )
       }
 
@@ -140,7 +151,7 @@ export async function flushOfflineQueue(
         author: item.report.author,
         department: item.report.department,
         type: item.report.type,
-        status: item.report.status || 'Submitted',
+        status: item.report.status || "Submitted",
         summary: item.report.summary,
         feedback: item.report.feedback || null,
         attachments: syncedAttachments.length > 0 ? syncedAttachments : null,
@@ -152,12 +163,16 @@ export async function flushOfflineQueue(
           : new Date().toISOString(),
       }
 
-      const { error } = await supabase.from('reports').insert(dbRow)
+      const { error } = await supabase.from("reports").insert(dbRow)
 
       if (error) {
-        console.error('Supabase sync error for item', item.id, error)
+        console.error("Supabase sync error for item", item.id, error)
         failed++
-        remainingQueue.push({ ...item, status: 'failed', errorMessage: error.message })
+        remainingQueue.push({
+          ...item,
+          status: "failed",
+          errorMessage: error.message,
+        })
       } else {
         synced++
         // Remove from IndexedDB
@@ -168,9 +183,13 @@ export async function flushOfflineQueue(
         }
       }
     } catch (err: any) {
-      console.error('Unexpected error during sync', err)
+      console.error("Unexpected error during sync", err)
       failed++
-      remainingQueue.push({ ...item, status: 'failed', errorMessage: err?.message || 'Unknown error' })
+      remainingQueue.push({
+        ...item,
+        status: "failed",
+        errorMessage: err?.message || "Unknown error",
+      })
     }
   }
 
@@ -180,15 +199,17 @@ export async function flushOfflineQueue(
 }
 
 // Auto sync listener setup
-export function initOfflineSyncListener(onSyncComplete?: () => void): () => void {
+export function initOfflineSyncListener(
+  onSyncComplete?: () => void,
+): () => void {
   const handleOnline = async () => {
-    console.log('Network reconnected. Attempting to sync offline queue...')
+    console.log("Network reconnected. Attempting to sync offline queue...")
     const result = await flushOfflineQueue()
     if (result.synced > 0 && onSyncComplete) {
       onSyncComplete()
     }
   }
 
-  window.addEventListener('online', handleOnline)
-  return () => window.removeEventListener('online', handleOnline)
+  window.addEventListener("online", handleOnline)
+  return () => window.removeEventListener("online", handleOnline)
 }
