@@ -1112,6 +1112,9 @@ function DashboardView({
   )
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [activityFilter, setActivityFilter] = useState<
+    "all" | "Submitted" | "Approved" | "Flagged"
+  >("all")
 
   const filteredReports = useMemo(() => {
     if (!searchQuery.trim()) return reports
@@ -1126,6 +1129,18 @@ function DashboardView({
         r.summary.toLowerCase().includes(q),
     )
   }, [reports, searchQuery])
+
+  // Sort real report activities chronologically (newest first, strictly EXCLUDING Drafts)
+  const sortedActivities = useMemo(() => {
+    const list = reports
+      .filter((r) => r.status !== "Draft")
+      .sort(
+        (a, b) =>
+          new Date(b.submitted).getTime() - new Date(a.submitted).getTime(),
+      )
+    if (activityFilter === "all") return list
+    return list.filter((r) => r.status === activityFilter)
+  }, [reports, activityFilter])
 
   const recent = filteredReports.slice(0, 5)
 
@@ -1412,77 +1427,170 @@ function DashboardView({
             </div>
           </div>
 
-          {/* Activity */}
+          {/* Dynamic Interactive Activity Section (No Drafts) */}
           <div
-            className="rounded-lg border"
+            className="rounded-lg border flex flex-col"
             style={{
               backgroundColor: "var(--card)",
-
               borderColor: "var(--border)",
             }}
           >
+            {/* Activity Header with live status and filter tabs */}
             <div
-              className="px-5 py-4 border-b"
+              className="px-5 py-3.5 border-b flex flex-wrap items-center justify-between gap-2"
               style={{ borderColor: "var(--border)" }}
             >
-              <h2
-                className="font-display font-600 text-sm"
-                style={{ color: "var(--foreground)" }}
-              >
-                Activity
-              </h2>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <h2
+                  className="font-display font-600 text-sm"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  Activity
+                </h2>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                  {sortedActivities.length}
+                </span>
+              </div>
+
+              {/* Quick status filters */}
+              <div className="flex items-center gap-1 bg-secondary/50 p-0.5 rounded border border-border/50 text-[10px] font-mono">
+                {(
+                  [
+                    { id: "all", label: "All" },
+                    { id: "Submitted", label: "Submissions" },
+                    { id: "Approved", label: "Approved" },
+                    { id: "Flagged", label: "Flagged" },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActivityFilter(tab.id)}
+                    className={`px-2 py-0.5 rounded transition-colors ${
+                      activityFilter === tab.id
+                        ? "bg-primary text-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="px-5 py-3 flex flex-col gap-3">
-              {[
-                {
-                  action: "Priya Nair submitted H1 Budget Reconciliation",
-                  time: "2h ago",
-                  flag: true,
-                },
 
-                {
-                  action: "Marcus Chen's Daily Ops report approved",
-                  time: "3h ago",
-                  flag: false,
-                },
-
-                {
-                  action: "Daniel Ruiz submitted W30 Sales Summary",
-                  time: "5h ago",
-                  flag: false,
-                },
-
-                {
-                  action: "Finance report flagged for review",
-                  time: "6h ago",
-                  flag: true,
-                },
-              ].map((a, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div
-                    className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: a.flag
-                        ? "var(--accent)"
-                        : "var(--primary-hover)",
-                    }}
-                  />
-                  <div>
-                    <p
-                      className="text-xs leading-relaxed"
-                      style={{ color: "var(--foreground)" }}
-                    >
-                      {a.action}
-                    </p>
-                    <p
-                      className="text-xs font-mono mt-0.5"
-                      style={{ color: "var(--muted-foreground)" }}
-                    >
-                      {a.time}
-                    </p>
-                  </div>
+            {/* Dynamic Activity List */}
+            <div className="divide-y divide-border/60 max-h-[380px] overflow-y-auto">
+              {sortedActivities.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground font-mono">
+                  No report activity matches the selected filter.
                 </div>
-              ))}
+              ) : (
+                sortedActivities.slice(0, 10).map((r) => {
+                  const isFlagged = r.status === "Flagged"
+                  const isApproved = r.status === "Approved"
+
+                  let actionText = (
+                    <span>
+                      <strong className="font-semibold text-foreground">
+                        {r.author}
+                      </strong>{" "}
+                      submitted {r.title}
+                    </span>
+                  )
+
+                  if (isApproved) {
+                    actionText = (
+                      <span>
+                        <strong className="font-semibold text-foreground">
+                          {r.author}'s
+                        </strong>{" "}
+                        {r.title} was approved
+                      </span>
+                    )
+                  } else if (isFlagged) {
+                    actionText = (
+                      <span>
+                        <strong className="font-semibold text-foreground">
+                          {r.title}
+                        </strong>{" "}
+                        flagged for revision
+                      </span>
+                    )
+                  }
+
+                  // Compute relative time
+                  let relativeTime = "Recently"
+                  try {
+                    const d = new Date(r.submitted)
+                    const diffMs = Date.now() - d.getTime()
+                    const diffMins = Math.floor(diffMs / 60000)
+                    if (diffMins < 1) relativeTime = "Just now"
+                    else if (diffMins < 60) relativeTime = `${diffMins}m ago`
+                    else {
+                      const diffHours = Math.floor(diffMins / 60)
+                      if (diffHours < 24) relativeTime = `${diffHours}h ago`
+                      else {
+                        const diffDays = Math.floor(diffHours / 24)
+                        if (diffDays < 7) relativeTime = `${diffDays}d ago`
+                        else
+                          relativeTime = d.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                      }
+                    }
+                  } catch (e) {}
+
+                  return (
+                    <div
+                      key={r.id}
+                      onClick={() => onInspect(r)}
+                      className="px-5 py-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-white/[0.04] cursor-pointer group"
+                      title="Click to inspect this report in detail"
+                    >
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div
+                          className="mt-1 w-2 h-2 rounded-full shrink-0"
+                          style={{
+                            backgroundColor: isFlagged
+                              ? "var(--accent)"
+                              : isApproved
+                                ? "#10b981"
+                                : "var(--primary-hover)",
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs leading-snug text-muted-foreground group-hover:text-foreground transition-colors truncate">
+                            {actionText}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-muted-foreground">
+                            <span className="text-foreground/80 font-medium">
+                              {relativeTime}
+                            </span>
+                            <span>·</span>
+                            <span className="px-1.5 py-0.2 rounded bg-secondary text-muted-foreground border border-border/40 text-[10px]">
+                              {r.department}
+                            </span>
+                            <span>·</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {r.type}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inspect Indicator on Hover */}
+                      <div className="shrink-0 flex items-center gap-1.5 text-[11px] font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Inspect</span>
+                        <span className="group-hover:translate-x-0.5 transition-transform">
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>

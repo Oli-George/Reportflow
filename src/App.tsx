@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 
 import AdminView, {
   REPORTS,
@@ -39,35 +39,99 @@ const DEPARTMENTS = [
 
   "Operations",
 
-  "Marketing",
-
   "Finance",
 
-  "HR",
+  "HSE",
 
-  "Sales",
-
-  "Legal",
+  "Management",
 ]
 
 const ROLES = [
   "Field Engineer",
 
-  "Senior Engineer",
+  "Site Technician",
 
-  "Site Supervisor",
+  "Operations Lead",
 
-  "Operations Officer",
-
-  "Project Lead",
-
-  "Electrical Technician",
+  "HSE Officer",
 
   "Solar PV Specialist",
 ]
 
+// Helper to prevent and clean duplicate report rows safely
+export function deduplicateReportsList(list: Report[]): Report[] {
+  if (!Array.isArray(list)) return []
+  const seenIds = new Set<number>()
+  const logicalMap = new Map<string, Report>()
+
+  for (const r of list) {
+    if (!r || typeof r.id !== "number") continue
+    if (seenIds.has(r.id)) continue
+    seenIds.add(r.id)
+
+    const authorStr = (r.author || "unknown").trim().toLowerCase()
+    const titleStr = (r.title || "").trim().toLowerCase()
+    const typeStr = (r.type || "Daily").trim().toLowerCase()
+    let dateStr = ""
+    try {
+      if (r.submitted) {
+        const d = new Date(r.submitted)
+        if (!isNaN(d.getTime())) {
+          dateStr = d.toISOString().slice(0, 10)
+        }
+      }
+    } catch (e) {}
+
+    // Build a unique logical key based on author, report format, site & date
+    let dateKey = `${authorStr}_${titleStr}_${typeStr}_${dateStr}`
+    if (r.gveKukaData?.date) {
+      const siteStr = (r.gveKukaData.siteName || "").trim().toLowerCase()
+      dateKey = `kuka_${r.gveKukaData.date}_${siteStr}_${authorStr}`
+    } else if (r.gveWeeklyData?.siteName) {
+      const siteStr = r.gveWeeklyData.siteName.trim().toLowerCase()
+      dateKey = `weekly_${siteStr}_${dateStr}_${authorStr}`
+    } else if (r.gveQuarterlyData?.siteName) {
+      const siteStr = r.gveQuarterlyData.siteName.trim().toLowerCase()
+      dateKey = `quarterly_${siteStr}_${dateStr}_${authorStr}`
+    }
+
+    const existing = logicalMap.get(dateKey)
+    if (!existing) {
+      logicalMap.set(dateKey, r)
+    } else {
+      // Prioritize advanced status: Approved (4) > Submitted (3) > Flagged (2) > Draft (1)
+      const priority: Record<string, number> = {
+        Approved: 4,
+        Submitted: 3,
+        Flagged: 2,
+        Draft: 1,
+      }
+      const existingScore = priority[existing.status] || 0
+      const currentScore = priority[r.status] || 0
+
+      // Keep more advanced status, or newest database ID if same status
+      if (
+        currentScore > existingScore ||
+        (currentScore === existingScore && r.id >= existing.id)
+      ) {
+        logicalMap.set(dateKey, r)
+      }
+    }
+  }
+
+  return Array.from(logicalMap.values()).sort((a, b) => {
+    try {
+      const timeA = new Date(a.submitted).getTime()
+      const timeB = new Date(b.submitted).getTime()
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+    } catch (e) {
+      return b.id - a.id
+    }
+  })
+}
+
 function App() {
-  const [reports, setReports] = useState<Report[]>(REPORTS)
+  const [reports, setReports] = useState<Report[]>(() => deduplicateReportsList(REPORTS))
 
   const [members, setMembers] = useState<Member[]>(MEMBERS)
 
@@ -104,6 +168,9 @@ function App() {
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(0)
 
   const [syncToast, setSyncToast] = useState<string | null>(null)
+
+  const syncingIdsRef = useRef<Set<number>>(new Set())
+  const tempIdMapRef = useRef<Map<number, number>>(new Map())
 
   // Persist session to sessionStorage for tab isolation
   useEffect(() => {
@@ -208,7 +275,9 @@ function App() {
           gveQuarterlyData: row.gve_quarterly_data || undefined,
         }))
 
-        setReports(mappedReports)
+        // Deduplicate database rows to clean any existing cloned rows
+        const cleaned = deduplicateReportsList(mappedReports)
+        setReports(cleaned)
       }
     } catch (err) {
       console.warn("Failed to load reports from Supabase:", err)
@@ -426,46 +495,47 @@ function App() {
     fetchDeadlinesFromSupabase,
   ])
 
-  // Custom setReports wrapper that pushes updates to Supabase & Sync Queue
-
+  // Custom setReports wrapper that pushes updates to Supabase & Sync Queue without infinite duplicate loops
   const handleUpdateReports: React.Dispatch<React.SetStateAction<Report[]>> = (
     action,
   ) => {
     setReports((prev) => {
       const nextReports = typeof action === "function" ? action(prev) : action
 
-      // Find new or updated reports compared to prev
-
+      // Find new items that are not in prev and not currently undergoing sync
       const newItems = nextReports.filter(
-        (r) => !prev.some((p) => p.id === r.id),
+        (r) => !prev.some((p) => p.id === r.id) && !syncingIdsRef.current.has(r.id),
       )
 
+      // Find updated items
       const updatedItems = nextReports.filter((r) => {
         const existing = prev.find((p) => p.id === r.id)
-
         return (
           existing &&
           (existing.status !== r.status ||
             existing.feedback !== r.feedback ||
-            existing.summary !== r.summary)
+            existing.summary !== r.summary ||
+            existing.gveKukaData !== r.gveKukaData ||
+            existing.gveWeeklyData !== r.gveWeeklyData ||
+            existing.gveQuarterlyData !== r.gveQuarterlyData ||
+            existing.attachments !== r.attachments)
         )
       })
 
       // Push additions & modifications to Supabase or queue if offline
-
       const syncItem = async (report: Report, isNew: boolean) => {
+        if (syncingIdsRef.current.has(report.id)) return
+        syncingIdsRef.current.add(report.id)
+
         if (!navigator.onLine) {
           await queueOfflineReport(report)
-
           setPendingQueueCount(getOfflineQueue().length)
-
+          syncingIdsRef.current.delete(report.id)
           return
         }
 
         // 1. Process attachments if present
-
         let syncedAttachments: ReportAttachment[] = []
-
         if (report.attachments && report.attachments.length > 0) {
           syncedAttachments = await Promise.all(
             report.attachments.map(async (att) => {
@@ -473,16 +543,11 @@ function App() {
 
               try {
                 const res = await uploadAttachmentFile(att, report.author)
-
                 return {
                   ...att,
-
                   url: res.url,
-
                   storagePath: res.storagePath,
-
                   storageProvider: res.provider,
-
                   isOfflineOnly: false,
                 }
               } catch (e) {
@@ -498,74 +563,66 @@ function App() {
 
         const dbRow = {
           title: report.title,
-
           author: report.author,
-
           department: report.department,
-
           type: report.type,
-
           status: report.status,
-
           summary: report.summary,
-
           feedback: report.feedback || null,
-
           attachments:
             syncedAttachments.length > 0
               ? syncedAttachments
               : report.attachments || null,
-
           gve_kuka_data: report.gveKukaData || null,
-
           gve_weekly_data: report.gveWeeklyData || null,
-
           gve_quarterly_data: report.gveQuarterlyData || null,
-
           submitted_at: report.submitted
             ? new Date(report.submitted).toISOString()
             : new Date().toISOString(),
         }
 
-        if (isNew) {
-          const { data, error } = await supabase
-            .from("reports")
-            .insert(dbRow)
-            .select()
+        try {
+          if (isNew) {
+            const { data, error } = await supabase
+              .from("reports")
+              .insert(dbRow)
+              .select()
 
-          if (error) {
-            console.error("Supabase insert error, queueing offline:", error)
+            if (error) {
+              console.error("Supabase insert error, queueing offline:", error)
+              await queueOfflineReport(report)
+              setPendingQueueCount(getOfflineQueue().length)
+            } else if (data && data[0]) {
+              // Update local state with the database-assigned row ID
+              const dbId = Number(data[0].id)
+              tempIdMapRef.current.set(report.id, dbId)
+              syncingIdsRef.current.add(dbId)
 
-            await queueOfflineReport(report)
+              setReports((current) =>
+                current.map((r) =>
+                  r.id === report.id
+                    ? { ...r, id: dbId, attachments: syncedAttachments }
+                    : r,
+                ),
+              )
+            }
+          } else {
+            const targetDbId = tempIdMapRef.current.get(report.id) ?? report.id
+            const { error } = await supabase
+              .from("reports")
+              .update(dbRow)
+              .eq("id", targetDbId)
 
-            setPendingQueueCount(getOfflineQueue().length)
-          } else if (data && data[0]) {
-            // Update local state with the database-assigned row ID
-
-            const dbId = Number(data[0].id)
-
-            setReports((current) =>
-              current.map((r) =>
-                r.id === report.id
-                  ? { ...r, id: dbId, attachments: syncedAttachments }
-                  : r,
-              ),
-            )
+            if (error) {
+              console.error("Supabase update error:", error)
+            }
           }
-        } else {
-          const { error } = await supabase
-            .from("reports")
-            .update(dbRow)
-            .eq("id", report.id)
-
-          if (error) {
-            console.error("Supabase update error:", error)
-          }
+        } finally {
+          syncingIdsRef.current.delete(report.id)
         }
       }
 
       newItems.forEach((r) => syncItem(r, true))
-
       updatedItems.forEach((r) => syncItem(r, false))
 
       return nextReports
