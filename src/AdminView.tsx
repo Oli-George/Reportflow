@@ -2298,11 +2298,13 @@ function FullReportModal({
             <div>
               <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
                 <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
-                <span className="text-emerald-400">GVE KUKA SITE</span>
+                <span className="text-emerald-400">
+                  {report.gveKukaData.siteName || "GVE SITE"}
+                </span>
               </h3>
-              <GveKukaHourlyForm
-                initialData={report.gveKukaData}
+              <GveKukaHourlyForm initialData={report.gveKukaData}
                 readOnly={true}
+                isAdmin={true}
               />
             </div>
           ) : report.gveWeeklyData ? (

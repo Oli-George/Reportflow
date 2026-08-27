@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
 import logoImg from "./logo.jpeg"
 import {
   GveKukaRecordData,
@@ -8,10 +8,22 @@ import {
 } from "../types/gveKuka"
 import { ReportAttachment } from "../types/attachment"
 import ReportPhotoUploader from "./ReportPhotoUploader"
+import {
+  useServerTime,
+  getHourlySlotStatus,
+  hasEntryData,
+  SlotStatusInfo,
+} from "../lib/serverTime"
+import {
+  getLastSiteName,
+  saveLastSiteName,
+  getRecentSiteNames,
+} from "../lib/siteMemory"
 
 interface GveKukaHourlyFormProps {
   initialData?: GveKukaRecordData
   readOnly?: boolean
+  isAdmin?: boolean
   onSave?: (data: GveKukaRecordData, status: "Draft" | "Submitted") => void
   onCancel?: () => void
 }
@@ -19,6 +31,7 @@ interface GveKukaHourlyFormProps {
 export default function GveKukaHourlyForm({
   initialData,
   readOnly = false,
+  isAdmin = false,
   onSave,
   onCancel,
 }: GveKukaHourlyFormProps) {
@@ -27,10 +40,15 @@ export default function GveKukaHourlyForm({
   const defaultDayStr = today.toLocaleDateString("en-US", { weekday: "long" })
   const defaultYearStr = today.getFullYear().toString()
 
+  // Site Name state initialized from initialData or remembered site
+  const [siteName, setSiteName] = useState(
+    initialData?.siteName || getLastSiteName() || "GVE KUKA SITE",
+  )
+
   const [date, setDate] = useState(initialData?.date || defaultDateStr)
   const [day, setDay] = useState(initialData?.day || defaultDayStr)
   const [year, setYear] = useState(initialData?.year || defaultYearStr)
-  const [title] = useState(
+  const [title, setTitle] = useState(
     initialData?.title || `GVE Site Hourly Record — ${defaultDateStr}`,
   )
 
@@ -54,13 +72,54 @@ export default function GveKukaHourlyForm({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
+  // Anti-tamper server time hook
+  const {
+    currentTime,
+    isTampered,
+    isOffline,
+    syncStatus,
+    refreshServerTime,
+  } = useServerTime()
+
+  // Admin override to unlock all rows
+  const [adminOverride, setAdminOverride] = useState(false)
+
+  const recentSites = useMemo(() => getRecentSiteNames(), [])
+
+  // Calculate live slot statuses
+  const slotStatuses = useMemo(() => {
+    const map: Record<string, SlotStatusInfo> = {}
+    entries.forEach((entry) => {
+      const hasData = hasEntryData(entry)
+      map[entry.id] = getHourlySlotStatus(entry.time, currentTime, date, {
+        readOnly,
+        adminOverride,
+        hasData,
+      })
+    })
+    return map
+  }, [entries, currentTime, date, readOnly, adminOverride])
+
+  // Find currently active slot (if any) or next upcoming slot
+  const currentActiveSlot = useMemo(() => {
+    return entries.find((e) => slotStatuses[e.id]?.status === "ACTIVE")
+  }, [entries, slotStatuses])
+
+  const nextUpcomingSlot = useMemo(() => {
+    return entries.find((e) => slotStatuses[e.id]?.status === "UPCOMING")
+  }, [entries, slotStatuses])
+
   const handleEntryChange = (
     id: string,
     section: keyof GveKukaHourlyEntry,
     field: string,
     value: string,
   ) => {
-    if (readOnly) return
+    const statusInfo = slotStatuses[id]
+    if (readOnly || (!adminOverride && statusInfo && !statusInfo.isEditable)) {
+      return
+    }
+
     setEntries((prev) =>
       prev.map((entry) => {
         if (entry.id !== id) return entry
@@ -146,13 +205,19 @@ export default function GveKukaHourlyForm({
     setSignatureCanvasOpen(null)
   }
 
+  const handleSiteNameChange = (val: string) => {
+    setSiteName(val)
+    setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
+  }
+
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(siteName)
     if (onSave) {
       onSave(
         {
-          siteName: "GVE KUKA SITE",
-          title,
+          siteName: siteName || "GVE KUKA SITE",
+          title: title || `${siteName || "GVE Site"} Hourly Record — ${date}`,
           date,
           day,
           year,
@@ -166,11 +231,12 @@ export default function GveKukaHourlyForm({
 
   const handleSubmitFinal = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(siteName)
     if (onSave) {
       onSave(
         {
-          siteName: "GVE KUKA SITE",
-          title,
+          siteName: siteName || "GVE KUKA SITE",
+          title: title || `${siteName || "GVE Site"} Hourly Record — ${date}`,
           date,
           day,
           year,
@@ -186,14 +252,129 @@ export default function GveKukaHourlyForm({
     window.print()
   }
 
+  // Format current live time
+  const formattedTimeStr = currentTime.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  })
+
   return (
     <div className="flex flex-col gap-4 w-full">
+      {/* Dynamic Site Name Datalist */}
+      <datalist id="reportflow-sites-list">
+        {recentSites.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+
+      {/* Security & Server Time Live Banner */}
+      {!readOnly && (
+        <div className="no-print bg-zinc-900/90 border border-zinc-700/70 p-3 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+          {/* Time & Sync Status */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-black/50 border border-zinc-700 px-2.5 py-1 rounded-md font-mono text-zinc-200">
+              <span className="text-emerald-400">🕒</span>
+              <span className="font-bold text-foreground">{formattedTimeStr}</span>
+              <span className="text-[10px] text-zinc-400">
+                ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+              </span>
+            </div>
+
+            {/* Anti-tamper & Sync Pills */}
+            {isTampered ? (
+              <span
+                className="bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                title="Device clock was altered. System calibrated using server monotonic clock."
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                Anti-Tamper Active: Using Protected Server Time
+              </span>
+            ) : syncStatus === "synced" ? (
+              <span
+                className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                title="Synced directly with trusted server timestamp"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Server-Verified Time
+              </span>
+            ) : isOffline ? (
+              <span
+                className="bg-amber-950/80 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                title="Offline mode: Time tracked via monotonic hardware timer calibrated against last sync"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Offline Monotonic Mode
+              </span>
+            ) : (
+              <span className="bg-zinc-800 text-zinc-300 border border-zinc-600 px-2 py-0.5 rounded-full text-[11px] font-mono">
+                Calibrated Time
+              </span>
+            )}
+          </div>
+
+          {/* Current Hour Window Countdown Indicator */}
+          <div className="flex items-center gap-2">
+            {currentActiveSlot ? (
+              <div className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-600/80 text-emerald-300 px-3 py-1 rounded-md font-mono text-[11px] animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>
+                  <strong>{currentActiveSlot.time}</strong> Slot OPEN —{" "}
+                  {slotStatuses[currentActiveSlot.id]?.statusLabel}
+                </span>
+              </div>
+            ) : nextUpcomingSlot ? (
+              <div className="flex items-center gap-1.5 bg-zinc-800/80 border border-zinc-700 text-zinc-300 px-3 py-1 rounded-md font-mono text-[11px]">
+                <span>⏳</span>
+                <span>
+                  Next window: <strong>{nextUpcomingSlot.time}</strong> (
+                  {Math.floor(
+                    (slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60,
+                  )}
+                  m remaining)
+                </span>
+              </div>
+            ) : (
+              <div className="text-zinc-400 font-mono text-[11px]">
+                Shift completed / No active windows
+              </div>
+            )}
+
+            {/* Admin Override Switch (if admin) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setAdminOverride(!adminOverride)}
+                className={`px-2.5 py-1 rounded text-[11px] font-mono border transition-all ${
+                  adminOverride
+                    ? "bg-purple-950 text-purple-300 border-purple-600"
+                    : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200"
+                }`}
+                title="Supervisors can unlock all hourly rows for backfill or historical corrections"
+              >
+                {adminOverride ? "🔓 Admin Override Active" : "🔒 Admin Override"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => refreshServerTime()}
+              className="text-zinc-400 hover:text-zinc-200 p-1 text-xs"
+              title="Resync server timestamp"
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Toolbar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
           <h2 className="text-sm font-display font-600 text-foreground uppercase tracking-wider">
-            GVE KUKA Site Hourly Record Form
+            {siteName || "GVE Site"} Hourly Record Form
           </h2>
         </div>
 
@@ -306,7 +487,7 @@ export default function GveKukaHourlyForm({
       {/* Main Physical Form Render */}
       {viewMode === "paper" ? (
         <div className="print-area paper-sheet p-4 md:p-6 rounded-lg overflow-x-auto border border-zinc-300 text-black">
-          {/* Header Section matching HOURLY RECORD KUKA.pdf */}
+          {/* Header Section matching HOURLY RECORD sheet */}
           <div className="flex items-stretch border border-black mb-1 bg-white">
             {/* Logo */}
             <div className="w-48 p-2 border-r border-black flex flex-col justify-center items-center text-center">
@@ -317,11 +498,35 @@ export default function GveKukaHourlyForm({
               />
             </div>
 
-            {/* Title */}
-            <div className="flex-1 flex flex-col justify-center items-center py-2 bg-white">
-              <h1 className="text-sm font-bold tracking-widest text-black uppercase">
-                GVE KUKA SITE
-              </h1>
+            {/* Title with Editable Site Name */}
+            <div className="flex-1 flex flex-col justify-center items-center py-2 bg-white px-2">
+              {readOnly ? (
+                <h1 className="text-sm font-bold tracking-widest text-black uppercase text-center">
+                  {siteName || "GVE KUKA SITE"}
+                </h1>
+              ) : (
+                <div className="w-full flex flex-col items-center group relative">
+                  <div className="flex items-center justify-center gap-1.5 w-full">
+                    <input
+                      type="text"
+                      list="reportflow-sites-list"
+                      value={siteName}
+                      onChange={(e) => handleSiteNameChange(e.target.value)}
+                      placeholder="ENTER SITE NAME..."
+                      className="text-sm font-bold tracking-widest text-black uppercase text-center bg-transparent border-b border-dashed border-zinc-400 hover:border-black focus:border-emerald-600 focus:bg-emerald-50/50 outline-none px-2 py-0.5 w-full max-w-md transition-all"
+                    />
+                    <span
+                      className="text-[10px] text-zinc-400 opacity-60 group-hover:opacity-100 cursor-help"
+                      title="Editable site name (automatically remembers for your next report)"
+                    >
+                      ✏️
+                    </span>
+                  </div>
+                  <span className="text-[8px] text-zinc-400 font-mono tracking-tight -mt-0.5">
+                    (Site name auto-remembers for next report)
+                  </span>
+                </div>
+              )}
               <h2 className="text-xs font-bold tracking-wider text-black uppercase mt-0.5">
                 HOURLY RECORD
               </h2>
@@ -333,11 +538,24 @@ export default function GveKukaHourlyForm({
             <div className="flex items-center justify-center gap-2 border-r border-black px-2">
               <span>DATE:</span>
               <input
-                type="text"
+                type="date"
                 value={date}
                 disabled={readOnly}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-28 text-center font-mono font-bold uppercase"
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  try {
+                    const parsed = new Date(e.target.value)
+                    if (!isNaN(parsed.getTime())) {
+                      setDay(
+                        parsed.toLocaleDateString("en-US", {
+                          weekday: "long",
+                        }),
+                      )
+                      setYear(parsed.getFullYear().toString())
+                    }
+                  } catch (err) {}
+                }}
+                className="w-32 text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
             <div className="flex items-center justify-center gap-2 border-r border-black px-2">
@@ -347,7 +565,7 @@ export default function GveKukaHourlyForm({
                 value={day}
                 disabled={readOnly}
                 onChange={(e) => setDay(e.target.value)}
-                className="w-28 text-center font-mono font-bold uppercase"
+                className="w-28 text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
             <div className="flex items-center justify-center gap-2 px-2">
@@ -357,7 +575,7 @@ export default function GveKukaHourlyForm({
                 value={year}
                 disabled={readOnly}
                 onChange={(e) => setYear(e.target.value)}
-                className="w-20 text-center font-mono font-bold uppercase"
+                className="w-20 text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
           </div>
@@ -368,8 +586,8 @@ export default function GveKukaHourlyForm({
               <thead>
                 {/* Row 1 Header Categories */}
                 <tr className="bg-zinc-200 text-black font-bold uppercase text-[9px]">
-                  <th rowSpan={2} className="w-16 p-1 border border-black">
-                    TIME
+                  <th rowSpan={2} className="w-20 p-1 border border-black">
+                    TIME / STATUS
                   </th>
                   <th colSpan={4} className="p-1 border border-black ">
                     PV
@@ -548,68 +766,768 @@ export default function GveKukaHourlyForm({
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    className="hover:bg-zinc-50 font-mono text-[9px] h-7"
-                  >
-                    {/* Time (12-hour format) */}
-                    <td className="border border-black p-0.5 bg-zinc-50 font-semibold text-center">
-                      <input
-                        type="text"
-                        value={entry.time}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "time",
-                            "",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center font-bold"
-                      />
-                    </td>
-                    {/* PV */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.pv.volt}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "pv",
-                            "volt",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.pv.curr}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "pv",
-                            "curr",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
+                {entries.map((entry) => {
+                  const statusInfo = slotStatuses[entry.id] || {
+                    status: "ACTIVE",
+                    isEditable: !readOnly,
+                    statusLabel: "",
+                    secondsRemainingInWindow: 0,
+                    secondsUntilUnlock: 0,
+                  }
+                  const isLocked = !statusInfo.isEditable && !readOnly
+
+                  // Row background style based on time progression status
+                  let rowBgClass = "hover:bg-zinc-50"
+                  if (statusInfo.status === "ACTIVE") {
+                    rowBgClass = "bg-emerald-50/80 font-bold"
+                  } else if (statusInfo.status === "UPCOMING") {
+                    rowBgClass = "bg-zinc-100/70 opacity-60"
+                  } else if (statusInfo.status === "EXPIRED_MISSED") {
+                    rowBgClass = "bg-amber-50/40 opacity-70"
+                  }
+
+                  return (
+                    <tr
+                      key={entry.id}
+                      className={`font-mono text-[9px] h-8 border-b border-black transition-colors ${rowBgClass}`}
+                    >
+                      {/* Time & Live Status Indicator */}
+                      <td
+                        className={`border border-black p-0.5 text-center relative ${
+                          statusInfo.status === "ACTIVE"
+                            ? "bg-emerald-100 text-emerald-950 font-extrabold"
+                            : "bg-zinc-50 font-semibold"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center justify-center leading-tight">
+                          <span>{entry.time}</span>
+                          {!readOnly && (
+                            <span className="text-[7px] block uppercase font-sans">
+                              {statusInfo.status === "ACTIVE" && (
+                                <span className="text-emerald-700 font-bold animate-pulse">
+                                  ● LIVE (:15)
+                                </span>
+                              )}
+                              {statusInfo.status === "UPCOMING" && (
+                                <span className="text-zinc-500 font-normal">
+                                  🔒 Locked
+                                </span>
+                              )}
+                              {statusInfo.status === "LOCKED_RECORDED" && (
+                                <span className="text-blue-800 font-medium">
+                                  ✓ Recorded
+                                </span>
+                              )}
+                              {statusInfo.status === "EXPIRED_MISSED" && (
+                                <span className="text-amber-700 font-medium">
+                                  ⚠️ Missed
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* PV */}
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.pv.volt}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "pv",
+                              "volt",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder={statusInfo.status === "UPCOMING" ? "—" : "—"}
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.pv.curr}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "pv",
+                              "curr",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.pv.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "pv",
+                              "power",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.pv.energy}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "pv",
+                              "energy",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+
+                      {/* BATTERY */}
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.battery.volt}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "battery",
+                              "volt",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.battery.curr}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "battery",
+                              "curr",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.battery.soc}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "battery",
+                              "soc",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.battery.soh}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "battery",
+                              "soh",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+
+                      {/* LOAD */}
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l1_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l1_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l1_a}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l1_a",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l2_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l2_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l2_c}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l2_c",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l3_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l3_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.l3_c}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "l3_c",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "power",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.load.energy}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "load",
+                              "energy",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+
+                      {/* GRID/DG */}
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l1_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l1_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l1_a}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l1_a",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l2_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l2_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l2_c}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l2_c",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l3_v}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l3_v",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.l3_c}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "l3_c",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "power",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <input
+                          type="text"
+                          value={entry.grid.energy}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "grid",
+                              "energy",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+
+                      {/* SPD */}
+                      <td className="border border-black p-0.5">
+                        <select
+                          value={entry.spd.in}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "spd",
+                              "in",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                        >
+                          <option value="GOOD">GOOD</option>
+                          <option value="DEFECT">FAULT</option>
+                        </select>
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <select
+                          value={entry.spd.out}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "spd",
+                              "out",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                        >
+                          <option value="GOOD">GOOD</option>
+                          <option value="DEFECT">FAULT</option>
+                        </select>
+                      </td>
+
+                      {/* COOLING */}
+                      <td className="border border-black p-0.5">
+                        <select
+                          value={entry.cooling.ac1}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "cooling",
+                              "ac1",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                        >
+                          <option value="ON">ON</option>
+                          <option value="OFF">OFF</option>
+                        </select>
+                      </td>
+                      <td className="border border-black p-0.5">
+                        <select
+                          value={entry.cooling.ac2}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+                              "cooling",
+                              "ac2",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                        >
+                          <option value="ON">ON</option>
+                          <option value="OFF">OFF</option>
+                        </select>
+                      </td>
+
+                      {/* Operator Name & Signature */}
+                      <td className="border border-black p-0.5 text-[8px]">
+                        <div className="flex flex-col gap-0.5 items-center">
+                          <input
+                            type="text"
+                            placeholder="Operator Name"
+                            value={entry.operatorName}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+                                "operatorName",
+                                "",
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center text-[8px] border-b border-zinc-200 outline-none bg-transparent disabled:cursor-not-allowed"
+                          />
+                          {entry.operatorSignature ? (
+                            <div className="flex items-center gap-1">
+                              <img
+                                src={entry.operatorSignature}
+                                alt="Sig"
+                                className="h-4 max-w-[60px] object-contain"
+                              />
+                              {!readOnly && !isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSignatureCanvasOpen(entry.id)
+                                  }
+                                  className="text-[7px] text-blue-600 underline"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            !readOnly && (
+                              <button
+                                type="button"
+                                disabled={isLocked}
+                                onClick={() => setSignatureCanvasOpen(entry.id)}
+                                className={`text-[7px] px-1 py-0.2 rounded border ${
+                                  isLocked
+                                    ? "text-zinc-400 border-zinc-200 cursor-not-allowed"
+                                    : "text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                }`}
+                              >
+                                Sign
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Delete Action (only if admin or override) */}
+                      {!readOnly && (
+                        <td className="no-print border border-black p-0.5">
+                          {(adminOverride || statusInfo.status === "ACTIVE") && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRow(entry.id)}
+                              className="text-red-500 hover:text-red-700 text-xs px-1"
+                              title="Delete row"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add Row Button (Admin only or live active) */}
+          {!readOnly && (adminOverride || isAdmin) && (
+            <div className="no-print mt-3 flex justify-between items-center text-xs">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="flex items-center gap-1 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 border border-black rounded text-black font-mono transition-all"
+              >
+                + Add Custom Hourly Row
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Fast Interactive Grid View */
+        <div className="flex flex-col gap-4">
+          {/* Site Name and Report Params Bar */}
+          <div className="bg-card border border-border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1">
+                Site Name (Editable & Remembered)
+              </label>
+              <input
+                type="text"
+                list="reportflow-sites-list"
+                value={siteName}
+                disabled={readOnly}
+                onChange={(e) => handleSiteNameChange(e.target.value)}
+                placeholder="e.g. GVE KUKA SITE"
+                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground font-semibold"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1">
+                Report Date
+              </label>
+              <input
+                type="date"
+                value={date}
+                disabled={readOnly}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1">
+                Day
+              </label>
+              <input
+                type="text"
+                value={day}
+                disabled={readOnly}
+                onChange={(e) => setDay(e.target.value)}
+                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1">
+                Year
+              </label>
+              <input
+                type="text"
+                value={year}
+                disabled={readOnly}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Hourly Cards in Interactive View */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {entries.map((entry) => {
+              const statusInfo = slotStatuses[entry.id] || {
+                status: "ACTIVE",
+                isEditable: !readOnly,
+                statusLabel: "",
+                secondsRemainingInWindow: 0,
+                secondsUntilUnlock: 0,
+              }
+              const isLocked = !statusInfo.isEditable && !readOnly
+
+              return (
+                <div
+                  key={entry.id}
+                  className={`border rounded-lg p-4 transition-all ${
+                    statusInfo.status === "ACTIVE"
+                      ? "bg-card border-emerald-500 shadow-md ring-1 ring-emerald-500/40"
+                      : statusInfo.status === "UPCOMING"
+                      ? "bg-card/40 border-border opacity-70"
+                      : "bg-card border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-sm text-foreground">
+                        {entry.time}
+                      </span>
+                      {statusInfo.status === "ACTIVE" && (
+                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-600 px-2 py-0.5 rounded text-[10px] font-mono animate-pulse">
+                          ● OPEN FOR INPUT ({statusInfo.statusLabel})
+                        </span>
+                      )}
+                      {statusInfo.status === "UPCOMING" && (
+                        <span className="bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded text-[10px] font-mono">
+                          ⏳ {statusInfo.statusLabel}
+                        </span>
+                      )}
+                      {statusInfo.status === "LOCKED_RECORDED" && (
+                        <span className="bg-blue-950 text-blue-300 border border-blue-700 px-2 py-0.5 rounded text-[10px] font-mono">
+                          ✓ Locked Log
+                        </span>
+                      )}
+                      {statusInfo.status === "EXPIRED_MISSED" && (
+                        <span className="bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded text-[10px] font-mono">
+                          ⚠️ Window Expired
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block font-mono">
+                        PV Power (kW)
+                      </label>
                       <input
                         type="text"
                         value={entry.pv.power}
-                        disabled={readOnly}
+                        disabled={isLocked || readOnly}
                         onChange={(e) =>
                           handleEntryChange(
                             entry.id,
@@ -618,67 +1536,18 @@ export default function GveKukaHourlyForm({
                             e.target.value,
                           )
                         }
-                        className="w-full text-center"
-                        placeholder="—"
+                        placeholder="0.0"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
                       />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.pv.energy}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "pv",
-                            "energy",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* BATTERY */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.battery.volt}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "battery",
-                            "volt",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.battery.curr}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "battery",
-                            "curr",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block font-mono">
+                        Battery SOC (%)
+                      </label>
                       <input
                         type="text"
                         value={entry.battery.soc}
-                        disabled={readOnly}
+                        disabled={isLocked || readOnly}
                         onChange={(e) =>
                           handleEntryChange(
                             entry.id,
@@ -687,135 +1556,18 @@ export default function GveKukaHourlyForm({
                             e.target.value,
                           )
                         }
-                        className="w-full text-center"
-                        placeholder="—"
+                        placeholder="0%"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
                       />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.battery.soh}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "battery",
-                            "soh",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* LOAD */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l1_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l1_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l1_a}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l1_a",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l2_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l2_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l2_c}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l2_c",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l3_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l3_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.l3_c}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "l3_c",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block font-mono">
+                        Load Power (kW)
+                      </label>
                       <input
                         type="text"
                         value={entry.load.power}
-                        disabled={readOnly}
+                        disabled={isLocked || readOnly}
                         onChange={(e) =>
                           handleEntryChange(
                             entry.id,
@@ -824,135 +1576,18 @@ export default function GveKukaHourlyForm({
                             e.target.value,
                           )
                         }
-                        className="w-full text-center"
-                        placeholder="—"
+                        placeholder="0.0"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
                       />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.load.energy}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "energy",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* GRID/DG */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l1_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l1_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l1_a}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l1_a",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l2_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l2_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l2_c}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l2_c",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l3_v}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l3_v",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.l3_c}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "l3_c",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block font-mono">
+                        Grid Power (kW)
+                      </label>
                       <input
                         type="text"
                         value={entry.grid.power}
-                        disabled={readOnly}
+                        disabled={isLocked || readOnly}
                         onChange={(e) =>
                           handleEntryChange(
                             entry.id,
@@ -961,238 +1596,68 @@ export default function GveKukaHourlyForm({
                             e.target.value,
                           )
                         }
-                        className="w-full text-center"
-                        placeholder="—"
+                        placeholder="0.0"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
                       />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.grid.energy}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "energy",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* SPD */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.spd.in}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "spd",
-                            "in",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="GOOD"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.spd.out}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "spd",
-                            "out",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="GOOD"
-                      />
-                    </td>
-                    {/* COOLING */}
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.cooling.ac1}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "cooling",
-                            "ac1",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="ON"
-                      />
-                    </td>
-                    <td className="border border-black p-0.5">
-                      <input
-                        type="text"
-                        value={entry.cooling.ac2}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "cooling",
-                            "ac2",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full text-center"
-                        placeholder="ON"
-                      />
-                    </td>
-                    {/* OPERATOR */}
-                    <td className="border border-black p-0.5 text-center">
-                      <div className="flex flex-col items-center justify-center gap-0.5">
-                        <input
-                          type="text"
-                          value={entry.operatorName}
-                          disabled={readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "operatorName",
-                              "",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="Op. Name"
-                          className="w-full text-center font-bold text-[8px]"
-                        />
-                        {entry.operatorSignature ? (
-                          <img
-                            src={entry.operatorSignature}
-                            alt="Sig"
-                            className="h-4 object-contain"
-                          />
-                        ) : !readOnly ? (
-                          <button
-                            type="button"
-                            onClick={() => setSignatureCanvasOpen(entry.id)}
-                            className="no-print text-[8px] bg-emerald-800 text-white px-1 rounded hover:bg-emerald-700"
-                          >
-                            Sign
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                    {!readOnly && (
-                      <td className="no-print border border-black p-0.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRow(entry.id)}
-                          className="text-red-600 font-bold hover:text-red-800"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+        </div>
+      )}
 
-          {!readOnly && (
-            <div className="no-print mt-2 flex justify-start">
+      {/* Signature Pad Modal */}
+      {signatureCanvasOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+              <span>✍️</span> Operator Digital Signature Sign-Off
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3 font-mono">
+              Sign inside the box below to authenticate this operational hourly
+              log.
+            </p>
+
+            <div className="border-2 border-dashed border-border rounded-lg bg-white overflow-hidden mb-4">
+              <canvas
+                ref={canvasRef}
+                width={380}
+                height={160}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                className="w-full h-40 cursor-crosshair touch-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={handleAddRow}
-                className="bg-emerald-800 hover:bg-emerald-700 text-white text-xs px-3 py-1 rounded font-mono font-medium"
+                onClick={clearCanvas}
+                className="text-xs text-muted-foreground hover:text-foreground font-mono px-3 py-1.5 rounded border border-border"
               >
-                + Add Hourly Entry Row
+                Clear
               </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSignatureCanvasOpen(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveSignature(signatureCanvasOpen)}
+                  className="text-xs bg-primary hover:bg-primary-hover text-foreground font-bold px-4 py-1.5 rounded shadow"
+                >
+                  Save Signature
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      ) : (
-        /* Fast Grid Interactive Mode */
-        <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-mono text-muted-foreground uppercase">
-                Log Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                disabled={readOnly}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-mono text-muted-foreground uppercase">
-                Day of Week
-              </label>
-              <input
-                type="text"
-                value={day}
-                disabled={readOnly}
-                onChange={(e) => setDay(e.target.value)}
-                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-mono text-muted-foreground uppercase">
-                Year
-              </label>
-              <input
-                type="text"
-                value={year}
-                disabled={readOnly}
-                onChange={(e) => setYear(e.target.value)}
-                className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-xs text-foreground mt-1"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto border border-border rounded-md">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-secondary text-muted-foreground font-mono uppercase text-[10px]">
-                <tr>
-                  <th className="p-2 border-b border-border">Time (12-hr)</th>
-                  <th className="p-2 border-b border-border">
-                    PV (Volt/Curr/kW)
-                  </th>
-                  <th className="p-2 border-b border-border">
-                    Battery (Volt/Curr/SOC)
-                  </th>
-                  <th className="p-2 border-b border-border">Load Power</th>
-                  <th className="p-2 border-b border-border">Grid Power</th>
-                  <th className="p-2 border-b border-border">Operator</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40 font-mono">
-                {entries.map((e) => (
-                  <tr key={e.id} className="hover:bg-secondary/40">
-                    <td className="p-2 font-bold text-emerald-400">{e.time}</td>
-                    <td className="p-2">
-                      {e.pv.volt || "0"}V / {e.pv.curr || "0"}A /{" "}
-                      {e.pv.power || "0"}kW
-                    </td>
-                    <td className="p-2">
-                      {e.battery.volt || "0"}V / {e.battery.curr || "0"}A / SOC:{" "}
-                      {e.battery.soc || "0"}%
-                    </td>
-                    <td className="p-2">{e.load.power || "0"} kW</td>
-                    <td className="p-2">{e.grid.power || "0"} kW</td>
-                    <td className="p-2">{e.operatorName || "Unassigned"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
@@ -1218,7 +1683,8 @@ export default function GveKukaHourlyForm({
                     Live PDF Export & Physical Print Preview
                   </h3>
                   <p className="text-xs text-muted-foreground font-mono">
-                    Official 1:1 format replica of GVE KUKA Site Hourly Record
+                    Official 1:1 format replica of {siteName || "GVE Site"} Hourly
+                    Record
                   </p>
                 </div>
               </div>
@@ -1254,7 +1720,7 @@ export default function GveKukaHourlyForm({
                     </div>
                     <div className="flex-1 flex flex-col justify-center items-center py-2">
                       <h1 className="text-sm font-bold text-black uppercase">
-                        GVE KUKA SITE
+                        {siteName || "GVE KUKA SITE"}
                       </h1>
                       <h2 className="text-xs font-bold text-black uppercase">
                         HOURLY RECORD
@@ -1428,50 +1894,14 @@ export default function GveKukaHourlyForm({
                             <td className="border border-black">
                               {e.cooling.ac2}
                             </td>
-                            <td className="border border-black font-bold">
+                            <td className="border border-black">
                               {e.operatorName}
-                              {e.operatorSignature && (
-                                <img
-                                  src={e.operatorSignature}
-                                  alt="Sig"
-                                  className="h-3 mx-auto"
-                                />
-                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-
-                  {/* Print Attached Photos Section */}
-                  {attachments.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-black">
-                      <h4 className="text-[10px] font-bold uppercase text-black mb-2">
-                        ATTACHED SITE PHOTOS & EVIDENCE ({attachments.length})
-                      </h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        {attachments.map((att) => (
-                          <div
-                            key={att.id}
-                            className="border border-black p-1 bg-white flex flex-col gap-1"
-                          >
-                            <img
-                              src={att.dataUrl || att.url}
-                              alt={att.caption || att.name}
-                              className="w-full h-28 object-cover border border-zinc-300"
-                            />
-                            <div className="text-[8px] font-mono leading-tight">
-                              <span className="font-bold uppercase">
-                                [{att.category || "GENERAL"}]:{" "}
-                              </span>
-                              <span>{att.caption || att.name}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1479,120 +1909,35 @@ export default function GveKukaHourlyForm({
         </div>
       )}
 
-      {/* Signature Modal */}
-      {signatureCanvasOpen && (
-        <div className="no-print fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-border rounded-xl p-5 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-display font-bold text-foreground mb-1">
-              Digital Signature Pad
+      {/* Submit Confirmation Modal */}
+      {showSubmitConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
+              <span>⚠️</span> Confirm Final Report Submission
             </h3>
-            <p className="text-xs text-muted-foreground font-mono mb-4">
-              Sign below using touch or cursor to authorize entry
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              Are you sure you want to submit this {siteName || "GVE Site"} Hourly
+              Record? Once submitted, it will be locked and sent to Site
+              Administrators for review.
             </p>
-            <div className="bg-white rounded border border-zinc-400 overflow-hidden mb-4">
-              <canvas
-                ref={canvasRef}
-                width={380}
-                height={160}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                className="w-full h-40 cursor-crosshair touch-none"
-              />
-            </div>
-            <div className="flex items-center justify-between">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={clearCanvas}
-                className="text-xs font-mono text-amber-400 hover:underline"
+                onClick={() => setShowSubmitConfirmModal(false)}
+                className="px-4 py-2 rounded text-xs text-muted-foreground hover:text-foreground font-medium"
               >
-                Clear Pad
+                Cancel
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSignatureCanvasOpen(null)}
-                  className="bg-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveSignature(signatureCanvasOpen)}
-                  className="bg-primary hover:bg-primary-hover text-white text-xs font-medium px-4 py-1.5 rounded"
-                >
-                  Attach Signature
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2nd Verification Submit Modal */}
-      {showSubmitConfirmModal && (
-        <div className="no-print fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 text-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-950 border border-emerald-600 flex items-center justify-center text-lg shrink-0">
-                ⚠️
-              </div>
-              <div>
-                <h3 className="text-sm font-display font-bold text-white">
-                  Confirm Final Submission
-                </h3>
-                <p className="text-xs text-zinc-400 font-mono">
-                  2-Step Verification Check
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Are you sure you want to finalize and submit this report? Once
-              submitted, it will be locked and sent to Site Administrators for
-              formal compliance review.
-            </p>
-
-            <div className="p-3 rounded bg-amber-950/50 border border-amber-700/60 text-amber-200 text-xs font-mono space-y-1">
-              <p className="font-bold text-amber-400 flex items-center gap-1">
-                <span>💡</span> Accidental click?
-              </p>
-              <p>
-                If you meant to save your progress and continue working later,
-                select <strong>"Save as Draft Instead"</strong> below.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 pt-2 border-t border-zinc-800">
               <button
                 type="button"
                 onClick={(e) => {
                   setShowSubmitConfirmModal(false)
                   handleSubmitFinal(e)
                 }}
-                className="w-full py-2 px-4 rounded bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all shadow flex items-center justify-center gap-2"
+                className="px-4 py-2 rounded text-xs bg-primary hover:bg-primary-hover text-foreground font-bold shadow"
               >
-                <span>🚀</span> Yes, Confirm & Submit Report
-              </button>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  setShowSubmitConfirmModal(false)
-                  handleSaveDraft(e)
-                }}
-                className="w-full py-2 px-4 rounded bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 text-xs font-mono transition-all flex items-center justify-center gap-2"
-              >
-                <span>💾</span> No, Save as Draft Instead
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowSubmitConfirmModal(false)}
-                className="w-full py-1.5 px-4 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors"
-              >
-                Cancel
+                Confirm & Submit
               </button>
             </div>
           </div>

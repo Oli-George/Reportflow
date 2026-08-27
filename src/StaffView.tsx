@@ -605,9 +605,57 @@ export default function StaffView({
               </div>
             </div>
 
-            {/* Content Split: Deadlines & Activity */}
+            {/* Content Split: Submissions on Left, Deadlines on Right */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              {/* Left Column: Deadlines and Compliance info */}
+              {/* Left Column: Recent activity of this member */}
+              <div className="lg:col-span-3 rounded-lg border bg-card border-border flex flex-col">
+                <div className="px-5 py-4 border-b border-border">
+                  <h2 className="font-display font-600 text-sm text-foreground">
+                    Recent Submissions
+                  </h2>
+                </div>
+                <div className="divide-y divide-border">
+                  {myReports.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">
+                      No reports filed yet. Click "Create Report" to compose
+                      your first report.
+                    </div>
+                  ) : (
+                    filteredReports.slice(0, 4).map((r) => (
+                      <div
+                        key={r.id}
+                        className="px-5 py-4 flex items-center justify-between gap-4 hover:bg-white/1 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {r.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                            Type: {r.type} · Submitted:{" "}
+                            {r.submitted.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <Badge status={r.status} />
+                          {(r.status === "Draft" || r.status === "Flagged") && (
+                            <button
+                              onClick={() => handleEditReport(r)}
+                              className="text-xs font-mono px-2 py-1 rounded bg-secondary hover:bg-primary border border-border text-muted-foreground hover:text-foreground transition-all"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Deadlines and Compliance info */}
               <div className="lg:col-span-2 flex flex-col gap-6">
                 {/* Department Deadlines */}
                 <div className="rounded-lg border bg-card border-border flex flex-col">
@@ -683,54 +731,6 @@ export default function StaffView({
                       })
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* Right Column: Recent activity of this member */}
-              <div className="lg:col-span-3 rounded-lg border bg-card border-border flex flex-col">
-                <div className="px-5 py-4 border-b border-border">
-                  <h2 className="font-display font-600 text-sm text-foreground">
-                    Recent Submissions
-                  </h2>
-                </div>
-                <div className="divide-y divide-border">
-                  {myReports.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-muted-foreground">
-                      No reports filed yet. Click "Create Report" to compose
-                      your first report.
-                    </div>
-                  ) : (
-                    filteredReports.slice(0, 4).map((r) => (
-                      <div
-                        key={r.id}
-                        className="px-5 py-4 flex items-center justify-between gap-4 hover:bg-white/1 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {r.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                            Type: {r.type} · Submitted:{" "}
-                            {r.submitted.toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </p>
-                        </div>
-                        <div className="shrink-0 flex items-center gap-2">
-                          <Badge status={r.status} />
-                          {(r.status === "Draft" || r.status === "Flagged") && (
-                            <button
-                              onClick={() => handleEditReport(r)}
-                              className="text-xs font-mono px-2 py-1 rounded bg-secondary hover:bg-primary border border-border text-muted-foreground hover:text-foreground transition-all"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
             </div>
@@ -944,10 +944,14 @@ export default function StaffView({
                         ? Math.max(...reports.map((r) => r.id)) + 1
                         : 1
 
+                    const siteTitle = gveData.title || (gveData.siteName
+                      ? `${gveData.siteName} Hourly Record — ${gveData.date}`
+                      : `GVE Site Hourly Record — ${gveData.date}`)
+
                     const newReport: Report = {
                       id: editingReportId ?? newId,
 
-                      title: `GVE Site Hourly Record — ${gveData.date}`,
+                      title: siteTitle,
 
                       author: member.name,
 
@@ -959,7 +963,7 @@ export default function StaffView({
 
                       status: status,
 
-                      summary: `Official GVE Site Operational Hourly Record for ${gveData.date} (${gveData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
+                      summary: `Official ${gveData.siteName || "GVE"} Site Operational Hourly Record for ${gveData.date} (${gveData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
 
                       attachments: gveData.attachments || [],
 

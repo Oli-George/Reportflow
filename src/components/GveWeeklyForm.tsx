@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
 import logoImg from "./logo.jpeg"
 import {
   GveWeeklyRecordData,
@@ -6,8 +6,12 @@ import {
   createEmptyGveWeeklyData,
   createDefaultOutageEntry,
 } from "../types/gveWeekly"
-import { ReportAttachment } from "../types/attachment"
 import ReportPhotoUploader from "./ReportPhotoUploader"
+import {
+  getLastSiteName,
+  saveLastSiteName,
+  getRecentSiteNames,
+} from "../lib/siteMemory"
 
 interface GveWeeklyFormProps {
   initialData?: GveWeeklyRecordData
@@ -23,8 +27,13 @@ export default function GveWeeklyForm({
   onCancel,
 }: GveWeeklyFormProps) {
   const [formData, setFormData] = useState<GveWeeklyRecordData>(() => {
-    return initialData || createEmptyGveWeeklyData()
+    if (initialData) return initialData
+    const empty = createEmptyGveWeeklyData()
+    empty.siteName = getLastSiteName()
+    return empty
   })
+
+  const recentSites = useMemo(() => getRecentSiteNames(), [])
 
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -128,6 +137,7 @@ export default function GveWeeklyForm({
 
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(formData.siteName)
     if (onSave) {
       onSave(formData, "Draft")
     }
@@ -135,6 +145,7 @@ export default function GveWeeklyForm({
 
   const handleSubmitFinal = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(formData.siteName)
     if (onSave) {
       onSave(formData, "Submitted")
     }
@@ -146,6 +157,13 @@ export default function GveWeeklyForm({
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      {/* Site Name Datalist */}
+      <datalist id="reportflow-weekly-sites-list">
+        {recentSites.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+
       {/* Top Toolbar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
         <div className="flex items-center gap-2">
@@ -293,6 +311,7 @@ export default function GveWeeklyForm({
               <div className="flex-1 px-2 py-1">
                 <input
                   type="text"
+                  list="reportflow-weekly-sites-list"
                   value={formData.siteName}
                   disabled={readOnly}
                   onChange={(e) => updateField("siteName", e.target.value)}
@@ -699,11 +718,12 @@ export default function GveWeeklyForm({
               </label>
               <input
                 type="text"
+                list="reportflow-weekly-sites-list"
                 value={formData.siteName}
                 disabled={readOnly}
                 onChange={(e) => updateField("siteName", e.target.value)}
                 placeholder="e.g. Kuka Renewable Site"
-                className="w-full bg-background border border-border rounded px-3 py-2 text-xs text-foreground mt-1"
+                className="w-full bg-background border border-border rounded px-3 py-2 text-xs text-foreground mt-1 font-medium"
               />
             </div>
             <div>

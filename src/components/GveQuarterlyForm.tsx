@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
 import logoImg from "./logo.jpeg"
 import {
   GveQuarterlyRecordData,
@@ -8,6 +8,11 @@ import {
   STRING_KEYS_15,
 } from "../types/gveQuarterly"
 import ReportPhotoUploader from "./ReportPhotoUploader"
+import {
+  getLastSiteName,
+  saveLastSiteName,
+  getRecentSiteNames,
+} from "../lib/siteMemory"
 
 interface GveQuarterlyFormProps {
   initialData?: GveQuarterlyRecordData
@@ -26,8 +31,13 @@ export default function GveQuarterlyForm({
   onCancel,
 }: GveQuarterlyFormProps) {
   const [formData, setFormData] = useState<GveQuarterlyRecordData>(() => {
-    return initialData || createEmptyGveQuarterlyData()
+    if (initialData) return initialData
+    const empty = createEmptyGveQuarterlyData()
+    empty.siteName = getLastSiteName()
+    return empty
   })
+
+  const recentSites = useMemo(() => getRecentSiteNames(), [])
 
   const [activeCategory, setActiveCategory] =
     useState<AuditCategoryTab>("general")
@@ -144,6 +154,7 @@ export default function GveQuarterlyForm({
 
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(formData.siteName)
     if (onSave) {
       onSave(formData, "Draft")
     }
@@ -151,6 +162,7 @@ export default function GveQuarterlyForm({
 
   const handleSubmitFinal = (e: React.FormEvent) => {
     e.preventDefault()
+    saveLastSiteName(formData.siteName)
     if (onSave) {
       onSave(formData, "Submitted")
     }
@@ -162,6 +174,13 @@ export default function GveQuarterlyForm({
 
   return (
     <div className="flex flex-col gap-4 w-full text-foreground">
+      {/* Site Name Datalist */}
+      <datalist id="reportflow-quarterly-sites-list">
+        {recentSites.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+
       {/* Top Toolbar (No emojis) */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
         <div className="flex items-center gap-2">
@@ -300,10 +319,11 @@ export default function GveQuarterlyForm({
                   </label>
                   <input
                     type="text"
+                    list="reportflow-quarterly-sites-list"
                     value={formData.siteName}
                     disabled={readOnly}
                     onChange={(e) => updateField("siteName", e.target.value)}
-                    className="w-full bg-secondary border border-border rounded px-3 py-2 text-xs text-foreground mt-1"
+                    className="w-full bg-secondary border border-border rounded px-3 py-2 text-xs text-foreground mt-1 font-medium"
                   />
                 </div>
                 <div>
