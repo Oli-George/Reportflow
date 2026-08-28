@@ -188,6 +188,7 @@ export interface InventoryConditionItem {
 }
 
 export interface GveQuarterlyRecordData {
+  title?: string
   // Page 1 Metadata
   siteName: string
   preparedBy: string

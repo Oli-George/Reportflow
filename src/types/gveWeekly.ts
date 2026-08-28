@@ -10,6 +10,7 @@ export interface OutageFaultEntry {
 }
 
 export interface GveWeeklyRecordData {
+  title?: string
   siteName: string
   supervisorName: string
   supervisorSignature?: string
