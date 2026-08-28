@@ -2,7 +2,7 @@
 
 const STORAGE_KEY_LAST_SITE = "reportflow_last_site_name"
 const STORAGE_KEY_RECENT_SITES = "reportflow_recent_sites"
-const DEFAULT_SITE_NAME = "GVE KUKA SITE"
+const DEFAULT_SITE_NAME = "GVE SITE"
 
 /**
  * Get the most recently used site name, or default fallback

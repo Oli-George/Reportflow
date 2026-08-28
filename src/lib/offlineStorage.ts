@@ -1,7 +1,6 @@
 // ─── IndexedDB Offline Media & Reports Storage Engine ────────────────────────
 
 import { Report } from "../AdminView"
-import { ReportAttachment } from "../types/attachment"
 
 const DB_NAME = "reportflow_offline_db"
 const DB_VERSION = 1

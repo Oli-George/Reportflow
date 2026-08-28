@@ -1,11 +1,11 @@
-import React, { useState, useRef, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 import logoImg from "./logo.jpeg"
 import {
   GveKukaRecordData,
-  GveKukaHourlyEntry,
+  GveHourlyEntry,
   DEFAULT_12HR_TIMES,
   createEmptyGveEntry,
-} from "../types/gveKuka"
+} from "../types/gveSite"
 import { ReportAttachment } from "../types/attachment"
 import ReportPhotoUploader from "./ReportPhotoUploader"
 import {
@@ -49,10 +49,12 @@ export default function GveKukaHourlyForm({
   const [day, setDay] = useState(initialData?.day || defaultDayStr)
   const [year, setYear] = useState(initialData?.year || defaultYearStr)
   const [title, setTitle] = useState(
-    initialData?.title || `GVE Site Hourly Record — ${defaultDateStr}`,
+    initialData?.title ||
+      `${initialData?.siteName || getLastSiteName() || "GVE Site"} Hourly Record — ${initialData?.date || defaultDateStr}`,
   )
+  const [titleError, setTitleError] = useState<string | null>(null)
 
-  const [entries, setEntries] = useState<GveKukaHourlyEntry[]>(() => {
+  const [entries, setEntries] = useState<GveHourlyEntry[]>(() => {
     if (initialData?.entries && initialData.entries.length > 0) {
       return initialData.entries
     }
@@ -66,11 +68,6 @@ export default function GveKukaHourlyForm({
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
-  const [signatureCanvasOpen, setSignatureCanvasOpen] = useState<string | null>(
-    null,
-  )
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
 
   // Anti-tamper server time hook
   const {
@@ -109,9 +106,36 @@ export default function GveKukaHourlyForm({
     return entries.find((e) => slotStatuses[e.id]?.status === "UPCOMING")
   }, [entries, slotStatuses])
 
+  // Toggle to optionally preview hidden upcoming locked hours
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
+
+  // Progressive row visibility: in live mode, hide locked UPCOMING rows unless they have data, admin override is on, or user clicked show all
+  const visibleEntries = useMemo(() => {
+    if (readOnly || adminOverride || showAllUpcoming) {
+      return entries
+    }
+    return entries.filter((entry) => {
+      const statusInfo = slotStatuses[entry.id]
+      if (!statusInfo) return true
+      if (
+        statusInfo.status === "ACTIVE" ||
+        statusInfo.status === "LOCKED_RECORDED" ||
+        statusInfo.status === "EXPIRED_MISSED" ||
+        statusInfo.status === "HISTORICAL" ||
+        statusInfo.status === "ADMIN_UNLOCKED"
+      ) {
+        return true
+      }
+      if (hasEntryData(entry)) return true
+      return false
+    })
+  }, [entries, slotStatuses, readOnly, adminOverride, showAllUpcoming])
+
+  const hiddenUpcomingCount = entries.length - visibleEntries.length
+
   const handleEntryChange = (
     id: string,
-    section: keyof GveKukaHourlyEntry,
+    section: keyof GveHourlyEntry,
     field: string,
     value: string,
   ) => {
@@ -154,70 +178,41 @@ export default function GveKukaHourlyForm({
     setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
-  // Signature canvas handlers
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    const rect = canvas.getBoundingClientRect()
-    ctx.beginPath()
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
-    setIsDrawing(true)
+  const handleSiteNameChange = (val: string) => {
+    setSiteName(val)
+    if (!title || title.includes("Hourly Record")) {
+      setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
+    }
+    if (titleError) setTitleError(null)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    const rect = canvas.getBoundingClientRect()
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
-    ctx.strokeStyle = "#005030"
-    ctx.lineWidth = 2.5
-    ctx.lineCap = "round"
-    ctx.stroke()
-  }
-
-  const stopDrawing = () => {
-    setIsDrawing(false)
-  }
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const handleTitleChange = (val: string) => {
+    setTitle(val)
+    if (val.trim()) {
+      setTitleError(null)
     }
   }
 
-  const saveSignature = (entryId: string) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const dataUrl = canvas.toDataURL("image/png")
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.id === entryId ? { ...e, operatorSignature: dataUrl } : e,
-      ),
-    )
-    setSignatureCanvasOpen(null)
-  }
-
-  const handleSiteNameChange = (val: string) => {
-    setSiteName(val)
-    setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
+  const validateReportTitle = (): boolean => {
+    if (!title || !title.trim()) {
+      setTitleError("Report Name is required. Please enter a valid name before proceeding.")
+      return false
+    }
+    setTitleError(null)
+    return true
   }
 
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateReportTitle()) {
+      return
+    }
     saveLastSiteName(siteName)
     if (onSave) {
       onSave(
         {
           siteName: siteName || "GVE KUKA SITE",
-          title: title || `${siteName || "GVE Site"} Hourly Record — ${date}`,
+          title: title.trim(),
           date,
           day,
           year,
@@ -231,12 +226,16 @@ export default function GveKukaHourlyForm({
 
   const handleSubmitFinal = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateReportTitle()) {
+      setShowSubmitConfirmModal(false)
+      return
+    }
     saveLastSiteName(siteName)
     if (onSave) {
       onSave(
         {
           siteName: siteName || "GVE KUKA SITE",
-          title: title || `${siteName || "GVE Site"} Hourly Record — ${date}`,
+          title: title.trim(),
           date,
           day,
           year,
@@ -369,13 +368,85 @@ export default function GveKukaHourlyForm({
         </div>
       )}
 
+      {/* Progressive Shift Timeline Banner */}
+      {!readOnly && (
+        <div className="no-print bg-zinc-900/70 border border-zinc-800 px-4 py-2.5 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-zinc-400 font-mono flex items-center gap-1.5">
+              <span>⏱️</span>
+              <span className="font-semibold text-zinc-300">Shift Progress:</span>
+            </span>
+            <span className="font-mono text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/60 text-[11px]">
+              {visibleEntries.length} of {entries.length} hours visible
+            </span>
+            {hiddenUpcomingCount > 0 && nextUpcomingSlot && (
+              <span className="text-zinc-400 font-mono text-[11px]">
+                • Next slot: <strong className="text-emerald-300">{nextUpcomingSlot.time}</strong> (opens in {Math.floor((slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60)}m with 15m entry window)
+              </span>
+            )}
+          </div>
+
+          {hiddenUpcomingCount > 0 || showAllUpcoming ? (
+            <button
+              type="button"
+              onClick={() => setShowAllUpcoming(!showAllUpcoming)}
+              className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 underline underline-offset-2 flex items-center gap-1 transition-colors ml-auto cursor-pointer"
+            >
+              {showAllUpcoming
+                ? "👁️ Hide upcoming locked hours"
+                : `👁️ Preview all 13 hours (${hiddenUpcomingCount} hidden)`}
+            </button>
+          ) : null}
+        </div>
+      )}
+
       {/* Top Toolbar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-          <h2 className="text-sm font-display font-600 text-foreground uppercase tracking-wider">
-            {siteName || "GVE Site"} Hourly Record Form
-          </h2>
+        <div className="flex-1 min-w-[260px] max-w-xl flex items-center gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <label
+                htmlFor="hourly-report-name-input"
+                className="text-[10px] font-mono uppercase text-muted-foreground font-semibold flex items-center gap-1.5"
+              >
+                <span>Report Name</span>
+                {titleError && (
+                  <span className="text-rose-400 font-bold text-[9px] bg-rose-950/60 border border-rose-800/80 px-1.5 py-0.5 rounded animate-pulse">
+                    Required
+                  </span>
+                )}
+              </label>
+              {titleError && (
+                <span className="text-[10px] font-mono text-rose-400 font-medium">
+                  ⚠️ {titleError}
+                </span>
+              )}
+            </div>
+            {readOnly ? (
+              <h2 className="text-sm font-display font-600 text-foreground truncate">
+                {title || `${siteName || "GVE Site"} Hourly Record — ${date}`}
+              </h2>
+            ) : (
+              <div className="relative flex items-center">
+                <input
+                  id="hourly-report-name-input"
+                  type="text"
+                  value={title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter report name..."
+                  className={`w-full bg-background/90 border text-xs font-semibold px-2.5 py-1.5 rounded outline-none transition-all ${
+                    titleError
+                      ? "border-rose-500 ring-2 ring-rose-500/50 text-rose-200 bg-rose-950/20"
+                      : "border-border text-foreground hover:border-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  }`}
+                />
+                <span className="absolute right-2 text-zinc-400 text-xs pointer-events-none">
+                  ✏️
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -585,8 +656,8 @@ export default function GveKukaHourlyForm({
             <table className="w-full text-center text-[9px] border-collapse bg-white">
               <thead>
                 {/* Row 1 Header Categories */}
-                <tr className="bg-zinc-200 text-black font-bold uppercase text-[9px]">
-                  <th rowSpan={2} className="w-20 p-1 border border-black">
+                <tr className="bg-zinc-200 text-black font-bold uppercase text-[9.5px]">
+                  <th rowSpan={2} className="w-24 min-w-[95px] p-1.5 border border-black">
                     TIME / STATUS
                   </th>
                   <th colSpan={4} className="p-1 border border-black ">
@@ -607,173 +678,177 @@ export default function GveKukaHourlyForm({
                   <th colSpan={2} className="p-1 border border-black ">
                     COOLING SYSTEM
                   </th>
-                  <th rowSpan={2} className="w-28 p-1 border border-black">
-                    OPERATOR
-                    <br />
-                    <span className="text-[7px] font-normal lowercase">
-                      Name & signature
-                    </span>
-                  </th>
                   {!readOnly && (
                     <th
                       rowSpan={2}
-                      className="no-print w-8 border border-black"
+                      className="no-print w-9 border border-black p-1"
                     >
                       DEL
                     </th>
                   )}
                 </tr>
                 {/* Row 2 Sub-headers with units */}
-                <tr className="bg-zinc-100 text-black font-bold text-[8px] uppercase">
+                <tr className="bg-zinc-100 text-black font-bold text-[8.5px] uppercase">
                   {/* PV */}
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[42px] border border-black">
                     VOLT
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[42px] border border-black">
                     CURR
                     <br />
                     (A)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[44px] border border-black">
                     POWER
                     <br />
                     (KW)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[46px] border border-black">
                     ENERGY
                     <br />
                     (kWh)
                   </th>
                   {/* BATTERY */}
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[42px] border border-black">
                     VOLT
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[42px] border border-black">
                     CURR
                     <br />
                     (A)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[40px] border border-black">
                     SOC
                     <br />
                     (%)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[40px] border border-black">
                     SOH
                     <br />
                     (%)
                   </th>
                   {/* LOAD */}
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L1
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L1
                     <br />
                     (A)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L2
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L2
                     <br />
                     (C)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L3
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L3
                     <br />
                     (C)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[44px] border border-black">
                     POWER
                     <br />
                     (KW)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[46px] border border-black">
                     ENERGY
                     <br />
                     (kWh)
                   </th>
                   {/* GRID/DG */}
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L1
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L1
                     <br />
                     (A)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L2
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L2
                     <br />
                     (C)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L3
                     <br />
                     (V)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[38px] border border-black">
                     L3
                     <br />
                     (C)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[44px] border border-black">
                     POWER
                     <br />
                     (KW)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[46px] border border-black">
                     ENERGY
                     <br />
                     (kWh)
                   </th>
                   {/* SPD */}
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[52px] border border-black">
                     IN
                     <br />
                     (GGGG)
                   </th>
-                  <th className="p-0.5 border border-black">
+                  <th className="p-1 min-w-[52px] border border-black">
                     OUT
                     <br />
                     (GGGG)
                   </th>
                   {/* COOLING */}
-                  <th className="p-0.5 border border-black">AC1</th>
-                  <th className="p-0.5 border border-black">AC2</th>
+                  <th className="p-1 min-w-[48px] border border-black">AC1</th>
+                  <th className="p-1 min-w-[48px] border border-black">AC2</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => {
-                  const statusInfo = slotStatuses[entry.id] || {
-                    status: "ACTIVE",
-                    isEditable: !readOnly,
-                    statusLabel: "",
-                    secondsRemainingInWindow: 0,
-                    secondsUntilUnlock: 0,
-                  }
+                {visibleEntries.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={readOnly ? 29 : 30}
+                      className="border border-black p-6 text-center text-xs font-mono text-zinc-600 bg-zinc-50"
+                    >
+                      Shift has not started yet today. First hourly slot opens at{" "}
+                      <strong>06:00 AM</strong> with a 15-minute entry window.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleEntries.map((entry) => {
+                    const statusInfo = slotStatuses[entry.id] || {
+                      status: "ACTIVE",
+                      isEditable: !readOnly,
+                      statusLabel: "",
+                      secondsRemainingInWindow: 0,
+                      secondsUntilUnlock: 0,
+                    }
                   const isLocked = !statusInfo.isEditable && !readOnly
 
                   // Row background style based on time progression status
@@ -789,11 +864,11 @@ export default function GveKukaHourlyForm({
                   return (
                     <tr
                       key={entry.id}
-                      className={`font-mono text-[9px] h-8 border-b border-black transition-colors ${rowBgClass}`}
+                      className={`font-mono text-[9.5px] h-9 border-b border-black transition-colors ${rowBgClass}`}
                     >
                       {/* Time & Live Status Indicator */}
                       <td
-                        className={`border border-black p-0.5 text-center relative ${
+                        className={`border border-black p-1 text-center relative ${
                           statusInfo.status === "ACTIVE"
                             ? "bg-emerald-100 text-emerald-950 font-extrabold"
                             : "bg-zinc-50 font-semibold"
@@ -829,7 +904,7 @@ export default function GveKukaHourlyForm({
                       </td>
 
                       {/* PV */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.pv.volt}
@@ -842,11 +917,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder={statusInfo.status === "UPCOMING" ? "—" : "—"}
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.pv.curr}
@@ -859,11 +934,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.pv.power}
@@ -876,11 +951,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.pv.energy}
@@ -893,13 +968,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
 
                       {/* BATTERY */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.battery.volt}
@@ -912,11 +987,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.battery.curr}
@@ -929,11 +1004,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.battery.soc}
@@ -946,11 +1021,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.battery.soh}
@@ -963,13 +1038,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
 
                       {/* LOAD */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l1_v}
@@ -982,11 +1057,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l1_a}
@@ -999,11 +1074,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l2_v}
@@ -1016,11 +1091,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l2_c}
@@ -1033,11 +1108,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l3_v}
@@ -1050,11 +1125,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.l3_c}
@@ -1067,11 +1142,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.power}
@@ -1084,11 +1159,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.load.energy}
@@ -1101,13 +1176,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
 
                       {/* GRID/DG */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l1_v}
@@ -1120,11 +1195,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l1_a}
@@ -1137,11 +1212,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l2_v}
@@ -1154,11 +1229,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l2_c}
@@ -1171,11 +1246,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l3_v}
@@ -1188,11 +1263,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.l3_c}
@@ -1205,11 +1280,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.power}
@@ -1222,11 +1297,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <input
                           type="text"
                           value={entry.grid.energy}
@@ -1239,13 +1314,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent disabled:cursor-not-allowed outline-none"
+                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
                           placeholder="—"
                         />
                       </td>
 
                       {/* SPD */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <select
                           value={entry.spd.in}
                           disabled={isLocked || readOnly}
@@ -1257,13 +1332,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
                         >
                           <option value="GOOD">GOOD</option>
                           <option value="DEFECT">FAULT</option>
                         </select>
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <select
                           value={entry.spd.out}
                           disabled={isLocked || readOnly}
@@ -1275,7 +1350,7 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
                         >
                           <option value="GOOD">GOOD</option>
                           <option value="DEFECT">FAULT</option>
@@ -1283,7 +1358,7 @@ export default function GveKukaHourlyForm({
                       </td>
 
                       {/* COOLING */}
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <select
                           value={entry.cooling.ac1}
                           disabled={isLocked || readOnly}
@@ -1295,13 +1370,13 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
                         >
                           <option value="ON">ON</option>
                           <option value="OFF">OFF</option>
                         </select>
                       </td>
-                      <td className="border border-black p-0.5">
+                      <td className="border border-black p-1">
                         <select
                           value={entry.cooling.ac2}
                           disabled={isLocked || readOnly}
@@ -1313,67 +1388,11 @@ export default function GveKukaHourlyForm({
                               e.target.value,
                             )
                           }
-                          className="w-full text-center bg-transparent text-[8px] outline-none disabled:cursor-not-allowed"
+                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
                         >
                           <option value="ON">ON</option>
                           <option value="OFF">OFF</option>
                         </select>
-                      </td>
-
-                      {/* Operator Name & Signature */}
-                      <td className="border border-black p-0.5 text-[8px]">
-                        <div className="flex flex-col gap-0.5 items-center">
-                          <input
-                            type="text"
-                            placeholder="Operator Name"
-                            value={entry.operatorName}
-                            disabled={isLocked || readOnly}
-                            onChange={(e) =>
-                              handleEntryChange(
-                                entry.id,
-                                "operatorName",
-                                "",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full text-center text-[8px] border-b border-zinc-200 outline-none bg-transparent disabled:cursor-not-allowed"
-                          />
-                          {entry.operatorSignature ? (
-                            <div className="flex items-center gap-1">
-                              <img
-                                src={entry.operatorSignature}
-                                alt="Sig"
-                                className="h-4 max-w-[60px] object-contain"
-                              />
-                              {!readOnly && !isLocked && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSignatureCanvasOpen(entry.id)
-                                  }
-                                  className="text-[7px] text-blue-600 underline"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            !readOnly && (
-                              <button
-                                type="button"
-                                disabled={isLocked}
-                                onClick={() => setSignatureCanvasOpen(entry.id)}
-                                className={`text-[7px] px-1 py-0.2 rounded border ${
-                                  isLocked
-                                    ? "text-zinc-400 border-zinc-200 cursor-not-allowed"
-                                    : "text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                                }`}
-                              >
-                                Sign
-                              </button>
-                            )
-                          )}
-                        </div>
                       </td>
 
                       {/* Delete Action (only if admin or override) */}
@@ -1393,7 +1412,7 @@ export default function GveKukaHourlyForm({
                       )}
                     </tr>
                   )
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -1470,14 +1489,20 @@ export default function GveKukaHourlyForm({
 
           {/* Hourly Cards in Interactive View */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {entries.map((entry) => {
-              const statusInfo = slotStatuses[entry.id] || {
-                status: "ACTIVE",
-                isEditable: !readOnly,
-                statusLabel: "",
-                secondsRemainingInWindow: 0,
-                secondsUntilUnlock: 0,
-              }
+            {visibleEntries.length === 0 ? (
+              <div className="col-span-full bg-card border border-border p-8 rounded-lg text-center font-mono text-xs text-muted-foreground">
+                No active hourly windows yet today. Shift begins at{" "}
+                <strong className="text-primary-hover">06:00 AM</strong>.
+              </div>
+            ) : (
+              visibleEntries.map((entry) => {
+                const statusInfo = slotStatuses[entry.id] || {
+                  status: "ACTIVE",
+                  isEditable: !readOnly,
+                  statusLabel: "",
+                  secondsRemainingInWindow: 0,
+                  secondsUntilUnlock: 0,
+                }
               const isLocked = !statusInfo.isEditable && !readOnly
 
               return (
@@ -1603,61 +1628,7 @@ export default function GveKukaHourlyForm({
                   </div>
                 </div>
               )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Signature Pad Modal */}
-      {signatureCanvasOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
-              <span>✍️</span> Operator Digital Signature Sign-Off
-            </h3>
-            <p className="text-xs text-muted-foreground mb-3 font-mono">
-              Sign inside the box below to authenticate this operational hourly
-              log.
-            </p>
-
-            <div className="border-2 border-dashed border-border rounded-lg bg-white overflow-hidden mb-4">
-              <canvas
-                ref={canvasRef}
-                width={380}
-                height={160}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                className="w-full h-40 cursor-crosshair touch-none"
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={clearCanvas}
-                className="text-xs text-muted-foreground hover:text-foreground font-mono px-3 py-1.5 rounded border border-border"
-              >
-                Clear
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSignatureCanvasOpen(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveSignature(signatureCanvasOpen)}
-                  className="text-xs bg-primary hover:bg-primary-hover text-foreground font-bold px-4 py-1.5 rounded shadow"
-                >
-                  Save Signature
-                </button>
-              </div>
-            </div>
+            }))}
           </div>
         </div>
       )}
@@ -1773,12 +1744,9 @@ export default function GveKukaHourlyForm({
                           </th>
                           <th
                             colSpan={2}
-                            className="border border-black bg-cyan-100"
+                            className="border border-black bg-cyan-100 p-1"
                           >
                             COOLING
-                          </th>
-                          <th rowSpan={2} className="w-20 border border-black">
-                            OPERATOR
                           </th>
                         </tr>
                         <tr className="bg-zinc-100 text-black font-bold text-[7px]">
@@ -1893,9 +1861,6 @@ export default function GveKukaHourlyForm({
                             </td>
                             <td className="border border-black">
                               {e.cooling.ac2}
-                            </td>
-                            <td className="border border-black">
-                              {e.operatorName}
                             </td>
                           </tr>
                         ))}

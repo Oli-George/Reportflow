@@ -155,7 +155,7 @@ export async function flushOfflineQueue(
         summary: item.report.summary,
         feedback: item.report.feedback || null,
         attachments: syncedAttachments.length > 0 ? syncedAttachments : null,
-        gve_kuka_data: item.report.gveKukaData || null,
+        gve_kuka_data: item.report.gveData || null,
         gve_weekly_data: item.report.gveWeeklyData || null,
         gve_quarterly_data: item.report.gveQuarterlyData || null,
         submitted_at: item.report.submitted

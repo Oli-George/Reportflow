@@ -38,6 +38,15 @@ export default function GveWeeklyForm({
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
+  const [title, setTitle] = useState(
+    initialData?.title ||
+      (initialData?.siteName
+        ? `Weekly Site Report Form — ${initialData.siteName}`
+        : formData.siteName
+        ? `Weekly Site Report Form — ${formData.siteName}`
+        : "Weekly Site Report Form"),
+  )
+  const [titleError, setTitleError] = useState<string | null>(null)
   const [activeSigField, setActiveSigField] =
     useState<"supervisor" | "operator" | null>(null)
 
@@ -135,19 +144,42 @@ export default function GveWeeklyForm({
     setActiveSigField(null)
   }
 
+  const handleTitleChange = (val: string) => {
+    setTitle(val)
+    if (val.trim()) {
+      setTitleError(null)
+    }
+  }
+
+  const validateReportTitle = (): boolean => {
+    if (!title || !title.trim()) {
+      setTitleError("Report Name is required. Please enter a valid name before proceeding.")
+      return false
+    }
+    setTitleError(null)
+    return true
+  }
+
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateReportTitle()) {
+      return
+    }
     saveLastSiteName(formData.siteName)
     if (onSave) {
-      onSave(formData, "Draft")
+      onSave({ ...formData, title: title.trim() }, "Draft")
     }
   }
 
   const handleSubmitFinal = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateReportTitle()) {
+      setShowSubmitConfirmModal(false)
+      return
+    }
     saveLastSiteName(formData.siteName)
     if (onSave) {
-      onSave(formData, "Submitted")
+      onSave({ ...formData, title: title.trim() }, "Submitted")
     }
   }
 
@@ -166,11 +198,51 @@ export default function GveWeeklyForm({
 
       {/* Top Toolbar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-          <h2 className="text-sm font-display font-600 text-foreground uppercase tracking-wider">
-            Weekly Site Report Form
-          </h2>
+        <div className="flex-1 min-w-[260px] max-w-xl flex items-center gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <label
+                htmlFor="weekly-report-name-input"
+                className="text-[10px] font-mono uppercase text-muted-foreground font-semibold flex items-center gap-1.5"
+              >
+                <span>Report Name</span>
+                {titleError && (
+                  <span className="text-rose-400 font-bold text-[9px] bg-rose-950/60 border border-rose-800/80 px-1.5 py-0.5 rounded animate-pulse">
+                    Required
+                  </span>
+                )}
+              </label>
+              {titleError && (
+                <span className="text-[10px] font-mono text-rose-400 font-medium">
+                  ⚠️ {titleError}
+                </span>
+              )}
+            </div>
+            {readOnly ? (
+              <h2 className="text-sm font-display font-600 text-foreground truncate">
+                {title || `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}
+              </h2>
+            ) : (
+              <div className="relative flex items-center">
+                <input
+                  id="weekly-report-name-input"
+                  type="text"
+                  value={title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter weekly report name..."
+                  className={`w-full bg-background/90 border text-xs font-semibold px-2.5 py-1.5 rounded outline-none transition-all ${
+                    titleError
+                      ? "border-rose-500 ring-2 ring-rose-500/50 text-rose-200 bg-rose-950/20"
+                      : "border-border text-foreground hover:border-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  }`}
+                />
+                <span className="absolute right-2 text-zinc-400 text-xs pointer-events-none">
+                  ✏️
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
