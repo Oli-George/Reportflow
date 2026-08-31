@@ -15,7 +15,7 @@ import {
   Legend,
 } from "recharts"
 
-import GveKukaHourlyForm from "./components/GveKukaHourlyForm"
+import GveKukaHourlyForm from "./components/GveHourlyForm"
 
 import GveWeeklyForm from "./components/GveWeeklyForm"
 
@@ -23,7 +23,7 @@ import GveQuarterlyForm from "./components/GveQuarterlyForm"
 
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
 
-import { GveKukaRecordData } from "./types/gveKuka"
+import { GveKukaRecordData } from "./types/gveSite"
 
 import { GveWeeklyRecordData } from "./types/gveWeekly"
 
@@ -63,7 +63,7 @@ export interface Report {
 
   attachments?: ReportAttachment[]
 
-  gveKukaData?: GveKukaRecordData
+  gveData?: GveKukaRecordData
 
   gveWeeklyData?: GveWeeklyRecordData
 
@@ -221,6 +221,8 @@ export interface AdminViewProps {
   onDeleteDeadline?: (id: number) => void
 
   onLogout?: () => void
+
+  topOffset?: number
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -239,7 +241,7 @@ export const REPORTS: Report[] = [
     summary:
       "Official physical GVE KUKA Site Operational Hourly Record sheet filled out with 12-hour solar PV, battery storage, site load, and grid parameters.",
 
-    gveKukaData: {
+    gveData: {
       siteName: "GVE KUKA SITE",
 
       title: "GVE KUKA Site Hourly Record",
@@ -781,6 +783,8 @@ function Sidebar({
   collapsed,
 
   onLogout,
+
+  topOffset = 0,
 }: {
   active: View
 
@@ -789,11 +793,17 @@ function Sidebar({
   collapsed: boolean
 
   onLogout?: () => void
+
+  topOffset?: number
 }) {
   return (
     <aside
-      className="fixed left-0 top-0 h-screen flex flex-col border-r z-20 transition-all duration-200"
+      className="fixed left-0 flex flex-col border-r z-20 transition-all duration-200"
       style={{
+        top: topOffset,
+
+        height: topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh",
+
         width: collapsed ? 56 : 240,
 
         backgroundColor: "var(--card)",
@@ -975,33 +985,29 @@ function Header({
   onSearchChange,
 
   onOpenCreateModal,
+
+  topOffset = 0,
 }: {
   view: View
-
   sidebarW: number
-
   searchQuery: string
-
   onSearchChange: (q: string) => void
-
   onOpenCreateModal: () => void
+  topOffset?: number
 }) {
   return (
     <header
-      className="fixed top-0 right-0 flex items-center justify-between px-6 border-b z-10"
+      className="fixed right-0 flex items-center justify-between px-6 border-b z-10 transition-all duration-200"
       style={{
+        top: topOffset,
         left: sidebarW,
-
         height: 56,
-
         backgroundColor: "var(--background)",
-
         borderColor: "var(--border)",
       }}
     >
       <div className="flex items-center gap-3">
-        <h1
-          className="font-display font-600 text-lg"
+        <h1 className="font-display font-600 text-lg"
           style={{ color: "var(--foreground)" }}
         >
           {VIEW_TITLES[view]}
@@ -1014,8 +1020,7 @@ function Header({
         </button>
       </div>
       <div className="flex items-center gap-4">
-        <div
-          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+        <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
           style={{
             borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
 
@@ -1039,10 +1044,7 @@ function Header({
               strokeLinecap="round"
             />
           </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+          <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search reports…"
             className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-36 focus:w-52 transition-all"
           />
@@ -1055,18 +1057,15 @@ function Header({
             </button>
           )}
         </div>
-        <button
-          className="relative p-1.5 rounded-md transition-colors"
+        <button className="relative p-1.5 rounded-md transition-colors"
           style={{ color: "var(--muted-foreground)" }}
         >
           <BellIcon size={16} />
-          <span
-            className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
             style={{ backgroundColor: "var(--accent)" }}
           />
         </button>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono"
+        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono"
           style={{
             backgroundColor: "var(--primary)",
 
@@ -1084,27 +1083,17 @@ function Header({
 
 function DashboardView({
   reports,
-
   onInspect,
-
   searchQuery,
-
   deadlines = [],
-
   onOpenDeadlineModal,
-
   onDeleteDeadline,
 }: {
   reports: Report[]
-
   onInspect: (r: Report) => void
-
   searchQuery: string
-
   deadlines?: Deadline[]
-
   onOpenDeadlineModal?: () => void
-
   onDeleteDeadline?: (id: number) => void
 }) {
   const [selectedDeadlineId, setSelectedDeadlineId] = useState<number | null>(
@@ -1143,17 +1132,12 @@ function DashboardView({
   }, [reports, activityFilter])
 
   const recent = filteredReports.slice(0, 5)
-
   const now = new Date()
 
   let options = { day: "numeric", month: "short", year: "numeric" } as const
-
   let today = now.toLocaleDateString("en-US", options)
-
   const totalCount = reports.length
-
   const pendingCount = reports.filter((r) => r.status === "Submitted").length
-
   const flaggedCount = reports.filter((r) => r.status === "Flagged").length
 
   const teamCount = MEMBERS.length
@@ -1167,19 +1151,16 @@ function DashboardView({
           value={totalCount.toString()}
           sub="Total submitted & filed"
         />
-        <StatCard
-          label="Pending Approval"
+        <StatCard label="Pending Approval"
           value={pendingCount.toString()}
           sub="Needs review"
           accent
         />
-        <StatCard
-          label="Open Issues"
+        <StatCard label="Open Issues"
           value={flaggedCount.toString()}
           sub="Flagged items"
         />
-        <StatCard
-          label="Team Members"
+        <StatCard label="Team Members"
           value={teamCount.toString()}
           sub="Active reporters"
         />
@@ -1192,7 +1173,6 @@ function DashboardView({
           className="lg:col-span-3 rounded-lg border flex flex-col"
           style={{
             backgroundColor: "var(--card)",
-
             borderColor: "var(--border)",
           }}
         >
@@ -1218,8 +1198,7 @@ function DashboardView({
             style={{ borderColor: "var(--border)" }}
           >
             {recent.map((r) => (
-              <div
-                key={r.id}
+              <div key={r.id}
                 onClick={() => onInspect(r)}
                 className="px-5 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white/5 cursor-pointer"
               >
@@ -1260,16 +1239,14 @@ function DashboardView({
         {/* Right column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Deadlines */}
-          <div
-            className="rounded-lg border"
+          <div className="rounded-lg border"
             style={{
               backgroundColor: "var(--card)",
 
               borderColor: "var(--border)",
             }}
           >
-            <div
-              className="px-5 py-3.5 border-b flex items-center justify-between"
+            <div className="px-5 py-3.5 border-b flex items-center justify-between"
               style={{ borderColor: "var(--border)" }}
             >
               <div className="flex items-center gap-2">
@@ -1311,15 +1288,11 @@ function DashboardView({
                       new Date(a.dueDate).getTime() -
                       new Date(b.dueDate).getTime(),
                   )
-
                   .map((d) => {
                     const urgency = getDeadlineUrgency(d.dueDate)
-
                     const isSelected = selectedDeadlineId === d.id
-
                     return (
-                      <div
-                        key={d.id}
+                      <div key={d.id}
                         onClick={() => {
                           setSelectedDeadlineId((prev) =>
                             prev === d.id ? null : d.id,
@@ -2402,15 +2375,15 @@ function FullReportModal({
 
         {/* Report Content Body */}
         <div className="p-6 overflow-y-auto flex flex-col gap-4">
-          {report.gveKukaData ? (
+          {report.gveData ? (
             <div>
               <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
                 <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
                 <span className="text-emerald-400">
-                  {report.gveKukaData.siteName || "GVE SITE"}
+                  {report.gveData.siteName || "GVE SITE"}
                 </span>
               </h3>
-              <GveKukaHourlyForm initialData={report.gveKukaData}
+              <GveKukaHourlyForm initialData={report.gveData}
                 readOnly={true}
                 isAdmin={true}
               />
@@ -2464,7 +2437,7 @@ function FullReportModal({
           {/* Attached Photos & Evidence Gallery */}
           {report.attachments &&
             report.attachments.length > 0 &&
-            !report.gveKukaData &&
+            !report.gveData &&
             !report.gveWeeklyData &&
             !report.gveQuarterlyData && (
               <ReportPhotoUploader
@@ -3092,19 +3065,15 @@ export default function AdminView({
   onDeleteDeadline,
 
   onLogout,
+
+  topOffset = 0,
 }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
-
   const [collapsed, setCollapsed] = useState(false)
-
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
-
   const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
-
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false)
-
   const [searchQuery, setSearchQuery] = useState("")
 
   // Filter out any reports in Draft stage so they are not accessible to admins
@@ -3123,7 +3092,6 @@ export default function AdminView({
   }
 
   const sidebarW = collapsed ? 56 : 240
-
   const handleApproveReport = (id: number) => {
     setReports((prev) =>
       prev.map((item) =>
@@ -3173,26 +3141,25 @@ export default function AdminView({
         fontFamily: "var(--font-body, DM Sans, sans-serif)",
       }}
     >
-      <Sidebar
-        active={view}
+      <Sidebar active={view}
         onChange={setView}
         collapsed={collapsed}
         onLogout={onLogout}
+        topOffset={topOffset}
       />
-      <Header
-        view={view}
+      <Header view={view}
         sidebarW={sidebarW}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        topOffset={topOffset}
       />
 
       {/* Collapse toggle */}
-      <button
-        onClick={() => setCollapsed((c) => !c)}
+      <button onClick={() => setCollapsed((c) => !c)}
         className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
         style={{
-          top: 16,
+          top: topOffset + 16,
           left: sidebarW - 12,
           width: 24,
           height: 24,
@@ -3214,11 +3181,10 @@ export default function AdminView({
       </button>
 
       {/* Main content */}
-      <main
-        className="transition-all duration-200"
+      <main className="transition-all duration-200"
         style={{
           marginLeft: sidebarW,
-          paddingTop: 56 + 24,
+          paddingTop: topOffset + 56 + 24,
           paddingBottom: 40,
           paddingLeft: 24,
           paddingRight: 24,
@@ -3283,9 +3249,7 @@ export default function AdminView({
           onSaveFlag={handleSaveFlag}
         />
       )}
-      <footer>
-        {new Date().getFullYear()} &copy; ReportFlow. All rights reserved.
-      </footer>
+
     </div>
   )
 }

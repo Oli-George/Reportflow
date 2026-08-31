@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
     summary TEXT,
     feedback TEXT,
     attachments JSONB DEFAULT '[]'::jsonb,
-    gve_kuka_data JSONB,
+    gve_daily_data JSONB,
     gve_weekly_data JSONB,
     gve_quarterly_data JSONB,
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
