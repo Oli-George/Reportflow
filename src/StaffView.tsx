@@ -10,7 +10,7 @@ import {
   DEFAULT_DEADLINES,
 } from "./AdminView"
 
-import GveKukaHourlyForm from "./components/GveKukaHourlyForm"
+import GveKukaHourlyForm from "./components/GveHourlyForm"
 
 import GveWeeklyForm from "./components/GveWeeklyForm"
 
@@ -127,6 +127,8 @@ interface StaffViewProps {
   deadlines?: Deadline[]
 
   onLogout: () => void
+
+  topOffset?: number
 }
 
 type StaffTab = "dashboard" | "history" | "submit"
@@ -137,6 +139,7 @@ export default function StaffView({
   member,
   deadlines = DEFAULT_DEADLINES,
   onLogout,
+  topOffset = 0,
 }: StaffViewProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>("dashboard")
 
@@ -266,8 +269,12 @@ export default function StaffView({
     >
       {/* ─── Sidebar ────────────────────────────────────────────────────────── */}
       <aside
-        className="fixed left-0 top-0 h-screen flex flex-col border-r z-20 transition-all duration-200"
+        className="fixed left-0 flex flex-col border-r z-20 transition-all duration-200"
         style={{
+          top: topOffset,
+
+          height: topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh",
+
           width: sidebarW,
 
           backgroundColor: "var(--card)",
@@ -280,36 +287,14 @@ export default function StaffView({
           className="flex items-center gap-3 px-4 border-b shrink-0"
           style={{ height: 56, borderColor: "var(--border)" }}
         >
-          <div className="shrink-0 w-7 h-7 rounded flex items-center justify-center bg-primary">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <rect x="1" y="1" width="5" height="5" rx="1" fill="#e8f0eb" />
-              <rect
-                x="8"
-                y="1"
-                width="5"
-                height="5"
-                rx="1"
-                fill="#e8f0eb"
-                opacity="0.5"
-              />
-              <rect
-                x="1"
-                y="8"
-                width="5"
-                height="5"
-                rx="1"
-                fill="#e8f0eb"
-                opacity="0.5"
-              />
-              <rect x="8" y="8" width="5" height="5" rx="1" fill="#e8f0eb" />
-            </svg>
-          </div>
+          <div className="shrink-0 w-7 h-7 rounded flex items-center justify-center"
+          style={{ backgroundColor: "var(--primary)" }}
+        >
+          <img src="./src/components/logo.jpeg" alt="GVE Logo" />
+        </div>
           {!collapsed && (
             <span className="font-display font-700 text-base tracking-tight truncate text-foreground">
-              ReportFlow{" "}
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary-hover/30 text-secondary-foreground ml-1.5 border border-border">
-                Staff
-              </span>
+              ReportFlow
             </span>
           )}
         </div>
@@ -427,7 +412,7 @@ export default function StaffView({
         onClick={() => setCollapsed((c) => !c)}
         className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
         style={{
-          top: 16,
+          top: topOffset + 16,
 
           left: sidebarW - 12,
 
@@ -456,8 +441,10 @@ export default function StaffView({
 
       {/* ─── Header ────────────────────────────────────────────────────────── */}
       <header
-        className="fixed top-0 right-0 flex items-center justify-between px-6 border-b z-10"
+        className="fixed right-0 flex items-center justify-between px-6 border-b z-10 transition-all duration-200"
         style={{
+          top: topOffset,
+
           left: sidebarW,
 
           height: 56,
@@ -540,7 +527,7 @@ export default function StaffView({
         style={{
           marginLeft: sidebarW,
 
-          paddingTop: 56 + 24,
+          paddingTop: topOffset + 56 + 24,
 
           paddingBottom: 40,
 
@@ -813,13 +800,13 @@ export default function StaffView({
 
                   {expandedReportId === r.id && (
                     <div className="px-5 py-4 border-b border-border bg-background/50">
-                      {r.gveKukaData ? (
+                      {r.gveData ? (
                         <div className="mb-4">
                           <p className="text-xs font-mono uppercase tracking-wider mb-2 text-emerald-400">
                             Physical Form Replica — GVE Site Hourly Record
                           </p>
                           <GveKukaHourlyForm
-                            initialData={r.gveKukaData}
+                            initialData={r.gveData}
                             readOnly={true}
                           />
                         </div>
@@ -936,17 +923,17 @@ export default function StaffView({
                 <GveKukaHourlyForm
                   key={editingReportId ?? "new-kuka"}
                   initialData={
-                    reports.find((r) => r.id === editingReportId)?.gveKukaData
+                    reports.find((r) => r.id === editingReportId)?.gveData
                   }
-                  onSave={(gveData, status) => {
+                  onSave={(formData, status) => {
                     const newId =
                       reports.length > 0
                         ? Math.max(...reports.map((r) => r.id)) + 1
                         : 1
 
-                    const siteTitle = gveData.title || (gveData.siteName
-                      ? `${gveData.siteName} Hourly Record — ${gveData.date}`
-                      : `GVE Site Hourly Record — ${gveData.date}`)
+                    const siteTitle = formData.title || (formData.siteName
+                      ? `${formData.siteName} Hourly Record — ${formData.date}`
+                      : `GVE Site Hourly Record — ${formData.date}`)
 
                     const newReport: Report = {
                       id: editingReportId ?? newId,
@@ -963,11 +950,11 @@ export default function StaffView({
 
                       status: status,
 
-                      summary: `Official ${gveData.siteName || "GVE"} Site Operational Hourly Record for ${gveData.date} (${gveData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
+                      summary: `Official ${formData.siteName || "GVE"} Site Operational Hourly Record for ${formData.date} (${formData.day}). Includes 12-hour solar PV, battery storage, site load, and grid parameters.`,
 
-                      attachments: gveData.attachments || [],
+                      attachments: formData.attachments || [],
 
-                      gveKukaData: gveData,
+                      gveData: formData,
                     }
 
                     if (editingReportId !== null) {
@@ -1008,9 +995,11 @@ export default function StaffView({
                         ? Math.max(...reports.map((r) => r.id)) + 1
                         : 1
 
-                    const siteTitle = weeklyData.siteName
-                      ? `Weekly Site Report Form — ${weeklyData.siteName}`
-                      : "Weekly Site Report Form"
+                    const siteTitle =
+                      weeklyData.title ||
+                      (weeklyData.siteName
+                        ? `Weekly Site Report Form — ${weeklyData.siteName}`
+                        : "Weekly Site Report Form")
 
                     const newReport: Report = {
                       id: editingReportId ?? newId,

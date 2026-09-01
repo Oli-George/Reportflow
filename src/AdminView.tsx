@@ -16,63 +16,37 @@ import {
 } from "recharts"
 
 import GveKukaHourlyForm from "./components/GveHourlyForm"
-
 import GveWeeklyForm from "./components/GveWeeklyForm"
-
 import GveQuarterlyForm from "./components/GveQuarterlyForm"
-
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
-
-import { GveKukaRecordData } from "./types/gveSite"
-
+import { GveKukaRecordData } from "./types/gveDaily"
 import { GveWeeklyRecordData } from "./types/gveWeekly"
-
-import {
-  GveQuarterlyRecordData,
-  createEmptyGveQuarterlyData,
-} from "./types/gveQuarterly"
-
+import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type View = "dashboard" | "reports" | "teams" | "analytics"
-
 export type ReportStatus = "Approved" | "Submitted" | "Draft" | "Flagged"
-
 export type ReportType = "Daily" | "Weekly" | "Monthly" | "Quarterly" | "Yearly"
-
 export interface Report {
   id: number
-
   title: string
-
   author: string
-
   department: string
-
   type: ReportType
-
   submitted: Date
-
   status: ReportStatus
-
   summary: string
-
   feedback?: string
-
   attachments?: ReportAttachment[]
-
   gveData?: GveKukaRecordData
-
   gveWeeklyData?: GveWeeklyRecordData
-
   gveQuarterlyData?: GveQuarterlyRecordData
 }
 
 export function isWithinPastMonth(date: Date | string) {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-
   const submittedTime = new Date(date).getTime()
 
   return new Date().getTime() - submittedTime <= thirtyDaysMs
@@ -80,35 +54,22 @@ export function isWithinPastMonth(date: Date | string) {
 
 export interface Member {
   id: number
-
   name: string
-
   role: string
-
   department: string
-
   lastReport: Date
-
   compliance: number
-
   initials: string
-
   color: string
 }
 
 export interface Deadline {
   id: number
-
   title: string
-
   department: string
-
   dueDate: string
-
   description?: string
-
   priority?: "High" | "Medium" | "Low"
-
   createdAt?: string
 }
 
@@ -131,13 +92,9 @@ export function getDeadlineUrgency(
 ): { label: string; isOverdue: boolean; isUrgent: boolean } {
   try {
     const today = new Date()
-
     today.setHours(0, 0, 0, 0)
-
     const due = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"))
-
     due.setHours(0, 0, 0, 0)
-
     const diffDays = Math.round(
       (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     )
@@ -824,10 +781,13 @@ function Sidebar({
         </div>
         {!collapsed && (
           <span
-            className="font-display font-700 text-base tracking-tight truncate"
+            className="font-display font-700 text-base tracking-tight truncate flex items-center"
             style={{ color: "var(--foreground)" }}
           >
-            ReportFlow
+            ReportFlow{" "}
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary-hover/30 text-secondary-foreground ml-1.5 border border-border">
+              Admin
+            </span>
           </span>
         )}
       </div>
@@ -1588,6 +1548,7 @@ const REPORT_STATUSES: (ReportStatus | "All")[] = [
   "Approved",
   "Submitted",
   "Flagged",
+  "Draft",
 ]
 
 function ReportsView({
@@ -2589,63 +2550,55 @@ function FlagReportModal({
 
 function AdminCreateReportModal({
   onClose,
-
   onSubmit,
 }: {
   onClose: () => void
-
-  onSubmit: (report: Omit<Report, "id" | "submitted" | "status">) => void
+  onSubmit: (
+    report: Omit<Report, "id" | "submitted" | "status">,
+    status?: ReportStatus,
+  ) => void
 }) {
   const [title, setTitle] = useState("")
-
   const [author, setAuthor] = useState("")
-
   const [department, setDepartment] = useState("Engineering")
-
   const [type, setType] = useState<ReportType>("Quarterly")
-
   const [summary, setSummary] = useState("")
-
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
-
   const [error, setError] = useState("")
-
   const [quarterlyData, setQuarterlyData] = useState<GveQuarterlyRecordData>(
     createEmptyGveQuarterlyData(),
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSave = (statusToSave: ReportStatus) => {
     if (!title.trim()) {
       setError("Please enter a report title.")
-
       return
     }
 
-    if (!summary.trim()) {
+    if (!summary.trim() && type !== "Quarterly") {
       setError("Please enter detailed summary/findings.")
-
       return
     }
 
-    onSubmit({
-      title,
-
-      author,
-
-      department,
-
-      type,
-
-      summary,
-
-      attachments,
-
-      ...(type === "Quarterly" ? { gveQuarterlyData: quarterlyData } : {}),
-    })
+    onSubmit(
+      {
+        title,
+        author,
+        department,
+        type,
+        summary: summary.trim() || `Official Site Quarterly Maintenance Audit Report for ${quarterlyData.siteName || "site"}.`,
+        attachments,
+        ...(type === "Quarterly" ? { gveQuarterlyData: quarterlyData } : {}),
+      },
+      statusToSave,
+    )
 
     onClose()
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleSave("Approved")
   }
 
   return (
@@ -2821,18 +2774,35 @@ function AdminCreateReportModal({
             </div>
           )}
 
-          <div className="pt-3 border-t border-border flex justify-end gap-3 bg-secondary/20 -mx-5 -mb-5 px-5 py-3 mt-1">
+          <div className="pt-3 border-t border-border flex items-center justify-end gap-3 bg-secondary/20 -mx-5 -mb-5 px-5 py-3 mt-1 font-mono">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-mono border border-border rounded text-muted-foreground hover:text-foreground"
+              className="px-4 py-2 text-xs border border-border rounded text-muted-foreground hover:text-foreground"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              className="px-5 py-2 text-xs font-mono font-semibold rounded bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px"
+              type="button"
+              onClick={() => handleSave("Draft")}
+              className="px-4 py-2 text-xs font-semibold rounded bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 transition-all shadow-sm active:translate-y-px flex items-center gap-1.5"
+              title="Save as Draft to edit later"
             >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Save as Draft
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave("Approved")}
+              className="px-5 py-2 text-xs font-semibold rounded bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px flex items-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
               Publish Report & Audit Form
             </button>
           </div>
@@ -3079,7 +3049,7 @@ export default function AdminView({
   // Filter out any reports in Draft stage so they are not accessible to admins
 
   const adminReports = useMemo(
-    () => reports.filter((r) => r.status !== "Draft"),
+    () => reports,
     [reports],
   )
 
@@ -3116,18 +3086,16 @@ export default function AdminView({
 
   const handleCreateAdminReport = (
     data: Omit<Report, "id" | "submitted" | "status">,
+    status: ReportStatus = "Approved",
   ) => {
     const newId =
       reports.length > 0 ? Math.max(...reports.map((r) => r.id)) + 1 : 1
 
     const newReport: Report = {
       id: newId,
-
       ...data,
-
       submitted: new Date(),
-
-      status: "Approved",
+      status: status,
     }
 
     setReports((prev) => [newReport, ...prev])
