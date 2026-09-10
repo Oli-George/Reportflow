@@ -1,13 +1,14 @@
 import { useState, useMemo } from "react"
 
-import GveKukaHourlyForm from "./components/GveHourlyForm"
+import GveDailyHourlyForm from "./components/GveHourlyForm"
 import GveWeeklyForm from "./components/GveWeeklyForm"
 import GveQuarterlyForm from "./components/GveQuarterlyForm"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
-import { GveKukaRecordData } from "./types/gveDaily"
+import { GveDailyRecordData } from "./types/gveDaily"
 import { GveWeeklyRecordData } from "./types/gveWeekly"
 import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
+import { ContrastIcon } from "./components/Icons"
 import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
 import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
 import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
@@ -41,7 +42,7 @@ export interface Report {
   summary: string
   feedback?: string
   attachments?: ReportAttachment[]
-  gveData?: GveKukaRecordData
+  gveData?: GveDailyRecordData
   gveWeeklyData?: GveWeeklyRecordData
   gveQuarterlyData?: GveQuarterlyRecordData
 }
@@ -181,6 +182,10 @@ export interface AdminViewProps {
   onLogout?: () => void
 
   topOffset?: number
+
+  sunlightMode?: boolean
+
+  onToggleSunlightMode?: () => void
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -622,9 +627,10 @@ const statusColor: Record<ReportStatus | string, string> = {
 }
 
 export function Badge({ status }: { status: string }) {
+  const statusKey = status.toLowerCase()
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${statusColor[status] ?? "bg-zinc-800 text-zinc-400 border-zinc-700"}`}
+      className={`badge-status badge-${statusKey} inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${statusColor[status] ?? "bg-zinc-800 text-zinc-400 border-zinc-700"}`}
     >
       {status}
     </span>
@@ -904,6 +910,10 @@ function Header({
   onOpenCreateModal,
 
   topOffset = 0,
+
+  sunlightMode = false,
+
+  onToggleSunlightMode,
 }: {
   view: View
   sidebarW: number
@@ -911,6 +921,8 @@ function Header({
   onSearchChange: (q: string) => void
   onOpenCreateModal: () => void
   topOffset?: number
+  sunlightMode?: boolean
+  onToggleSunlightMode?: () => void
 }) {
   return (
     <header
@@ -936,7 +948,25 @@ function Header({
           <span className="text-sm font-bold leading-none">+</span> Write Report
         </button>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {onToggleSunlightMode && (
+          <button
+            type="button"
+            onClick={onToggleSunlightMode}
+            className="sunlight-toggle-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition-all cursor-pointer shadow-sm hover:opacity-90"
+            style={{
+              backgroundColor: sunlightMode ? "#0f172a" : "var(--secondary)",
+              color: sunlightMode ? "#ffffff" : "var(--foreground)",
+              borderColor: sunlightMode ? "#0f172a" : "var(--border)",
+            }}
+            title="Toggle high-contrast sunlight display mode for outdoor mobile readability"
+          >
+            <ContrastIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">
+              {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
+            </span>
+          </button>
+        )}
         <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
           style={{
             borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
@@ -963,7 +993,7 @@ function Header({
           </svg>
           <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search reports…"
-            className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-36 focus:w-52 transition-all"
+            className="search-bar-input bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-36 focus:w-52 transition-all"
           />
           {searchQuery && (
             <button
@@ -1359,7 +1389,7 @@ function DashboardView({
                     onClick={() => setActivityFilter(tab.id)}
                     className={`px-2 py-0.5 rounded transition-colors ${
                       activityFilter === tab.id
-                        ? "bg-primary text-foreground font-semibold shadow-xs"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -2427,7 +2457,7 @@ function FullReportModal({
                   {report.gveData.siteName || "GVE SITE"}
                 </span>
               </h3>
-              <GveKukaHourlyForm initialData={report.gveData}
+              <GveDailyHourlyForm initialData={report.gveData}
                 readOnly={true}
                 isAdmin={true}
               />
@@ -2693,7 +2723,7 @@ function AdminCreateReportModal({
       >
         <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary text-foreground flex items-center justify-center font-bold text-xs">
+            <div className="w-6 h-6 rounded bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs">
               +
             </div>
             <h3 className="font-display font-700 text-base text-foreground">
@@ -3054,10 +3084,10 @@ function CreateDeadlineModal({
                     }`}
                   >
                     {p === "High"
-                      ? "🔴 High"
+                      ? "High"
                       : p === "Medium"
-                        ? "🟡 Medium"
-                        : "🟢 Low"}
+                        ? "Medium"
+                        : "Low"}
                   </button>
                 )
               })}
@@ -3120,6 +3150,10 @@ export default function AdminView({
   onLogout,
 
   topOffset = 0,
+
+  sunlightMode = false,
+
+  onToggleSunlightMode,
 }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
@@ -3204,6 +3238,8 @@ export default function AdminView({
         onSearchChange={handleSearchChange}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         topOffset={topOffset}
+        sunlightMode={sunlightMode}
+        onToggleSunlightMode={onToggleSunlightMode}
       />
 
       {/* Collapse toggle */}

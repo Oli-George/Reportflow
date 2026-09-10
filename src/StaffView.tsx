@@ -10,11 +10,19 @@ import {
   DEFAULT_DEADLINES,
 } from "./AdminView"
 
-import GveKukaHourlyForm from "./components/GveHourlyForm"
+import GveDailyHourlyForm from "./components/GveHourlyForm"
 
 import GveWeeklyForm from "./components/GveWeeklyForm"
 
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
+import {
+  ContrastIcon,
+  FileTextIcon,
+  ClipboardIcon,
+  AlertIcon,
+  InfoIcon,
+  CheckIcon,
+} from "./components/Icons"
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +137,10 @@ interface StaffViewProps {
   onLogout: () => void
 
   topOffset?: number
+
+  sunlightMode?: boolean
+
+  onToggleSunlightMode?: () => void
 }
 
 type StaffTab = "dashboard" | "history" | "submit"
@@ -140,6 +152,8 @@ export default function StaffView({
   deadlines = DEFAULT_DEADLINES,
   onLogout,
   topOffset = 0,
+  sunlightMode = false,
+  onToggleSunlightMode,
 }: StaffViewProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>("dashboard")
 
@@ -159,7 +173,7 @@ export default function StaffView({
     useState<number | null>(null)
 
   const [selectedFormFormat, setSelectedFormFormat] =
-    useState<"gveKuka" | "gveWeekly">("gveKuka")
+    useState<"gveDaily" | "gveWeekly">("gveDaily")
 
   const sidebarW = collapsed ? 56 : 240
 
@@ -233,7 +247,7 @@ export default function StaffView({
     if (report.gveWeeklyData) {
       setSelectedFormFormat("gveWeekly")
     } else {
-      setSelectedFormFormat("gveKuka")
+      setSelectedFormFormat("gveDaily")
     }
 
     setActiveTab("submit")
@@ -318,7 +332,9 @@ export default function StaffView({
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className="flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors"
+                className={`flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive ? "sidebar-nav-active" : "sidebar-nav-inactive"
+                }`}
                 style={{
                   backgroundColor: isActive ? "var(--primary)" : "transparent",
 
@@ -463,7 +479,26 @@ export default function StaffView({
                 ? "Revise Report"
                 : "Submit Report"}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {onToggleSunlightMode && (
+            <button
+              type="button"
+              onClick={onToggleSunlightMode}
+              className="sunlight-toggle-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition-all cursor-pointer shadow-sm hover:opacity-90"
+              style={{
+                backgroundColor: sunlightMode ? "#0f172a" : "var(--secondary)",
+                color: sunlightMode ? "#ffffff" : "var(--foreground)",
+                borderColor: sunlightMode ? "#0f172a" : "var(--border)",
+              }}
+              title="Toggle high-contrast sunlight display mode for outdoor mobile readability"
+            >
+              <ContrastIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
+              </span>
+            </button>
+          )}
+
           {showSearch && (
             <div
               className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
@@ -497,7 +532,7 @@ export default function StaffView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search my reports…"
-                className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-32 focus:w-48 transition-all"
+                className="search-bar-input bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-32 focus:w-48 transition-all"
               />
               {searchQuery && (
                 <button
@@ -678,7 +713,7 @@ export default function StaffView({
                                   {d.title}
                                 </p>
                                 {d.priority === "High" && (
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
+                                  <span className="deadline-badge-overdue px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
                                     High
                                   </span>
                                 )}
@@ -701,10 +736,10 @@ export default function StaffView({
                               <span
                                 className={`text-xs font-mono px-2 py-1 rounded border block ${
                                   urgency.isOverdue
-                                    ? "bg-rose-950/40 border-rose-800 text-rose-400"
+                                    ? "deadline-badge-overdue bg-rose-950/40 border-rose-800 text-rose-400"
                                     : urgency.isUrgent
-                                      ? "bg-amber-950/40 border-amber-800 text-amber-300"
-                                      : "bg-emerald-950/30 border-emerald-800/40 text-emerald-400"
+                                      ? "deadline-badge-urgent bg-amber-950/40 border-amber-800 text-amber-300"
+                                      : "deadline-badge-normal bg-emerald-950/30 border-emerald-800/40 text-emerald-400"
                                 }`}
                               >
                                 {formatDeadlineDate(d.dueDate)}
@@ -807,7 +842,7 @@ export default function StaffView({
                           <p className="text-xs font-mono uppercase tracking-wider mb-2 text-emerald-400">
                             Physical Form Replica — GVE Site Hourly Record
                           </p>
-                          <GveKukaHourlyForm
+                          <GveDailyHourlyForm
                             initialData={r.gveData}
                             readOnly={true}
                           />
@@ -855,15 +890,15 @@ export default function StaffView({
                         <div className="flex items-center gap-3 mt-4 border-t border-border/40 pt-4">
                           <button
                             onClick={() => handleEditReport(r)}
-                            className="text-xs font-mono px-3.5 py-1.5 rounded bg-secondary hover:bg-border text-foreground border border-border transition-colors flex items-center gap-1.5 font-medium"
+                            className="text-xs font-mono px-3.5 py-1.5 rounded bg-secondary hover:bg-border text-foreground border border-border transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
                           >
-                            ✏️ Edit & Review Draft
+                            Edit &amp; Review Draft
                           </button>
                           <button
                             onClick={() => setConfirmSubmitReportId(r.id)}
-                            className="text-xs font-mono px-3.5 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary-hover font-semibold transition-colors flex items-center gap-1.5 shadow"
+                            className="text-xs font-mono px-3.5 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary-hover font-semibold transition-colors flex items-center gap-1.5 shadow cursor-pointer"
                           >
-                            🚀 Submit Report
+                            Submit Report
                           </button>
                         </div>
                       )}
@@ -891,25 +926,27 @@ export default function StaffView({
               <div className="flex items-center gap-2 bg-secondary p-1 rounded-md border border-border">
                 <button
                   type="button"
-                  onClick={() => setSelectedFormFormat("gveKuka")}
-                  className={`px-3 py-1 text-xs font-mono rounded transition-all ${
-                    selectedFormFormat === "gveKuka"
-                      ? "bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 font-bold"
-                      : "text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedFormFormat("gveDaily")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                    selectedFormFormat === "gveDaily"
+                      ? "format-selector-active bg-primary text-primary-foreground font-bold shadow-xs border border-emerald-800"
+                      : "bg-card/70 hover:bg-card text-foreground font-semibold border border-border/80 shadow-2xs"
                   }`}
                 >
-                  📄 Physical Form: GVE Hourly Log
+                  <FileTextIcon className="w-3.5 h-3.5" />
+                  <span>Physical Form: GVE Hourly Log</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedFormFormat("gveWeekly")}
-                  className={`px-3 py-1 text-xs font-mono rounded transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
                     selectedFormFormat === "gveWeekly"
-                      ? "bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 font-bold"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "format-selector-active bg-primary text-primary-foreground font-bold shadow-xs border border-emerald-800"
+                      : "bg-card/70 hover:bg-card text-foreground font-semibold border border-border/80 shadow-2xs"
                   }`}
                 >
-                  📋 Physical Form: Weekly Site Report
+                  <ClipboardIcon className="w-3.5 h-3.5" />
+                  <span>Physical Form: Weekly Site Report</span>
                 </button>
               </div>
             </div>
@@ -921,9 +958,11 @@ export default function StaffView({
                   <span className="text-emerald-400">✓</span> {toastMessage}
                 </div>
               )}
-              {selectedFormFormat === "gveKuka" ? (
-                <GveKukaHourlyForm
-                  key={editingReportId ?? "new-kuka"}
+              {selectedFormFormat === "gveDaily" ? (
+                <GveDailyHourlyForm
+                  key={editingReportId ?? "new-daily"}
+                  author={member.name}
+                  reportId={editingReportId}
                   initialData={
                     reports.find((r) => r.id === editingReportId)?.gveData
                   }
@@ -988,6 +1027,8 @@ export default function StaffView({
               ) : (
                 <GveWeeklyForm
                   key={editingReportId ?? "new-weekly"}
+                  author={member.name}
+                  reportId={editingReportId}
                   initialData={
                     reports.find((r) => r.id === editingReportId)?.gveWeeklyData
                   }
@@ -1061,65 +1102,71 @@ export default function StaffView({
       </footer>
 
       {/* 2nd Verification Modal for Direct History Submit */}
-      {confirmSubmitReportId !== null && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-950 border border-emerald-700/60 flex items-center justify-center text-lg shrink-0">
-                ⚠️
+      {confirmSubmitReportId !== null && (() => {
+        const targetReport = reports.find((r) => r.id === confirmSubmitReportId)
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <AlertIcon className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-display font-bold text-foreground">
+                    Confirm Final Report Submission
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    2-Step Verification Check
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-display font-bold text-foreground">
-                  Confirm Final Report Submission
-                </h3>
-                <p className="text-xs text-muted-foreground font-mono">
-                  2-Step Verification Check
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Are you sure you want to finalize and submit{" "}
+                <strong className="text-foreground font-bold">
+                  "{targetReport?.title || "this report"}"
+                </strong>
+                ? Once submitted, it will be locked and sent to Site Administrators for
+                formal review.
+              </p>
+
+              <div className="p-3 rounded bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-800/50 text-amber-900 dark:text-amber-300 text-xs font-mono space-y-1">
+                <p className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                  <InfoIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Accidental click?</span>
+                </p>
+                <p>
+                  If you still need to make changes, click{" "}
+                  <strong>"Edit & Review Draft"</strong> to inspect and update
+                  form values before submitting.
                 </p>
               </div>
-            </div>
 
-            <p className="text-xs text-foreground/90 leading-relaxed">
-              Are you sure you want to finalize and submit this report? Once
-              submitted, it will be locked and sent to Site Administrators for
-              formal review.
-            </p>
-
-            <div className="p-3 rounded bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs font-mono space-y-1">
-              <p className="font-bold text-amber-400 flex items-center gap-1">
-                <span>💡</span> Accidental click?
-              </p>
-              <p>
-                If you still need to make changes, click{" "}
-                <strong>"Edit & Review Draft"</strong> to inspect and update
-                form values before submitting.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-              <button
-                type="button"
-                onClick={() => setConfirmSubmitReportId(null)}
-                className="px-3.5 py-1.5 rounded text-xs font-mono bg-secondary hover:bg-border text-foreground border border-border transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const targetId = confirmSubmitReportId
-
-                  setConfirmSubmitReportId(null)
-
-                  if (targetId) handleDirectSubmit(targetId)
-                }}
-                className="px-4 py-1.5 rounded text-xs font-mono bg-primary hover:bg-primary-hover text-foreground font-semibold transition-all shadow"
-              >
-                🚀 Confirm & Submit Report
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setConfirmSubmitReportId(null)}
+                  className="px-3.5 py-1.5 rounded text-xs font-mono bg-secondary hover:bg-muted text-foreground border border-border transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = confirmSubmitReportId
+                    setConfirmSubmitReportId(null)
+                    if (targetId) handleDirectSubmit(targetId)
+                  }}
+                  className="px-4 py-1.5 rounded text-xs font-mono bg-primary hover:bg-primary-hover text-primary-foreground font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckIcon className="w-3.5 h-3.5" />
+                  <span>Confirm & Submit Report</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
       <footer className="text-xs  justify-between text-muted-foreground/80 mt-1 italic">
         {new Date().getFullYear()} &copy; ReportFlow. All rights reserved.
       </footer>

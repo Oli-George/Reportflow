@@ -151,6 +151,32 @@ function App() {
     return null
   })
 
+  const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("reportflow_sunlight_mode") === "true"
+    } catch (e) {
+      return false
+    }
+  })
+
+  // Sync sunlight mode to DOM and localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("reportflow_sunlight_mode", String(sunlightMode))
+      if (sunlightMode) {
+        document.documentElement.classList.add("sunlight-mode")
+      } else {
+        document.documentElement.classList.remove("sunlight-mode")
+      }
+    } catch (e) {
+      console.warn("Failed to persist sunlight mode", e)
+    }
+  }, [sunlightMode])
+
+  const toggleSunlightMode = useCallback(() => {
+    setSunlightMode((prev) => !prev)
+  }, [])
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
 
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(0)
@@ -1205,7 +1231,7 @@ function App() {
                     }}
                     className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
                       loginRole === "staff"
-                        ? "bg-primary text-foreground font-medium shadow"
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -1220,7 +1246,7 @@ function App() {
                     }}
                     className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
                       loginRole === "admin"
-                        ? "bg-primary text-foreground font-medium shadow"
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -1728,6 +1754,8 @@ function App() {
             onDeleteDeadline={handleDeleteDeadline}
             onLogout={handleLogout}
             topOffset={topOffset}
+            sunlightMode={sunlightMode}
+            onToggleSunlightMode={toggleSunlightMode}
           />
         )
       ) : (
@@ -1738,6 +1766,8 @@ function App() {
           deadlines={deadlines}
           onLogout={handleLogout}
           topOffset={topOffset}
+          sunlightMode={sunlightMode}
+          onToggleSunlightMode={toggleSunlightMode}
         />
       )}
       <footer className="text-center py-4 bg-background border-t border-border/40 text-xs text-muted-foreground/80 font-mono">
