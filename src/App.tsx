@@ -1,62 +1,33 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-
 import AdminView, {
-  REPORTS,
   MEMBERS,
-  Report,
-  Member,
-  Deadline,
-  DEFAULT_DEADLINES,
+  Report, Member,
+  Deadline, DEFAULT_DEADLINES,
 } from "./AdminView"
 
 import StaffView from "./StaffView"
-
 import { supabase, isValidGveEmail } from "./lib/supabase"
-
 import {
   initOfflineSyncListener,
   getOfflineQueue,
   flushOfflineQueue,
   queueOfflineReport,
 } from "./lib/syncQueue"
-
 import { uploadAttachmentFile } from "./lib/storageProviders"
-
 import { ReportAttachment } from "./types/attachment"
-
 import logoImg from "./components/logo.jpeg"
+import { useOfflineReports } from "./hooks/useOfflineReports"
+import { useIsMobile } from "./hooks/useIsMobile"
 
 export interface UserSession {
   role: "admin" | "staff"
-
   member?: Member
-
   email?: string
 }
 
-const DEPARTMENTS = [
-  "Engineering",
+const DEPARTMENTS = ["Engineering","Operations","Finance","HSE","Management",]
 
-  "Operations",
-
-  "Finance",
-
-  "HSE",
-
-  "Management",
-]
-
-const ROLES = [
-  "Field Engineer",
-
-  "Site Technician",
-
-  "Operations Lead",
-
-  "HSE Officer",
-
-  "Solar PV Specialist",
-]
+const ROLES = [ "Field Engineer","Site Technician","Operations Lead","HSE Officer","Solar PV Specialist",]
 
 // Helper to prevent and clean duplicate report rows safely
 export function deduplicateReportsList(list: Report[]): Report[] {
@@ -84,9 +55,9 @@ export function deduplicateReportsList(list: Report[]): Report[] {
 
     // Build a unique logical key based on author, report format, site & date
     let dateKey = `${authorStr}_${titleStr}_${typeStr}_${dateStr}`
-    if (r.gveKukaData?.date) {
-      const siteStr = (r.gveKukaData.siteName || "").trim().toLowerCase()
-      dateKey = `kuka_${r.gveKukaData.date}_${siteStr}_${authorStr}`
+    if (r.gveData?.date) {
+      const siteStr = (r.gveData.siteName || "").trim().toLowerCase()
+      dateKey = `gvehourly_${r.gveData.date}_${siteStr}_${authorStr}`
     } else if (r.gveWeeklyData?.siteName) {
       const siteStr = r.gveWeeklyData.siteName.trim().toLowerCase()
       dateKey = `weekly_${siteStr}_${dateStr}_${authorStr}`
@@ -131,9 +102,26 @@ export function deduplicateReportsList(list: Report[]): Report[] {
 }
 
 function App() {
-  const [reports, setReports] = useState<Report[]>(() => deduplicateReportsList(REPORTS))
+  const { reports, setReports } = useOfflineReports()
+  const isMobile = useIsMobile()
 
-  const [members, setMembers] = useState<Member[]>(MEMBERS)
+  const [members, setMembers] = useState<Member[]>(() => {
+    try {
+      const saved = localStorage.getItem("reportflow_cached_members")
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: any) => ({
+            ...m,
+            lastReport: m.lastReport ? new Date(m.lastReport) : new Date(),
+          }))
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse cached members from localStorage", e)
+    }
+    return MEMBERS
+  })
 
   const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
     try {
@@ -188,8 +176,23 @@ function App() {
     }
   }, [session])
 
-  // Persist deadlines to localStorage
+  // Persist reports is now handled by useOfflineReports hook
 
+  // Persist members to localStorage
+  useEffect(() => {
+    try {
+      if (members && members.length > 0) {
+        localStorage.setItem(
+          "reportflow_cached_members",
+          JSON.stringify(members),
+        )
+      }
+    } catch (e) {
+      console.warn("Failed to cache members to localStorage", e)
+    }
+  }, [members])
+
+  // Persist deadlines to localStorage
   useEffect(() => {
     try {
       localStorage.setItem("reportflow_deadlines", JSON.stringify(deadlines))
@@ -201,23 +204,23 @@ function App() {
   // Login & Sign-up states
 
   const [email, setEmail] = useState("")
-
   const [password, setPassword] = useState("")
-
   const [confirmPassword, setConfirmPassword] = useState("")
-
   const [fullName, setFullName] = useState("")
-
   const [department, setDepartment] = useState("Engineering")
-
   const [staffRole, setStaffRole] = useState("Field Engineer")
-
   const [loginRole, setLoginRole] = useState<"admin" | "staff">("staff")
-
   const [authMode, setAuthMode] =
     useState<"signin" | "signup" | "forgot_password" | "reset_password">(
       "signin",
     )
+
+  // On mobile screens, force loginRole to staff so admin is completely unavailable
+  useEffect(() => {
+    if (isMobile && loginRole === "admin") {
+      setLoginRole("staff")
+    }
+  }, [isMobile, loginRole])
 
   const [error, setError] = useState("")
 
@@ -249,27 +252,17 @@ function App() {
       if (data && data.length > 0) {
         const mappedReports: Report[] = data.map((row: any) => ({
           id: Number(row.id),
-
           title: row.title,
-
           author: row.author,
 
           department: row.department,
-
           type: row.type,
-
           submitted: new Date(row.submitted_at || row.created_at),
-
           status: row.status,
-
           summary: row.summary || "",
-
           feedback: row.feedback || undefined,
-
           attachments: row.attachments || undefined,
-
-          gveKukaData: row.gve_kuka_data || undefined,
-
+          gveData: row.gve_daily_data || row.gve_kuka_data || row.gve_data || undefined,
           gveWeeklyData: row.gve_weekly_data || undefined,
 
           gveQuarterlyData: row.gve_quarterly_data || undefined,
@@ -291,9 +284,7 @@ function App() {
       const { data, error } = await supabase
 
         .from("members")
-
         .select("*")
-
         .order("name", { ascending: true })
 
       if (error) {
@@ -305,17 +296,11 @@ function App() {
       if (data && data.length > 0) {
         const mappedMembers: Member[] = data.map((row: any, idx: number) => ({
           id: idx + 1,
-
           name: row.name,
-
           role: row.role || "Field Engineer",
-
           department: row.department || "Engineering",
-
           lastReport: new Date(),
-
           compliance: row.compliance ?? 95,
-
           initials:
             row.initials ||
             row.name
@@ -342,9 +327,7 @@ function App() {
       const { data, error } = await supabase
 
         .from("deadlines")
-
         .select("*")
-
         .order("due_date", { ascending: true })
 
       if (error) {
@@ -359,17 +342,11 @@ function App() {
       if (data && data.length > 0) {
         const mapped: Deadline[] = data.map((row: any) => ({
           id: Number(row.id),
-
           title: row.title,
-
           department: row.department,
-
           dueDate: row.due_date,
-
           description: row.description || undefined,
-
           priority: row.priority || "Medium",
-
           createdAt: row.created_at,
         }))
 
@@ -515,7 +492,7 @@ function App() {
           (existing.status !== r.status ||
             existing.feedback !== r.feedback ||
             existing.summary !== r.summary ||
-            existing.gveKukaData !== r.gveKukaData ||
+            existing.gveData !== r.gveData ||
             existing.gveWeeklyData !== r.gveWeeklyData ||
             existing.gveQuarterlyData !== r.gveQuarterlyData ||
             existing.attachments !== r.attachments)
@@ -573,12 +550,10 @@ function App() {
             syncedAttachments.length > 0
               ? syncedAttachments
               : report.attachments || null,
-          gve_kuka_data: report.gveKukaData || null,
+          gve_daily_data: report.gveData || null,
           gve_weekly_data: report.gveWeeklyData || null,
           gve_quarterly_data: report.gveQuarterlyData || null,
-          submitted_at: report.submitted
-            ? new Date(report.submitted).toISOString()
-            : new Date().toISOString(),
+          submitted_at: report.submitted ? new Date(report.submitted).toISOString() : new Date().toISOString(),
         }
 
         try {
@@ -923,13 +898,9 @@ function App() {
             cleanName
 
               .split(/\s+/)
-
               .map((n) => n[0])
-
               .join("")
-
               .substring(0, 2)
-
               .toUpperCase() || "FE"
 
           // 1. Supabase Auth registration
@@ -979,17 +950,11 @@ function App() {
           try {
             await supabase.from("members").upsert({
               name: cleanName,
-
               email: cleanEmail,
-
               role: staffRole,
-
               department: department,
-
               compliance: 100,
-
               initials,
-
               color: "#005030",
 
               is_admin: false,
@@ -1002,19 +967,12 @@ function App() {
 
           const newMember: Member = {
             id: Date.now(),
-
             name: cleanName,
-
             role: staffRole,
-
             department: department,
-
             lastReport: new Date(),
-
             compliance: 100,
-
             initials,
-
             color: "#005030",
           }
 
@@ -1235,39 +1193,41 @@ function App() {
           {/* Role selector & Staff Auth Mode Tabs (Only visible when not in recovery modes) */}
           {authMode !== "forgot_password" && authMode !== "reset_password" ? (
             <>
-              {/* Role selector (Staff Portal vs Administrator) */}
-              <div className="grid grid-cols-2 gap-1 bg-secondary rounded-lg p-1 mb-4 border border-border/50">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginRole("staff")
-                    setError("")
-                    setSuccessMsg("")
-                  }}
-                  className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
-                    loginRole === "staff"
-                      ? "bg-primary text-foreground font-medium shadow"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Staff Portal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginRole("admin")
-                    setError("")
-                    setSuccessMsg("")
-                  }}
-                  className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
-                    loginRole === "admin"
-                      ? "bg-primary text-foreground font-medium shadow"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Administrator
-                </button>
-              </div>
+              {/* Role selector (Staff Portal vs Administrator) - Only displayed on desktop/tablet */}
+              {!isMobile && (
+                <div className="grid grid-cols-2 gap-1 bg-secondary rounded-lg p-1 mb-4 border border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("staff")
+                      setError("")
+                      setSuccessMsg("")
+                    }}
+                    className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
+                      loginRole === "staff"
+                        ? "bg-primary text-foreground font-medium shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Staff Portal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("admin")
+                      setError("")
+                      setSuccessMsg("")
+                    }}
+                    className={`py-2 text-xs font-mono rounded transition-all cursor-pointer ${
+                      loginRole === "admin"
+                        ? "bg-primary text-foreground font-medium shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Administrator
+                  </button>
+                </div>
+              )}
 
               {/* Staff Auth Mode Tabs (Sign In vs Create Account) */}
               {loginRole === "staff" && (
@@ -1567,14 +1527,8 @@ function App() {
                   <label htmlFor="signin-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
                     Password
                   </label>
-                  <input
-                    id="signin-password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                  <input id="signin-password" name="password" type="password" autoComplete="current-password" required
+                    value={password} onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover transition-all"
                   />
@@ -1684,18 +1638,23 @@ function App() {
     )
   }
 
+  const isBannerVisible = Boolean(
+    isOffline || pendingQueueCount > 0 || syncToast,
+  )
+  const topOffset = isBannerVisible ? 32 : 0
+
   return (
     <>
       {/* Offline Status & Sync Toast Bar */}
-      {(isOffline || pendingQueueCount > 0 || syncToast) && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-emerald-950 border-b border-emerald-700/60 text-emerald-200 py-1.5 px-4 text-xs font-mono flex items-center justify-between shadow-lg">
-          <div className="flex items-center gap-2">
+      {isBannerVisible && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-8 bg-emerald-950/95 backdrop-blur-sm border-b border-emerald-700/60 text-emerald-200 px-4 text-xs font-mono flex items-center justify-between shadow-lg select-none">
+          <div className="flex items-center gap-2 min-w-0">
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full shrink-0 ${
                 isOffline ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
               }`}
             />
-            <span>
+            <span className="truncate">
               {isOffline
                 ? "FIELD OFFLINE MODE: Submissions will queue locally until network restores."
                 : syncToast ||
@@ -1719,7 +1678,7 @@ function App() {
                   fetchReportsFromSupabase()
                 }
               }}
-              className="px-2 py-0.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded text-[10px] uppercase font-bold"
+              className="px-2 py-0.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded text-[10px] uppercase font-bold shrink-0 ml-2 cursor-pointer transition-colors"
             >
               Sync Now ({pendingQueueCount})
             </button>
@@ -1728,15 +1687,49 @@ function App() {
       )}
 
       {session.role === "admin" ? (
-        <AdminView
-          reports={reports}
-          setReports={handleUpdateReports}
-          members={members}
-          deadlines={deadlines}
-          onCreateDeadline={handleCreateDeadline}
-          onDeleteDeadline={handleDeleteDeadline}
-          onLogout={handleLogout}
-        />
+        isMobile ? (
+          <div className="min-h-[85vh] flex items-center justify-center p-6 text-center bg-background">
+            <div className="max-w-md w-full bg-card border border-border/80 rounded-2xl p-8 shadow-2xl flex flex-col items-center">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mb-5 shadow-inner">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-mono uppercase tracking-widest text-amber-500 font-semibold mb-1">
+                Admin Management Portal
+              </span>
+              <h2 className="text-xl font-bold font-mono tracking-tight text-foreground mb-3">
+                Desktop Display Required
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-6 font-sans">
+                The GVE Administrator Portal, interactive mini-grid analytics dashboards, and report auditing suites require a desktop or tablet display.
+              </p>
+              <div className="w-full pt-5 border-t border-border/60 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-mono text-xs font-semibold rounded-lg hover:opacity-90 transition-all cursor-pointer shadow-md"
+                >
+                  Log Out &amp; Switch to Staff Portal
+                </button>
+                <p className="text-[11px] font-mono text-muted-foreground/70">
+                  Please open ReportFlow on a computer to access Admin capabilities.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <AdminView
+            reports={reports}
+            setReports={handleUpdateReports}
+            members={members}
+            deadlines={deadlines}
+            onCreateDeadline={handleCreateDeadline}
+            onDeleteDeadline={handleDeleteDeadline}
+            onLogout={handleLogout}
+            topOffset={topOffset}
+          />
+        )
       ) : (
         <StaffView
           reports={reports}
@@ -1744,6 +1737,7 @@ function App() {
           member={session.member!}
           deadlines={deadlines}
           onLogout={handleLogout}
+          topOffset={topOffset}
         />
       )}
       <footer className="text-center py-4 bg-background border-t border-border/40 text-xs text-muted-foreground/80 font-mono">

@@ -726,10 +726,10 @@ export default function StaffView({
 
         {/* Tab 2: My Reports (History) */}
         {activeTab === "history" && (
-          <div className="rounded-lg border bg-card border-border overflow-hidden">
+          <div className="rounded-lg border bg-card border-border overflow-x-auto">
             <div
-              className="grid px-5 py-2.5 border-b text-xs font-mono uppercase tracking-wider bg-secondary border-border text-muted-foreground"
-              style={{ gridTemplateColumns: "1fr 110px 110px 140px" }}
+              className="grid min-w-[540px] px-5 py-2.5 border-b text-xs font-mono uppercase tracking-wider bg-secondary border-border text-muted-foreground gap-x-4 items-center"
+              style={{ gridTemplateColumns: "minmax(0, 1fr) 80px 110px 135px" }}
             >
               <span>Report Title</span>
               <span>Type</span>
@@ -752,9 +752,9 @@ export default function StaffView({
                         expandedReportId === r.id ? null : r.id,
                       )
                     }
-                    className="w-full grid px-5 py-3.5 border-b text-left transition-colors hover:bg-white/2 items-center border-border"
+                    className="w-full grid min-w-[540px] px-5 py-3.5 border-b text-left transition-colors hover:bg-white/2 items-center border-border gap-x-4"
                     style={{
-                      gridTemplateColumns: "1fr 110px 110px 140px",
+                      gridTemplateColumns: "minmax(0, 1fr) 80px 110px 135px",
 
                       backgroundColor:
                         expandedReportId === r.id
@@ -762,9 +762,11 @@ export default function StaffView({
                           : "transparent",
                     }}
                   >
-                    <span className="text-sm font-medium text-foreground truncate">
-                      {r.title}
-                    </span>
+                    <div className="min-w-0 pr-3">
+                      <span className="text-sm font-medium text-foreground truncate block">
+                        {r.title}
+                      </span>
+                    </div>
                     <span className="text-xs font-mono text-muted-foreground">
                       {r.type}
                     </span>
@@ -799,7 +801,7 @@ export default function StaffView({
                   </button>
 
                   {expandedReportId === r.id && (
-                    <div className="px-5 py-4 border-b border-border bg-background/50">
+                    <div className="px-5 py-4 border-b border-border bg-background/50 min-w-[540px]">
                       {r.gveData ? (
                         <div className="mb-4">
                           <p className="text-xs font-mono uppercase tracking-wider mb-2 text-emerald-400">

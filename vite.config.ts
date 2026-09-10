@@ -2,6 +2,7 @@ import { defineConfig, type HtmlTagDescriptor, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import path from "node:path"
+import { VitePWA } from "vite-plugin-pwa"
 
 import siteConfiguration from "./.figma/make/site.json"
 
@@ -21,6 +22,32 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['logo.jpeg'],
+        manifest: {
+          name: 'ReportFlow',
+          short_name: 'ReportFlow',
+          description: 'Mini-grid site reporting for field engineers',
+          theme_color: '#fff',
+          icons: [
+            {
+              src: 'logo.jpeg',
+              sizes: '192x192',
+              type: 'image/jpeg'
+            },
+            {
+              src: 'logo.jpeg',
+              sizes: '512x512',
+              type: 'image/jpeg'
+            }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg}'],
+          maximumFileSizeToCacheInBytes: 10000000
+        }
+      }),
       figmaSiteConfiguration(siteConfiguration as FigmaSiteConfiguration),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
@@ -119,6 +146,7 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
     generateBundle() {
       if (!robotsTxt) return
 
+      // @ts-expect-error emitFile exists on Rollup PluginContext
       this.emitFile({
         type: "asset",
         fileName: "robots.txt",

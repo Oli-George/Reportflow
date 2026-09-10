@@ -5,10 +5,7 @@ import {
   GveHourlyEntry,
   DEFAULT_12HR_TIMES,
   createEmptyGveEntry,
-  GveHourlyCalculatedMetrics,
-  createDefaultHourlyMetrics,
-  computeAutoHourlyMetrics,
-} from "../types/gveSite"
+} from "../types/gveDaily"
 import { ReportAttachment } from "../types/attachment"
 import ReportPhotoUploader from "./ReportPhotoUploader"
 import {
@@ -67,73 +64,6 @@ export default function GveKukaHourlyForm({
   const [attachments, setAttachments] = useState<ReportAttachment[]>(
     initialData?.attachments || [],
   )
-
-  // ─── Feature 1: Performance Ratio & Efficiency Metrics State ──────────────
-  const [metrics, setMetrics] = useState<GveHourlyCalculatedMetrics>(() => {
-    if (initialData?.metrics) return initialData.metrics
-    return createDefaultHourlyMetrics()
-  })
-
-  // Live Auto-Calculation Memo
-  const autoCalculated = useMemo(() => {
-    return computeAutoHourlyMetrics(
-      entries,
-      metrics.installedPvCapacityKwp,
-      metrics.fuelConsumedLitres,
-      metrics.dgEnergyGeneratedKwh,
-    )
-  }, [
-    entries,
-    metrics.installedPvCapacityKwp,
-    metrics.fuelConsumedLitres,
-    metrics.dgEnergyGeneratedKwh,
-  ])
-
-  // Active Effective Values (respecting manual override vs auto-computed)
-  const currentTotalPvEnergy =
-    metrics.isTotalPvEnergyOverridden && metrics.totalPvEnergyKwh
-      ? metrics.totalPvEnergyKwh
-      : autoCalculated.autoTotalPvEnergyKwh
-
-  const currentSpecificYield =
-    metrics.isSpecificYieldOverridden && metrics.specificYieldKwhPerKwp
-      ? metrics.specificYieldKwhPerKwp
-      : autoCalculated.autoSpecificYield
-
-  const currentInverterEfficiency =
-    metrics.isInverterEfficiencyOverridden && metrics.inverterEfficiencyPct
-      ? metrics.inverterEfficiencyPct
-      : autoCalculated.autoInverterEfficiency
-
-  const currentFuelBurnRate =
-    metrics.isFuelBurnRateOverridden && metrics.fuelBurnRateLPerKwh
-      ? metrics.fuelBurnRateLPerKwh
-      : autoCalculated.autoFuelBurnRate
-
-  const handleMetricFieldChange = (
-    field: keyof GveHourlyCalculatedMetrics,
-    value: string,
-    overrideFlagKey?: keyof GveHourlyCalculatedMetrics,
-  ) => {
-    if (readOnly) return
-    setMetrics((prev) => ({
-      ...prev,
-      [field]: value,
-      ...(overrideFlagKey ? { [overrideFlagKey]: true } : {}),
-    }))
-  }
-
-  const handleResetMetric = (
-    field: keyof GveHourlyCalculatedMetrics,
-    overrideFlagKey: keyof GveHourlyCalculatedMetrics,
-  ) => {
-    if (readOnly) return
-    setMetrics((prev) => ({
-      ...prev,
-      [field]: "",
-      [overrideFlagKey]: false,
-    }))
-  }
 
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -281,14 +211,6 @@ export default function GveKukaHourlyForm({
     try {
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
-    const finalMetrics: GveHourlyCalculatedMetrics = {
-      ...metrics,
-      totalPvEnergyKwh: currentTotalPvEnergy,
-      specificYieldKwhPerKwp: currentSpecificYield,
-      inverterEfficiencyPct: currentInverterEfficiency,
-      fuelBurnRateLPerKwh: currentFuelBurnRate,
-    }
-
     if (onSave) {
       onSave(
         {
@@ -299,7 +221,6 @@ export default function GveKukaHourlyForm({
           year,
           entries,
           attachments,
-          metrics: finalMetrics,
         },
         "Draft",
       )
@@ -317,14 +238,6 @@ export default function GveKukaHourlyForm({
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
 
-    const finalMetrics: GveHourlyCalculatedMetrics = {
-      ...metrics,
-      totalPvEnergyKwh: currentTotalPvEnergy,
-      specificYieldKwhPerKwp: currentSpecificYield,
-      inverterEfficiencyPct: currentInverterEfficiency,
-      fuelBurnRateLPerKwh: currentFuelBurnRate,
-    }
-
     if (onSave) {
       onSave(
         {
@@ -335,7 +248,6 @@ export default function GveKukaHourlyForm({
           year,
           entries,
           attachments,
-          metrics: finalMetrics,
         },
         "Submitted",
       )
@@ -594,50 +506,6 @@ export default function GveKukaHourlyForm({
             Export to PDF / Live Preview
           </button>
 
-          {!readOnly && onSave && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="flex items-center gap-1.5 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-3.5 py-1.5 rounded text-xs transition-all shadow-sm active:translate-y-px"
-                title="Save as Draft to edit later before submitting"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                Save as Draft
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowSubmitConfirmModal(true)}
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-1.5 rounded text-xs transition-all shadow active:translate-y-px"
-                title="Submit final report for Admin review"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Submit Report
-              </button>
-            </div>
-          )}
-
           {onCancel && (
             <button
               type="button"
@@ -647,273 +515,6 @@ export default function GveKukaHourlyForm({
               Close
             </button>
           )}
-        </div>
-      </div>
-
-      {/* ─── Feature 1: Performance Ratio & Efficiency Telemetry Dashboard ─── */}
-      <div className="no-print bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col gap-3 transition-all">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">
-              ⚡
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 font-display">
-                Performance Ratio (PR) & Efficiency Intelligence
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-700/60 px-1.5 py-0.2 rounded font-normal">
-                  Live Calculator
-                </span>
-              </h3>
-              <p className="text-[10px] text-muted-foreground">
-                Automatic mathematical derivation of Specific Yield, Inverter AC/DC efficiency, and Generator fuel burn rate.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-[11px] font-mono">
-            <span className="text-muted-foreground">Installed Capacity:</span>
-            <div className="flex items-center gap-1 bg-secondary/80 border border-border px-2 py-0.5 rounded">
-              <input
-                type="number"
-                step="0.1"
-                min="1"
-                value={metrics.installedPvCapacityKwp}
-                disabled={readOnly}
-                onChange={(e) => handleMetricFieldChange("installedPvCapacityKwp", e.target.value)}
-                className="w-14 bg-transparent text-foreground font-bold text-xs outline-none text-right"
-              />
-              <span className="text-muted-foreground text-[10px]">kWp</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 4 Responsive Engineering Metrics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Card 1: Specific Yield */}
-          <div className="bg-secondary/40 hover:bg-secondary/60 border border-border rounded-lg p-3 flex flex-col justify-between gap-2 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-medium">
-                Specific Yield (Y<sub>f</sub>)
-              </span>
-              {metrics.isSpecificYieldOverridden ? (
-                <button
-                  type="button"
-                  onClick={() => handleResetMetric("specificYieldKwhPerKwp", "isSpecificYieldOverridden")}
-                  className="text-[9px] font-mono text-amber-400 hover:text-amber-300 bg-amber-950/60 border border-amber-800/80 px-1.5 py-0.2 rounded flex items-center gap-1 transition-colors"
-                  title="Click to reset back to automatic formula derivation"
-                >
-                  <span>✏️ Overridden</span>
-                  <span className="underline font-bold">Reset</span>
-                </button>
-              ) : (
-                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-1.5 py-0.2 rounded">
-                  ⚡ Auto
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-baseline gap-1.5">
-              {readOnly ? (
-                <span className="text-xl font-mono font-bold text-foreground">
-                  {currentSpecificYield || "—"}
-                </span>
-              ) : (
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={currentSpecificYield}
-                  onChange={(e) =>
-                    handleMetricFieldChange(
-                      "specificYieldKwhPerKwp",
-                      e.target.value,
-                      "isSpecificYieldOverridden",
-                    )
-                  }
-                  className="w-24 text-xl font-mono font-bold text-foreground bg-transparent border-b border-dashed border-border focus:border-emerald-500 outline-none"
-                />
-              )}
-              <span className="text-xs font-mono text-muted-foreground">kWh/kWp</span>
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground pt-1 border-t border-border/40">
-              <span>Total PV: <strong>{currentTotalPvEnergy || "0"} kWh</strong></span>
-              {parseFloat(currentSpecificYield) >= 4.0 ? (
-                <span className="text-emerald-400 font-semibold">● High Solar Yield</span>
-              ) : parseFloat(currentSpecificYield) >= 2.5 ? (
-                <span className="text-emerald-300 font-semibold">● Optimal Yield</span>
-              ) : parseFloat(currentSpecificYield) > 0 ? (
-                <span className="text-amber-400 font-semibold">● Low Yield / Rain</span>
-              ) : (
-                <span className="text-zinc-500">Waiting for logs</span>
-              )}
-            </div>
-          </div>
-
-          {/* Card 2: Inverter AC/DC Conversion Efficiency */}
-          <div className="bg-secondary/40 hover:bg-secondary/60 border border-border rounded-lg p-3 flex flex-col justify-between gap-2 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-medium">
-                Inverter Efficiency (η<sub>inv</sub>)
-              </span>
-              {metrics.isInverterEfficiencyOverridden ? (
-                <button
-                  type="button"
-                  onClick={() => handleResetMetric("inverterEfficiencyPct", "isInverterEfficiencyOverridden")}
-                  className="text-[9px] font-mono text-amber-400 hover:text-amber-300 bg-amber-950/60 border border-amber-800/80 px-1.5 py-0.2 rounded flex items-center gap-1 transition-colors"
-                  title="Click to reset back to automatic formula derivation"
-                >
-                  <span>✏️ Overridden</span>
-                  <span className="underline font-bold">Reset</span>
-                </button>
-              ) : (
-                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-1.5 py-0.2 rounded">
-                  ⚡ Auto
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-baseline gap-1.5">
-              {readOnly ? (
-                <span className="text-xl font-mono font-bold text-foreground">
-                  {currentInverterEfficiency || "—"}
-                </span>
-              ) : (
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="0.0"
-                  value={currentInverterEfficiency}
-                  onChange={(e) =>
-                    handleMetricFieldChange(
-                      "inverterEfficiencyPct",
-                      e.target.value,
-                      "isInverterEfficiencyOverridden",
-                    )
-                  }
-                  className="w-20 text-xl font-mono font-bold text-foreground bg-transparent border-b border-dashed border-border focus:border-emerald-500 outline-none"
-                />
-              )}
-              <span className="text-xs font-mono text-muted-foreground">%</span>
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground pt-1 border-t border-border/40">
-              <span>Conversion: <strong>AC / DC Ratio</strong></span>
-              {parseFloat(currentInverterEfficiency) >= 92.0 ? (
-                <span className="text-emerald-400 font-semibold">● Healthy Inverters</span>
-              ) : parseFloat(currentInverterEfficiency) > 0 ? (
-                <span className="text-amber-400 font-semibold">● Check Clipping</span>
-              ) : (
-                <span className="text-zinc-500">Waiting for logs</span>
-              )}
-            </div>
-          </div>
-
-          {/* Card 3: Diesel Generator Fuel Burn Rate */}
-          <div className="bg-secondary/40 hover:bg-secondary/60 border border-border rounded-lg p-3 flex flex-col justify-between gap-2 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-medium">
-                DG Fuel Burn Rate (F<sub>rate</sub>)
-              </span>
-              {metrics.isFuelBurnRateOverridden ? (
-                <button
-                  type="button"
-                  onClick={() => handleResetMetric("fuelBurnRateLPerKwh", "isFuelBurnRateOverridden")}
-                  className="text-[9px] font-mono text-amber-400 hover:text-amber-300 bg-amber-950/60 border border-amber-800/80 px-1.5 py-0.2 rounded flex items-center gap-1 transition-colors"
-                  title="Click to reset back to automatic formula derivation"
-                >
-                  <span>✏️ Overridden</span>
-                  <span className="underline font-bold">Reset</span>
-                </button>
-              ) : (
-                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-1.5 py-0.2 rounded">
-                  ⚡ Auto
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-baseline gap-1.5">
-              {readOnly ? (
-                <span className="text-xl font-mono font-bold text-foreground">
-                  {currentFuelBurnRate || "—"}
-                </span>
-              ) : (
-                <input
-                  type="number"
-                  step="0.001"
-                  placeholder="0.000"
-                  value={currentFuelBurnRate}
-                  onChange={(e) =>
-                    handleMetricFieldChange(
-                      "fuelBurnRateLPerKwh",
-                      e.target.value,
-                      "isFuelBurnRateOverridden",
-                    )
-                  }
-                  className="w-24 text-xl font-mono font-bold text-foreground bg-transparent border-b border-dashed border-border focus:border-emerald-500 outline-none"
-                />
-              )}
-              <span className="text-xs font-mono text-muted-foreground">L/kWh</span>
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground pt-1 border-t border-border/40">
-              <div className="flex items-center gap-1.5">
-                <span>Fuel:</span>
-                <input
-                  type="number"
-                  placeholder="L"
-                  value={metrics.fuelConsumedLitres}
-                  disabled={readOnly}
-                  onChange={(e) => handleMetricFieldChange("fuelConsumedLitres", e.target.value)}
-                  className="w-10 bg-secondary border border-border rounded px-1 text-[10px] text-foreground text-center font-bold"
-                  title="Total Litres of diesel fuel consumed today"
-                />
-                <span>L</span>
-              </div>
-              {parseFloat(currentFuelBurnRate) > 0.42 ? (
-                <span className="text-rose-400 font-semibold">● High Consumption</span>
-              ) : parseFloat(currentFuelBurnRate) > 0 ? (
-                <span className="text-emerald-400 font-semibold">● Optimal Economy</span>
-              ) : (
-                <span className="text-zinc-500">DG Idle / Off</span>
-              )}
-            </div>
-          </div>
-
-          {/* Card 4: Load & Mini-Grid Energy Balance */}
-          <div className="bg-secondary/40 hover:bg-secondary/60 border border-border rounded-lg p-3 flex flex-col justify-between gap-2 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-medium">
-                Total Energy Delivered
-              </span>
-              <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/80 px-1.5 py-0.2 rounded">
-                ⚡ Grid Balance
-              </span>
-            </div>
-
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-mono font-bold text-foreground">
-                {autoCalculated.autoTotalLoadEnergyKwh || "0.00"}
-              </span>
-              <span className="text-xs font-mono text-muted-foreground">kWh Load</span>
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground pt-1 border-t border-border/40">
-              <span>Grid/DG: <strong>{autoCalculated.autoTotalGridDgEnergyKwh || "0.00"} kWh</strong></span>
-              <span className="text-cyan-400 font-semibold">
-                {parseFloat(autoCalculated.autoTotalLoadEnergyKwh) > 0 && parseFloat(currentTotalPvEnergy) > 0
-                  ? `${Math.min(
-                      Math.round(
-                        (parseFloat(currentTotalPvEnergy) /
-                          parseFloat(autoCalculated.autoTotalLoadEnergyKwh)) *
-                          100,
-                      ),
-                      100,
-                    )}% Solar Fraction`
-                  : "Active Grid"}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1779,59 +1380,6 @@ export default function GveKukaHourlyForm({
             </table>
           </div>
 
-          {/* Official Daily Performance & Efficiency Summary Sheet Section */}
-          <div className="mt-3 border border-black p-2.5 bg-zinc-50 text-black">
-            <div className="text-[10px] font-bold uppercase tracking-wider border-b border-black pb-1 mb-2 flex items-center justify-between">
-              <span>Daily Plant Performance, Specific Yield & Generation Summary</span>
-              <span className="font-mono text-[8.5px] font-normal text-zinc-600">GVE Mini-Grid Engineering Standard</span>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[9px] font-mono">
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Installed Plant Size:</span>
-                <strong className="text-[11px] text-black">{metrics.installedPvCapacityKwp || "50.0"} kWp</strong>
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Total Solar PV Generated:</span>
-                <strong className="text-[11px] text-black">{currentTotalPvEnergy || "0.00"} kWh</strong>
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Specific Yield (Y<sub>f</sub>):</span>
-                <strong className="text-[11px] text-emerald-900">{currentSpecificYield || "0.00"} kWh/kWp</strong>
-                {metrics.isSpecificYieldOverridden && <span className="text-[7.5px] text-amber-700 block font-sans">(Field Override)</span>}
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Inverter Conversion Eff (η):</span>
-                <strong className="text-[11px] text-black">{currentInverterEfficiency || "96.0"}%</strong>
-                {metrics.isInverterEfficiencyOverridden && <span className="text-[7.5px] text-amber-700 block font-sans">(Field Override)</span>}
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Diesel Fuel Consumed:</span>
-                <strong className="text-[11px] text-black">{metrics.fuelConsumedLitres || "0.0"} Litres</strong>
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">DG Generation Output:</span>
-                <strong className="text-[11px] text-black">{autoCalculated.autoTotalGridDgEnergyKwh || "0.00"} kWh</strong>
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">DG Fuel Burn Rate:</span>
-                <strong className="text-[11px] text-black">{currentFuelBurnRate ? `${currentFuelBurnRate} L/kWh` : "N/A (DG Off)"}</strong>
-                {metrics.isFuelBurnRateOverridden && <span className="text-[7.5px] text-amber-700 block font-sans">(Field Override)</span>}
-              </div>
-
-              <div className="border border-zinc-400 p-1.5 bg-white rounded-sm">
-                <span className="text-zinc-600 block text-[8px] uppercase">Total Load Delivered:</span>
-                <strong className="text-[11px] text-black">{autoCalculated.autoTotalLoadEnergyKwh || "0.00"} kWh</strong>
-              </div>
-            </div>
-          </div>
-
           {/* Add Row Button (Admin only or live active) */}
           {!readOnly && (adminOverride || isAdmin) && (
             <div className="no-print mt-3 flex justify-between items-center text-xs">
@@ -2057,6 +1605,53 @@ export default function GveKukaHourlyForm({
         description="Attach photos of the solar PV field, inverter readings, battery room, or site damages. Available offline and syncs automatically."
       />
 
+      {/* ─── Bottom Actions Bar (Save Draft & Submit Report) ──────────────── */}
+      {!readOnly && onSave && (
+        <div className="no-print bg-secondary/80 border border-border p-4 rounded-xl shadow-sm mt-2">
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="w-full flex items-center justify-center gap-2 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:translate-y-px"
+              title="Save as Draft to edit later before submitting"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Save as Draft
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSubmitConfirmModal(true)}
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-2.5 rounded-lg text-xs transition-all shadow active:translate-y-px"
+              title="Submit final report for Admin review"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Submit Report
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Live PDF Export & Print Modal */}
       {showPdfModal && (
         <div className="no-print fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -2281,59 +1876,6 @@ export default function GveKukaHourlyForm({
                         ))}
                       </tbody>
                     </table>
-                  </div>
-
-                  {/* PDF Preview Daily Performance Summary */}
-                  <div className="mt-3 border border-black p-2 bg-zinc-50 text-black">
-                    <div className="text-[9px] font-bold uppercase tracking-wider border-b border-black pb-1 mb-1.5 flex items-center justify-between">
-                      <span>Daily Plant Performance, Specific Yield & Generation Summary</span>
-                      <span className="font-mono text-[8px] font-normal text-zinc-600">GVE Mini-Grid Engineering Standard</span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-1.5 text-[8px] font-mono">
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Plant Capacity:</span>
-                        <strong className="text-[10px] text-black">{metrics.installedPvCapacityKwp || "50.0"} kWp</strong>
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Solar PV Gen:</span>
-                        <strong className="text-[10px] text-black">{currentTotalPvEnergy || "0.00"} kWh</strong>
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Specific Yield (Yf):</span>
-                        <strong className="text-[10px] text-emerald-900">{currentSpecificYield || "0.00"} kWh/kWp</strong>
-                        {metrics.isSpecificYieldOverridden && <span className="text-[6.5px] text-amber-700 block font-sans">(Field Override)</span>}
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Inverter Eff (η):</span>
-                        <strong className="text-[10px] text-black">{currentInverterEfficiency || "96.0"}%</strong>
-                        {metrics.isInverterEfficiencyOverridden && <span className="text-[6.5px] text-amber-700 block font-sans">(Field Override)</span>}
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Diesel Fuel:</span>
-                        <strong className="text-[10px] text-black">{metrics.fuelConsumedLitres || "0.0"} L</strong>
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">DG Generation:</span>
-                        <strong className="text-[10px] text-black">{autoCalculated.autoTotalGridDgEnergyKwh || "0.00"} kWh</strong>
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">DG Burn Rate:</span>
-                        <strong className="text-[10px] text-black">{currentFuelBurnRate ? `${currentFuelBurnRate} L/kWh` : "N/A"}</strong>
-                        {metrics.isFuelBurnRateOverridden && <span className="text-[6.5px] text-amber-700 block font-sans">(Field Override)</span>}
-                      </div>
-
-                      <div className="border border-zinc-400 p-1 bg-white">
-                        <span className="text-zinc-600 block text-[7px] uppercase">Total Load:</span>
-                        <strong className="text-[10px] text-black">{autoCalculated.autoTotalLoadEnergyKwh || "0.00"} kWh</strong>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>

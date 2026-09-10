@@ -1,0 +1,18 @@
+1. Automatic Performance Ratio (PR) & Efficiency Calculator:
+Auto-compute Specific Yield ($\text{kWh/kWp}$), Inverter AC/DC Conversion Efficiency, and Generator Fuel Burn Rate ($\text{L/kWh}$) directly on hourly logs. (Should be editable however)
+
+2. Structured Revision & Field-Level Feeedback: Maintain a version history (v1, v2, v3) with clear diffs showing what the technician corrected. (The version history should only shiw on docs that were flagged and resubmitted.)
+
+3. An option to genertate PDF documents on the site (should only work with submitted and approved documents)
+
+4. GPS Geolocation and Proximity Verification: Automatically capture GPS coordinates and timestamp at the moment of submission to verify physical presence at the specified mini-grid site.
+
+5. Form Auto-Save & Background Draft Recovery:
+Continuous local IndexedDB auto-save every 10 seconds for long forms (e.g., Quarterly Inspection) to prevent data loss if device battery runs out.
+
+6. Outdoor High-Contrast Sunlight Mode:
+A dedicated high-contrast display mode optimized for readability on mobile screens under direct Nigerian sunlight.
+
+7. Getting it to work as a mobile app (using PWA, this should be easier to handle for field engineers), and be able to work offline, and sync when the internet is available.
+
+8. Adding customizability to the site using Settings.

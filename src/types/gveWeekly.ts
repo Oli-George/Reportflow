@@ -48,20 +48,13 @@ export interface GveWeeklyRecordData {
 }
 
 export const DEFAULT_WEEKLY_DAYS = [
-  "DAY 1",
-  "DAY 1",
-  "DAY 2",
-  "DAY 2",
-  "DAY 3",
-  "DAY 3",
-  "DAY 4",
-  "DAY 4",
-  "DAY 5",
-  "DAY 5",
-  "DAY 6",
-  "DAY 6",
-  "DAY 7",
-  "DAY 7",
+  "DAY 1", "DAY 1",
+  "DAY 2", "DAY 2",
+  "DAY 3", "DAY 3",
+  "DAY 4", "DAY 4",
+  "DAY 5", "DAY 5",
+  "DAY 6", "DAY 6",
+  "DAY 7", "DAY 7",
 ]
 
 export function createDefaultOutageEntry(

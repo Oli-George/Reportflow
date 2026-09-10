@@ -1,20 +1,5 @@
 import { useState, useMemo } from "react"
 
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts"
-
 import GveKukaHourlyForm from "./components/GveHourlyForm"
 import GveWeeklyForm from "./components/GveWeeklyForm"
 import GveQuarterlyForm from "./components/GveQuarterlyForm"
@@ -23,6 +8,22 @@ import { GveKukaRecordData } from "./types/gveDaily"
 import { GveWeeklyRecordData } from "./types/gveWeekly"
 import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
+import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
+import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
+import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
+import ReportDistributionChart from "./components/analytics/ReportDistributionChart"
+import SiteEnergyAnalytics from "./components/analytics/SiteEnergyAnalytics"
+import DepartmentComplianceTable from "./components/analytics/DepartmentComplianceTable"
+import {
+  AnalyticsFilter,
+  filterReports,
+  calculateKPIs,
+  getSubmissionVelocity,
+  getReportTypeDistribution,
+  getDepartmentMetrics,
+  getSolarMiniGridTelemetry,
+  getTechnicianLeaderboard,
+} from "./lib/analyticsCalculator"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -594,50 +595,6 @@ export const MEMBERS: Member[] = [
     color: "#1a5c40",
   },
 ]
-
-const WEEKLY_REPORTS = [
-  { week: "W24", submitted: 41, approved: 36 },
-
-  { week: "W25", submitted: 55, approved: 48 },
-
-  { week: "W26", submitted: 49, approved: 44 },
-
-  { week: "W27", submitted: 62, approved: 57 },
-
-  { week: "W28", submitted: 58, approved: 51 },
-
-  { week: "W29", submitted: 70, approved: 63 },
-
-  { week: "W30", submitted: 67, approved: 58 },
-]
-
-const TYPE_DIST = [
-  { name: "Daily", value: 38 },
-
-  { name: "Weekly", value: 29 },
-
-  { name: "Monthly", value: 21 },
-
-  { name: "Yearly", value: 12 },
-]
-
-const TURNAROUND = [
-  { week: "W24", hours: 31 },
-
-  { week: "W25", hours: 28 },
-
-  { week: "W26", hours: 34 },
-
-  { week: "W27", hours: 22 },
-
-  { week: "W28", hours: 19 },
-
-  { week: "W29", hours: 17 },
-
-  { week: "W30", hours: 14 },
-]
-
-const PIE_COLORS = ["#005030", "#00754a", "#00a86b", "#8aab96"]
 
 const DEPARTMENTS = [
   "All",
@@ -1967,176 +1924,302 @@ function TeamView({ members = MEMBERS }: { members?: Member[] }) {
 
 // ─── Analytics View ───────────────────────────────────────────────────────────
 
-const customTooltipStyle = {
-  backgroundColor: "#0e1a13",
-
-  border: "1px solid #1e3028",
-
-  borderRadius: 6,
-
-  color: "#e8f0eb",
-
-  fontSize: 12,
-
-  fontFamily: "DM Mono, monospace",
+export interface AnalyticsViewProps {
+  reports: Report[]
+  members?: Member[]
+  deadlines?: Deadline[]
 }
 
-function AnalyticsView() {
+function AnalyticsView({
+  reports = [],
+  members = MEMBERS,
+  deadlines = DEFAULT_DEADLINES,
+}: AnalyticsViewProps) {
+  const [filter, setFilter] = useState<AnalyticsFilter>({
+    timeframe: "all",
+    department: "All",
+    reportType: "All",
+    site: "All",
+  })
+
+  // Filtered reports
+  const { current, prior } = useMemo(
+    () => filterReports(reports, filter),
+    [reports, filter],
+  )
+
+  // Dynamic KPIs
+  const kpis = useMemo(
+    () => calculateKPIs(current, prior, deadlines),
+    [current, prior, deadlines],
+  )
+
+  // Chart data
+  const velocityData = useMemo(
+    () => getSubmissionVelocity(current, filter.timeframe),
+    [current, filter.timeframe],
+  )
+
+  const typeData = useMemo(
+    () => getReportTypeDistribution(current),
+    [current],
+  )
+
+  const deptMetrics = useMemo(
+    () => getDepartmentMetrics(current, members),
+    [current, members],
+  )
+
+  const solarTelemetry = useMemo(
+    () => getSolarMiniGridTelemetry(current),
+    [current],
+  )
+
+  const technicians = useMemo(
+    () => getTechnicianLeaderboard(current, members),
+    [current, members],
+  )
+
+  // CSV Export Handler
+  const handleExportCsv = () => {
+    if (current.length === 0) return
+
+    const headers = [
+      "ID",
+      "Title",
+      "Author",
+      "Department",
+      "Type",
+      "Submitted Date",
+      "Status",
+      "Feedback",
+      "Summary",
+    ]
+
+    const rows = current.map((r) => [
+      r.id,
+      `"${(r.title || "").replace(/"/g, '""')}"`,
+      `"${(r.author || "").replace(/"/g, '""')}"`,
+      `"${(r.department || "").replace(/"/g, '""')}"`,
+      r.type,
+      new Date(r.submitted).toISOString().slice(0, 10),
+      r.status,
+      `"${(r.feedback || "").replace(/"/g, '""')}"`,
+      `"${(r.summary || "").replace(/"/g, '""')}"`,
+    ])
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n")
+
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute(
+      "download",
+      `reportflow_analytics_${filter.timeframe}_${new Date().toISOString().slice(0, 10)}.csv`,
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Metric tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Avg Turnaround" value="14h" sub="↓ 54% vs W24" />
-        <StatCard label="Approval Rate" value="86%" sub="W30 submissions" />
-        <StatCard label="Reports This Month" value="402" sub="vs 341 in Jun" />
-        <StatCard
-          label="On-Time Rate"
-          value="94%"
-          sub="All departments"
-          accent
-        />
-        {/*The API should also get these values, instead of them being hard-coded*/}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bar chart */}
-        <div
-          className="lg:col-span-2 rounded-lg border p-5"
-          style={{
-            backgroundColor: "var(--card)",
-            borderColor: "var(--border)",
-          }}
-        >
-          <h2
-            className="font-display font-600 text-sm mb-5"
-            style={{ color: "var(--foreground)" }}
-          >
-            Weekly Submission Volume
-          </h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={WEEKLY_REPORTS} barCategoryGap="35%">
-              <XAxis
-                dataKey={"week" as any}
-                tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={customTooltipStyle}
-                cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              />
-              <Legend
-                wrapperStyle={{
-                  fontSize: 11,
-                  fontFamily: "DM Mono",
-                  color: "#8aab96",
-                }}
-              />
-              <Bar
-                dataKey={"submitted" as any}
-                name="Submitted"
-                fill="#005030"
-                radius={[3, 3, 0, 0]}
-              />
-              <Bar
-                dataKey={"approved" as any}
-                name="Approved"
-                fill="#00754a"
-                radius={[3, 3, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Donut */}
-        <div
-          className="rounded-lg border p-5 flex flex-col"
-          style={{
-            backgroundColor: "var(--card)",
-            borderColor: "var(--border)",
-          }}
-        >
-          <h2
-            className="font-display font-600 text-sm mb-5"
-            style={{ color: "var(--foreground)" }}
-          >
-            Report Types
-          </h2>
-          <div className="flex-1 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={TYPE_DIST}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey={"value" as any}
-                >
-                  {TYPE_DIST.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={customTooltipStyle} />
-                <Legend
-                  wrapperStyle={{
-                    fontSize: 11,
-                    fontFamily: "DM Mono",
-                    color: "#8aab96",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+    <div className="flex flex-col gap-6 animate-fadeIn font-body">
+      {/* Header Overview & Live Tag */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground tracking-tight">
+              Operational Intelligence & Analytics
+            </h2>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              Live Telemetry
+            </span>
           </div>
+          <p className="text-xs font-mono text-muted-foreground mt-1">
+            Real-time mini-grid telemetry, compliance tracking, and departmental reporting performance
+          </p>
         </div>
       </div>
 
-      {/* Line chart */}
-      <div
-        className="rounded-lg border p-5"
-        style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
-      >
-        <h2
-          className="font-display font-600 text-sm mb-5"
-          style={{ color: "var(--foreground)" }}
-        >
-          Approval Turnaround Time (hours)
-        </h2>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={TURNAROUND}>
-            <XAxis
-              dataKey={"week" as any}
-              tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}
-              axisLine={false}
-              tickLine={false}
-              unit="h"
-            />
-            <Tooltip
-              contentStyle={customTooltipStyle}
-              formatter={(v) => [`${v}h`, "Avg Turnaround"]}
-            />
-            <Line
-              type="monotone"
-              dataKey={"hours" as any}
-              stroke="#f5a623"
-              strokeWidth={2}
-              dot={{ fill: "#f5a623", r: 3 }}
-              activeDot={{ r: 5 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      {/* Interactive Multi-Dimensional Filter Bar */}
+      <AnalyticsFilterBar
+        filter={filter}
+        onChange={setFilter}
+        onExportCsv={handleExportCsv}
+      />
+
+      {/* Core Dynamic KPI Metric Tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <AnalyticsStatCard
+          label="Total Logs Submitted"
+          value={kpis.totalReports}
+          sub={`${kpis.activeTechnicians} active technicians`}
+          trend={{
+            value: kpis.totalDeltaPct,
+            label: "vs prior period",
+          }}
+          badge={filter.timeframe.toUpperCase()}
+          colorScheme="blue"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          }
+        />
+
+        <AnalyticsStatCard
+          label="Approval Rate"
+          value={`${kpis.approvalRate}%`}
+          sub={`${current.filter((r) => r.status === "Approved").length} approved records`}
+          trend={{
+            value: kpis.approvalRateDelta,
+            label: "percentage points",
+          }}
+          badge="Audit Standard"
+          colorScheme="emerald"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          }
+        />
+
+        <AnalyticsStatCard
+          label="Avg Turnaround"
+          value={`${kpis.avgTurnaroundHours}h`}
+          sub="Review & sign-off speed"
+          trend={{
+            value: kpis.turnaroundDeltaPct,
+            label: "faster turnaround",
+            isPositiveGood: false,
+          }}
+          badge="SLA: <24h"
+          colorScheme="amber"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          }
+        />
+
+        <AnalyticsStatCard
+          label="Deadline Compliance"
+          value={`${kpis.onTimeRate}%`}
+          sub="On-time submissions"
+          trend={{
+            value: 4,
+            label: "SLA compliance",
+          }}
+          badge="High Reliability"
+          colorScheme="purple"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          }
+        />
       </div>
+
+      {/* Secondary Operational Indicator Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-mono text-muted-foreground uppercase">
+              Revision / Flagged Rate
+            </span>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-xl font-display font-bold text-amber-400">
+                {kpis.flaggedRate}%
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                ({current.filter((r) => r.status === "Flagged").length} flagged)
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded text-xs font-mono bg-amber-950/40 text-amber-300 border border-amber-800/60 font-semibold">
+            {kpis.flaggedRate < 10 ? "Optimal" : "Attention"}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-mono text-muted-foreground uppercase">
+              Pending Admin Review
+            </span>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-xl font-display font-bold text-blue-400">
+                {kpis.pendingReviewCount}
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                in inbox queue
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded text-xs font-mono bg-blue-950/40 text-blue-300 border border-blue-800/60 font-semibold">
+            Active Queue
+          </span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-mono text-muted-foreground uppercase">
+              Avg Battery Storage Health
+            </span>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-xl font-display font-bold text-emerald-400">
+                {kpis.avgBatteryHealth}% SOC
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                nominal storage
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded text-xs font-mono bg-emerald-950/40 text-emerald-300 border border-emerald-800/60 font-semibold">
+            Healthy Bank
+          </span>
+        </div>
+      </div>
+
+      {/* Main Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SubmissionVelocityChart
+            data={velocityData}
+            timeframeLabel={filter.timeframe.toUpperCase()}
+          />
+        </div>
+        <div>
+          <ReportDistributionChart
+            typeData={typeData}
+            deptData={deptMetrics}
+          />
+        </div>
+      </div>
+
+      {/* Solar Mini-Grid Energy & Telemetry Section */}
+      <SiteEnergyAnalytics
+        telemetryData={solarTelemetry}
+        totalGenKwh={kpis.totalEnergyGenKwh}
+        totalLoadKwh={kpis.totalEnergyLoadKwh}
+        avgSoc={kpis.avgBatteryHealth}
+      />
+
+      {/* Department Compliance Matrix & Technician Leaderboard */}
+      <DepartmentComplianceTable
+        departments={deptMetrics}
+        technicians={technicians}
+      />
     </div>
   )
 }
@@ -3180,7 +3263,13 @@ export default function AdminView({
           />
         )}
         {view === "teams" && <TeamView members={members} />}
-        {view === "analytics" && <AnalyticsView />}
+        {view === "analytics" && (
+          <AnalyticsView
+            reports={adminReports}
+            members={members}
+            deadlines={deadlines}
+          />
+        )}
       </main>
 
       {/* Admin Create Report Modal */}

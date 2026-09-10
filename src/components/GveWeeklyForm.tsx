@@ -197,8 +197,8 @@ export default function GveWeeklyForm({
       </datalist>
 
       {/* Top Toolbar */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
-        <div className="flex-1 min-w-[260px] max-w-xl flex items-center gap-2.5">
+      <div className="no-print flex flex-col gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
+        <div className="w-full flex items-center gap-2.5">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <div className="flex-1">
             <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -245,105 +245,63 @@ export default function GveWeeklyForm({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-background rounded-md p-1 border border-border text-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("paper")}
-              className={`px-3 py-1 rounded transition-colors ${
-                viewMode === "paper"
-                  ? "bg-primary text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              📄 Physical Sheet View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("interactive")}
-              className={`px-3 py-1 rounded transition-colors ${
-                viewMode === "interactive"
-                  ? "bg-primary text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              ⚡ Fast Grid View
-            </button>
-          </div>
-
-          {/* Export / Print Button */}
-          <button
-            type="button"
-            onClick={() => setShowPdfModal(true)}
-            className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border transition-all"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            Export to PDF / Live Preview
-          </button>
-
-          {!readOnly && onSave && (
-            <div className="flex items-center gap-2">
+        <div className="w-full flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-background rounded-md p-1 border border-border text-xs shrink-0">
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                className="flex items-center gap-1.5 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-3.5 py-1.5 rounded text-xs transition-all shadow-sm active:translate-y-px"
-                title="Save as Draft to edit later before submitting"
+                onClick={() => setViewMode("paper")}
+                className={`px-3 py-1 rounded transition-colors ${
+                  viewMode === "paper"
+                    ? "bg-primary text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                Save as Draft
+                📄 Physical Sheet View
               </button>
-
               <button
                 type="button"
-                onClick={() => setShowSubmitConfirmModal(true)}
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-1.5 rounded text-xs transition-all shadow active:translate-y-px"
-                title="Submit final report for Admin review"
+                onClick={() => setViewMode("interactive")}
+                className={`px-3 py-1 rounded transition-colors ${
+                  viewMode === "interactive"
+                    ? "bg-primary text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Submit Report
+                ⚡ Fast Grid View
               </button>
             </div>
-          )}
+
+            {/* Export / Print Button */}
+            <button
+              type="button"
+              onClick={() => setShowPdfModal(true)}
+              className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border transition-all shrink-0"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              Export to PDF / Live Preview
+            </button>
+          </div>
 
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs transition-all"
+              className="ml-auto bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs transition-all shrink-0"
             >
               Close
             </button>
@@ -925,6 +883,53 @@ export default function GveWeeklyForm({
         title="Weekly Site Photos & Visual Evidence"
         description="Attach photos of power house condition, equipment status, damage or maintenance work performed."
       />
+
+      {/* ─── Bottom Actions Bar (Save Draft & Submit Report) ──────────────── */}
+      {!readOnly && onSave && (
+        <div className="no-print bg-secondary/80 border border-border p-4 rounded-xl shadow-sm mt-2">
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="w-full flex items-center justify-center gap-2 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:translate-y-px"
+              title="Save as Draft to edit later before submitting"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Save as Draft
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSubmitConfirmModal(true)}
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-2.5 rounded-lg text-xs transition-all shadow active:translate-y-px"
+              title="Submit final report for Admin review"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Submit Report
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Live PDF Export & Print Modal */}
       {showPdfModal && (

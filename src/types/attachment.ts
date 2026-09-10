@@ -1,9 +1,7 @@
 // ─── Report Attachment Types ──────────────────────────────────────────────────
 
 export type ReportAttachmentCategory = "pv_array" | "inverter" | "battery" | "generator" | "safety" | "cleanliness" | "damage" | "general" | "other"
-
 export type StorageProviderType = "supabase" | "cloudflare_r2" | "inline"
-
 export interface ReportAttachment {
   id: string
   name: string

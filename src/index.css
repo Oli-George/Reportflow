@@ -96,5 +96,15 @@
     size: A4 landscape;
     margin: 6mm;
   }
+  .print-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    margin-bottom: 0 !important;
+    border-radius: 0 !important;
+  }
+  .print-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
 }
 
