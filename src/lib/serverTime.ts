@@ -218,22 +218,43 @@ export interface SlotStatusInfo {
 export function hasEntryData(entry: any): boolean {
   if (!entry) return false
   const fields = [
+    // Solar PV
     entry.pv?.volt,
     entry.pv?.curr,
     entry.pv?.power,
     entry.pv?.energy,
+    // Battery Storage
     entry.battery?.volt,
     entry.battery?.curr,
     entry.battery?.soc,
     entry.battery?.soh,
+    // Site Load (All 3 Phases + Power & Energy)
+    entry.load?.l1_v,
+    entry.load?.l1_a,
+    entry.load?.l2_v,
+    entry.load?.l2_c,
+    entry.load?.l3_v,
+    entry.load?.l3_c,
     entry.load?.power,
     entry.load?.energy,
+    // Grid (All 3 Phases + Power & Energy)
+    entry.grid?.l1_v,
+    entry.grid?.l1_a,
+    entry.grid?.l2_v,
+    entry.grid?.l2_c,
+    entry.grid?.l3_v,
+    entry.grid?.l3_c,
     entry.grid?.power,
     entry.grid?.energy,
+    // Operator
     entry.operatorName,
     entry.operatorSignature,
   ]
-  return fields.some((f) => f && f.toString().trim() !== "" && f.toString().trim() !== "—")
+  return fields.some((f) => {
+    if (f === undefined || f === null) return false
+    const str = f.toString().trim()
+    return str !== "" && str !== "—"
+  })
 }
 
 /**
@@ -247,9 +268,15 @@ export function getHourlySlotStatus(
     readOnly?: boolean
     adminOverride?: boolean
     hasData?: boolean
+    isDraftEdit?: boolean
   } = {},
 ): SlotStatusInfo {
-  const { readOnly = false, adminOverride = false, hasData = false } = options
+  const {
+    readOnly = false,
+    adminOverride = false,
+    hasData = false,
+    isDraftEdit = false,
+  } = options
 
   // In read-only mode or historical audit view, existing rows are always visible
   if (readOnly) {
@@ -270,6 +297,17 @@ export function getHourlySlotStatus(
       secondsUntilUnlock: 0,
       isEditable: true,
       statusLabel: "Admin Unlocked",
+    }
+  }
+
+  // Draft Edit mode: Allow author to review, complete, and update recorded rows before final submission
+  if (isDraftEdit) {
+    return {
+      status: hasData ? "ACTIVE" : "ACTIVE",
+      secondsRemainingInWindow: 0,
+      secondsUntilUnlock: 0,
+      isEditable: true,
+      statusLabel: hasData ? "Draft (Recorded)" : "Draft (Open)",
     }
   }
 
