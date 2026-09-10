@@ -108,3 +108,216 @@
   }
 }
 
+/* ─── Outdoor High-Contrast Sunlight Mode (Strictly NO emojis) ────────────── */
+
+html.sunlight-mode,
+body.sunlight-mode {
+  --background: #f4f6f8 !important;
+  --foreground: #0f172a !important;
+  --card: #ffffff !important;
+  --card-foreground: #0f172a !important;
+  --primary: #005030 !important;
+  --primary-hover: #006e44 !important;
+  --primary-foreground: #ffffff !important;
+  --secondary: #e2e8f0 !important;
+  --secondary-foreground: #0f172a !important;
+  --muted: #f1f5f9 !important;
+  --muted-foreground: #475569 !important;
+  --accent: #005030 !important;
+  --accent-foreground: #ffffff !important;
+  --border: #cbd5e1 !important;
+  --ring: #005030 !important;
+  background-color: #f4f6f8 !important;
+  color: #0f172a;
+}
+
+html.sunlight-mode * {
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+
+html.sunlight-mode .bg-card {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.sunlight-mode .bg-background {
+  background-color: #f4f6f8 !important;
+  color: #0f172a !important;
+}
+
+html.sunlight-mode .bg-secondary {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.sunlight-mode .text-muted-foreground {
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+
+html.sunlight-mode .border,
+html.sunlight-mode .border-t,
+html.sunlight-mode .border-b,
+html.sunlight-mode .border-l,
+html.sunlight-mode .border-r {
+  border-color: #cbd5e1 !important;
+}
+
+/* Fix search bar inner input: never force border on transparent / borderless inputs */
+html.sunlight-mode .search-bar-input,
+html.sunlight-mode input.search-bar-input,
+html.sunlight-mode input.border-none,
+html.sunlight-mode input[class*="border-none"] {
+  border: none !important;
+  background-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #0f172a !important;
+}
+
+/* General form inputs */
+html.sunlight-mode input:not(.search-bar-input):not(.border-none),
+html.sunlight-mode select,
+html.sunlight-mode textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #64748b !important;
+  font-weight: 600 !important;
+}
+
+html.sunlight-mode input:not(.search-bar-input):not(.border-none):focus,
+html.sunlight-mode select:focus,
+html.sunlight-mode textarea:focus {
+  border-color: #005030 !important;
+  outline: 2px solid #005030 !important;
+}
+
+/* Universal Button & Tab Brand Green Styling in Sunlight Mode */
+html.sunlight-mode .bg-primary,
+html.sunlight-mode button.bg-primary,
+html.sunlight-mode button[class*="bg-primary"],
+html.sunlight-mode .sidebar-nav-active {
+  background-color: #005030 !important;
+  color: #ffffff !important;
+  border-color: #005030 !important;
+}
+
+html.sunlight-mode .bg-primary *,
+html.sunlight-mode button.bg-primary *,
+html.sunlight-mode button[class*="bg-primary"] *,
+html.sunlight-mode .sidebar-nav-active * {
+  color: #ffffff !important;
+}
+
+html.sunlight-mode .bg-primary:hover,
+html.sunlight-mode button.bg-primary:hover,
+html.sunlight-mode button[class*="bg-primary"]:hover {
+  background-color: #006e44 !important;
+  border-color: #006e44 !important;
+}
+
+html.sunlight-mode .sidebar-nav-inactive {
+  background-color: transparent !important;
+  color: #334155 !important;
+}
+
+html.sunlight-mode .sidebar-nav-inactive:hover {
+  background-color: #e2e8f0 !important;
+  color: #005030 !important;
+}
+
+/* Format selector active styling */
+html.sunlight-mode .format-selector-active {
+  background-color: #005030 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #003822 !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .format-selector-active * {
+  color: #ffffff !important;
+}
+
+/* Daylight High-Contrast Save as Draft action */
+html.sunlight-mode .btn-save-draft {
+  background-color: #fffbeb !important;
+  color: #92400e !important;
+  border: 1.5px solid #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .btn-save-draft:hover {
+  background-color: #fef3c7 !important;
+}
+
+/* Sunlight toggle button in header */
+html.sunlight-mode .sunlight-toggle-btn {
+  background-color: #005030 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #005030 !important;
+}
+
+html.sunlight-mode .sunlight-toggle-btn * {
+  color: #ffffff !important;
+}
+
+/* High-Contrast Status Badges for maximum legibility */
+html.sunlight-mode .badge-approved {
+  background-color: #dcfce7 !important;
+  color: #14532d !important;
+  border: 1.5px solid #16a34a !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .badge-submitted {
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+  border: 1.5px solid #2563eb !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .badge-flagged {
+  background-color: #fef3c7 !important;
+  color: #78350f !important;
+  border: 1.5px solid #d97706 !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .badge-draft {
+  background-color: #f4f4f5 !important;
+  color: #27272a !important;
+  border: 1.5px solid #71717a !important;
+  font-weight: 700 !important;
+}
+
+/* High-Contrast Deadlines for maximum legibility */
+html.sunlight-mode .deadline-badge-overdue {
+  background-color: #ffe4e6 !important;
+  color: #881337 !important;
+  border: 1.5px solid #e11d48 !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .deadline-badge-urgent {
+  background-color: #fef3c7 !important;
+  color: #78350f !important;
+  border: 1.5px solid #d97706 !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .deadline-badge-normal {
+  background-color: #dcfce7 !important;
+  color: #14532d !important;
+  border: 1.5px solid #16a34a !important;
+  font-weight: 700 !important;
+}
+
+html.sunlight-mode .paper-sheet {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+}
+

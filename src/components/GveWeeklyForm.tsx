@@ -12,10 +12,14 @@ import {
   saveLastSiteName,
   getRecentSiteNames,
 } from "../lib/siteMemory"
+import { useFormAutoSave } from "../hooks/useFormAutoSave"
+import { FileTextIcon, InfoIcon, AlertIcon } from "./Icons"
 
 interface GveWeeklyFormProps {
   initialData?: GveWeeklyRecordData
   readOnly?: boolean
+  author?: string
+  reportId?: number | null
   onSave?: (data: GveWeeklyRecordData, status: "Draft" | "Submitted") => void
   onCancel?: () => void
 }
@@ -23,6 +27,8 @@ interface GveWeeklyFormProps {
 export default function GveWeeklyForm({
   initialData,
   readOnly = false,
+  author,
+  reportId,
   onSave,
   onCancel,
 }: GveWeeklyFormProps) {
@@ -54,6 +60,40 @@ export default function GveWeeklyForm({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
+  // Continuous 10-second IndexedDB Auto-Save
+  const currentFormData: GveWeeklyRecordData = useMemo(
+    () => ({
+      ...formData,
+      title: title.trim(),
+    }),
+    [formData, title],
+  )
+
+  const {
+    lastSavedTime,
+    isSaving,
+    recoveredDraft,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormAutoSave<GveWeeklyRecordData>({
+    formType: "gveWeekly",
+    author: author || "Field Technician",
+    reportId,
+    formData: currentFormData,
+    siteName: formData.siteName,
+    title,
+    readOnly,
+  })
+
+  const handleRestoreDraft = () => {
+    const restored = restoreDraft()
+    if (restored) {
+      setFormData(restored)
+      if (restored.title) setTitle(restored.title)
+    }
+  }
+
   // Direct state updaters
   const updateField = <K extends keyof GveWeeklyRecordData,>(
     field: K,
@@ -61,6 +101,11 @@ export default function GveWeeklyForm({
   ) => {
     if (readOnly) return
     setFormData((prev) => ({ ...prev, [field]: value }))
+    if (field === "siteName") {
+      const sName = (value as string) || ""
+      setTitle(sName ? `Weekly Site Report Form — ${sName}` : "Weekly Site Report Form")
+      if (titleError) setTitleError(null)
+    }
   }
 
   const updateOutage = (
@@ -144,11 +189,28 @@ export default function GveWeeklyForm({
     setActiveSigField(null)
   }
 
+  const extractSiteNameFromWeeklyTitle = (titleText: string): string => {
+    if (!titleText) return ""
+    const trimmed = titleText.trim()
+    if (/Weekly Site Report/i.test(trimmed)) {
+      const after = trimmed.replace(/Weekly Site Report( Form)?\s*[—–\-]\s*/i, "").trim()
+      if (after && after !== trimmed) return after
+      const before = trimmed.split(/Weekly Site Report/i)[0].trim().replace(/[—–\-]\s*$/, "").trim()
+      if (before) return before
+    }
+    if (/[—–]/.test(trimmed)) {
+      return trimmed.split(/[—–]/)[0].trim()
+    }
+    return trimmed
+  }
+
   const handleTitleChange = (val: string) => {
     setTitle(val)
     if (val.trim()) {
       setTitleError(null)
     }
+    const extractedSite = extractSiteNameFromWeeklyTitle(val)
+    setFormData((prev) => ({ ...prev, siteName: extractedSite }))
   }
 
   const validateReportTitle = (): boolean => {
@@ -160,24 +222,26 @@ export default function GveWeeklyForm({
     return true
   }
 
-  const handleSaveDraft = (e: React.FormEvent) => {
+  const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateReportTitle()) {
       return
     }
     saveLastSiteName(formData.siteName)
+    await clearDraft()
     if (onSave) {
       onSave({ ...formData, title: title.trim() }, "Draft")
     }
   }
 
-  const handleSubmitFinal = (e: React.FormEvent) => {
+  const handleSubmitFinal = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateReportTitle()) {
       setShowSubmitConfirmModal(false)
       return
     }
     saveLastSiteName(formData.siteName)
+    await clearDraft()
     if (onSave) {
       onSave({ ...formData, title: title.trim() }, "Submitted")
     }
@@ -247,29 +311,51 @@ export default function GveWeeklyForm({
 
         <div className="w-full flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Auto-save status indicator (Strictly NO emojis) */}
+            {!readOnly && (
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-secondary/80 border border-border text-[11px] font-mono text-muted-foreground shrink-0">
+                {isSaving ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+                    <span>Saving draft...</span>
+                  </>
+                ) : lastSavedTime ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    <span>Auto-saved locally</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 inline-block" />
+                    <span>Auto-save active</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* View Mode Toggle */}
             <div className="flex items-center bg-background rounded-md p-1 border border-border text-xs shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode("paper")}
-                className={`px-3 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   viewMode === "paper"
-                    ? "bg-primary text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground font-medium"
                 }`}
               >
-                📄 Physical Sheet View
+                Physical Sheet View
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("interactive")}
-                className={`px-3 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   viewMode === "interactive"
-                    ? "bg-primary text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground font-medium"
                 }`}
               >
-                ⚡ Fast Grid View
+                Fast Grid View
               </button>
             </div>
 
@@ -277,23 +363,10 @@ export default function GveWeeklyForm({
             <button
               type="button"
               onClick={() => setShowPdfModal(true)}
-              className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border transition-all shrink-0"
+              className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border transition-all shrink-0 cursor-pointer font-medium"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-              Export to PDF / Live Preview
+              <FileTextIcon className="w-3.5 h-3.5" />
+              <span>Export to PDF / Live Preview</span>
             </button>
           </div>
 
@@ -301,13 +374,46 @@ export default function GveWeeklyForm({
             <button
               type="button"
               onClick={onCancel}
-              className="ml-auto bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs transition-all shrink-0"
+              className="ml-auto bg-secondary hover:bg-muted text-foreground border border-border px-3 py-1.5 rounded text-xs font-semibold transition-all shrink-0 cursor-pointer"
             >
               Close
             </button>
           )}
         </div>
       </div>
+
+      {/* Unsaved Draft Recovery Notification Banner (Strictly NO emojis) */}
+      {recoveredDraft && (
+        <div className="mb-2 p-3 rounded-lg bg-secondary border border-border flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            <span>
+              Unsaved local draft from{" "}
+              {new Date(recoveredDraft.lastSavedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              found for {recoveredDraft.siteName || "this site"}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRestoreDraft}
+              className="px-2.5 py-1 bg-primary text-primary-foreground font-semibold rounded hover:opacity-90 transition-all text-xs cursor-pointer"
+            >
+              Restore Draft
+            </button>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="px-2.5 py-1 bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground border border-border rounded transition-all text-xs cursor-pointer"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Physical Form Render */}
       {viewMode === "paper" ? (
@@ -891,7 +997,7 @@ export default function GveWeeklyForm({
             <button
               type="button"
               onClick={handleSaveDraft}
-              className="w-full flex items-center justify-center gap-2 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:translate-y-px"
+              className="btn-save-draft w-full flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/50 dark:hover:bg-amber-900/80 dark:text-amber-300 dark:border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-bold transition-all shadow-2xs active:translate-y-px cursor-pointer"
               title="Save as Draft to edit later before submitting"
             >
               <svg
@@ -912,7 +1018,7 @@ export default function GveWeeklyForm({
             <button
               type="button"
               onClick={() => setShowSubmitConfirmModal(true)}
-              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-2.5 rounded-lg text-xs transition-all shadow active:translate-y-px"
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-4 py-2.5 rounded-lg text-xs transition-all shadow-sm active:translate-y-px cursor-pointer"
               title="Submit final report for Admin review"
             >
               <svg
@@ -937,7 +1043,7 @@ export default function GveWeeklyForm({
           <div className="bg-zinc-900 border border-border rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2">
-                <span className="text-emerald-400 text-lg">📄</span>
+                <FileTextIcon className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div>
                   <h3 className="text-sm font-display font-bold text-foreground">
                     Live PDF Export & Physical Print Preview
@@ -953,14 +1059,14 @@ export default function GveWeeklyForm({
                   onClick={handleTriggerPrint}
                   className="bg-primary hover:bg-primary-hover text-white font-mono text-xs px-4 py-2 rounded flex items-center gap-1.5 shadow"
                 >
-                  🖨️ Print / Save as PDF
+                  Print / Save as PDF
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPdfModal(false)}
                   className="text-muted-foreground hover:text-foreground text-sm px-3 py-1.5"
                 >
-                  ✕ Close
+                  Close
                 </button>
               </div>
             </div>
@@ -1137,30 +1243,34 @@ export default function GveWeeklyForm({
       {/* 2nd Verification Submit Modal */}
       {showSubmitConfirmModal && (
         <div className="no-print fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 text-white">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 text-foreground">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-950 border border-emerald-600 flex items-center justify-center text-lg shrink-0">
-                ⚠️
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <AlertIcon className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <h3 className="text-sm font-display font-bold text-white">
-                  Confirm Final Submission
+                <h3 className="text-sm font-display font-bold text-foreground">
+                  Confirm Final Report Submission
                 </h3>
-                <p className="text-xs text-zinc-400 font-mono">
+                <p className="text-xs text-muted-foreground font-mono">
                   2-Step Verification Check
                 </p>
               </div>
             </div>
 
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Are you sure you want to finalize and submit this Weekly Site
-              Report? Once submitted, it will be locked and sent to Site
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to finalize and submit{" "}
+              <strong className="text-foreground font-bold">
+                "{title || `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}"
+              </strong>
+              ? Once submitted, it will be locked and sent to Site
               Administrators for formal compliance review.
             </p>
 
-            <div className="p-3 rounded bg-amber-950/50 border border-amber-700/60 text-amber-200 text-xs font-mono space-y-1">
-              <p className="font-bold text-amber-400 flex items-center gap-1">
-                <span>💡</span> Accidental click?
+            <div className="p-3 rounded bg-amber-50 border border-amber-300 dark:bg-amber-950/50 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 text-xs font-mono space-y-1">
+              <p className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <InfoIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Accidental click?</span>
               </p>
               <p>
                 If you meant to save your progress and continue working later,
@@ -1168,11 +1278,11 @@ export default function GveWeeklyForm({
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
               <button
                 type="button"
                 onClick={() => setShowSubmitConfirmModal(false)}
-                className="px-3.5 py-1.5 rounded text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
+                className="px-3.5 py-1.5 rounded text-xs font-mono bg-secondary hover:bg-muted text-foreground border border-border transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1182,7 +1292,7 @@ export default function GveWeeklyForm({
                   setShowSubmitConfirmModal(false)
                   handleSubmitFinal(e)
                 }}
-                className="px-4 py-1.5 rounded text-xs font-mono bg-primary hover:bg-primary-hover text-white font-bold transition-all shadow flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded text-xs font-mono bg-primary hover:bg-primary-hover text-primary-foreground font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer"
               >
                 Confirm & Submit Report
               </button>

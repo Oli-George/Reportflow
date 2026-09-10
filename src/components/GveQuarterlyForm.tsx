@@ -16,10 +16,13 @@ import {
   saveLastSiteName,
   getRecentSiteNames,
 } from "../lib/siteMemory"
+import { useFormAutoSave } from "../hooks/useFormAutoSave"
 
 interface GveQuarterlyFormProps {
   initialData?: GveQuarterlyRecordData
   readOnly?: boolean
+  author?: string
+  reportId?: number | null
   onSave?: (data: GveQuarterlyRecordData, status: "Draft" | "Submitted") => void
   onCancel?: () => void
   onChange?: (data: GveQuarterlyRecordData) => void
@@ -39,6 +42,8 @@ type AuditCategoryTab =
 export default function GveQuarterlyForm({
   initialData,
   readOnly = false,
+  author,
+  reportId,
   onSave,
   onCancel,
 }: GveQuarterlyFormProps) {
@@ -60,12 +65,46 @@ export default function GveQuarterlyForm({
   const [title, setTitle] = useState(
     initialData?.title ||
       (initialData?.siteName
-        ? `Quarterly Maintenance Audit Form — ${initialData.siteName}`
+        ? `Quarterly Site Inspection Form — ${initialData.siteName}`
         : formData.siteName
-        ? `Quarterly Maintenance Audit Form — ${formData.siteName}`
-        : "Site Quarterly Maintenance Audit Form"),
+        ? `Quarterly Site Inspection Form — ${formData.siteName}`
+        : "Quarterly Site Inspection Form"),
   )
   const [titleError, setTitleError] = useState<string | null>(null)
+
+  // Continuous 10-second IndexedDB Auto-Save
+  const currentFormData: GveQuarterlyRecordData = useMemo(
+    () => ({
+      ...formData,
+      title: title.trim(),
+    }),
+    [formData, title],
+  )
+
+  const {
+    lastSavedTime,
+    isSaving,
+    recoveredDraft,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormAutoSave<GveQuarterlyRecordData>({
+    formType: "gveQuarterly",
+    author: author || "GVE Administrator",
+    reportId,
+    formData: currentFormData,
+    siteName: formData.siteName,
+    title,
+    readOnly,
+  })
+
+  const handleRestoreDraft = () => {
+    const restored = restoreDraft()
+    if (restored) {
+      setFormData(restored)
+      if (restored.title) setTitle(restored.title)
+    }
+  }
 
   // Direct Field Updaters
   const updateField = <K extends keyof GveQuarterlyRecordData>(
@@ -74,6 +113,11 @@ export default function GveQuarterlyForm({
   ) => {
     if (readOnly) return
     setFormData((prev) => ({ ...prev, [field]: value }))
+    if (field === "siteName") {
+      const sName = (value as string) || ""
+      setTitle(sName ? `Quarterly Site Inspection Form — ${sName}` : "Quarterly Site Inspection Form")
+      if (titleError) setTitleError(null)
+    }
   }
 
   const updateSubField = <
@@ -120,21 +164,39 @@ export default function GveQuarterlyForm({
     })
   }
 
+  const extractSiteNameFromQuarterlyTitle = (titleText: string): string => {
+    if (!titleText) return ""
+    const trimmed = titleText.trim()
+    if (/Quarterly Site Inspection/i.test(trimmed)) {
+      const after = trimmed.replace(/Quarterly Site Inspection( Form)?\s*[—–\-]\s*/i, "").trim()
+      if (after && after !== trimmed) return after
+      const before = trimmed.split(/Quarterly Site Inspection/i)[0].trim().replace(/[—–\-]\s*$/, "").trim()
+      if (before) return before
+    }
+    if (/[—–]/.test(trimmed)) {
+      return trimmed.split(/[—–]/)[0].trim()
+    }
+    return trimmed
+  }
+
   const handleTitleChange = (val: string) => {
     setTitle(val)
     if (titleError) setTitleError(null)
+    const extractedSite = extractSiteNameFromQuarterlyTitle(val)
+    setFormData((prev) => ({ ...prev, siteName: extractedSite }))
   }
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!title.trim()) {
       setTitleError("Report name is required")
       return
     }
     if (formData.siteName) saveLastSiteName(formData.siteName)
+    await clearDraft()
     onSave?.({ ...formData, title: title.trim() }, "Draft")
   }
 
-  const handlePublishAudit = () => {
+  const handlePublishAudit = async () => {
     if (!title.trim()) {
       setTitleError("Report name is required")
       return
@@ -144,6 +206,7 @@ export default function GveQuarterlyForm({
       return
     }
     if (formData.siteName) saveLastSiteName(formData.siteName)
+    await clearDraft()
     onSave?.({ ...formData, title: title.trim() }, "Submitted")
     setShowSubmitConfirmModal(false)
   }
@@ -1262,29 +1325,51 @@ export default function GveQuarterlyForm({
         {/* Row 2: Action Buttons with Close button on the extreme right */}
         <div className="w-full flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Auto-save status indicator (Strictly NO emojis) */}
+            {!readOnly && (
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-secondary/80 border border-border text-[11px] font-mono text-muted-foreground shrink-0">
+                {isSaving ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+                    <span>Saving draft...</span>
+                  </>
+                ) : lastSavedTime ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    <span>Auto-saved locally</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 inline-block" />
+                    <span>Auto-save active</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* View Mode Toggle */}
             <div className="flex items-center bg-background rounded-md p-1 border border-border text-xs font-mono shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode("paper")}
-                className={`px-3 py-1 rounded transition-colors ${
+                className={`px-3 py-1 rounded transition-colors cursor-pointer ${
                   viewMode === "paper"
-                    ? "bg-primary text-foreground font-medium"
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                📄 Physical Sheet View
+                Physical Sheet View
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("interactive")}
-                className={`px-3 py-1 rounded transition-colors ${
+                className={`px-3 py-1 rounded transition-colors cursor-pointer ${
                   viewMode === "interactive"
-                    ? "bg-primary text-foreground font-medium"
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                ⚡ Fast Grid View
+                Fast Grid View
               </button>
             </div>
 
@@ -1324,6 +1409,39 @@ export default function GveQuarterlyForm({
         </div>
       </div>
 
+      {/* Unsaved Draft Recovery Notification Banner (Strictly NO emojis) */}
+      {recoveredDraft && (
+        <div className="mb-2 p-3 rounded-lg bg-secondary border border-border flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            <span>
+              Unsaved local draft from{" "}
+              {new Date(recoveredDraft.lastSavedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              found for {recoveredDraft.siteName || "this site"}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRestoreDraft}
+              className="px-2.5 py-1 bg-primary text-primary-foreground font-semibold rounded hover:opacity-90 transition-all text-xs cursor-pointer"
+            >
+              Restore Draft
+            </button>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="px-2.5 py-1 bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground border border-border rounded transition-all text-xs cursor-pointer"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Physical Sheet View Pagination Navigator */}
       {viewMode === "paper" && (
         <div className="no-print flex items-center justify-between gap-2 overflow-x-auto pb-1 border-b border-border/80 text-xs font-mono">
@@ -1334,9 +1452,9 @@ export default function GveQuarterlyForm({
                 key={pg}
                 type="button"
                 onClick={() => setActivePaperPage(pg)}
-                className={`px-2.5 py-1 rounded text-xs transition-all border ${
+                className={`px-2.5 py-1 rounded text-xs transition-all border cursor-pointer ${
                   activePaperPage === pg
-                    ? "bg-primary text-foreground border-primary font-bold"
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-secondary text-muted-foreground border-border hover:text-foreground"
                 }`}
               >
@@ -1376,9 +1494,9 @@ export default function GveQuarterlyForm({
               key={cat.id}
               type="button"
               onClick={() => setActiveCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-all border ${
+              className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-all border cursor-pointer ${
                 activeCategory === cat.id
-                  ? "bg-primary text-foreground border-primary font-bold"
+                  ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                   : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-secondary"
               }`}
             >

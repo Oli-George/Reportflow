@@ -47,7 +47,7 @@ export interface GveHourlyEntry {
 
 import { ReportAttachment } from "./attachment"
 
-export interface GveKukaRecordData {
+export interface GveDailyRecordData {
   siteName: string
   title: string
   date: string
@@ -56,6 +56,9 @@ export interface GveKukaRecordData {
   entries: GveHourlyEntry[]
   attachments?: ReportAttachment[]
 }
+
+// Backward compatibility alias
+export type GveKukaRecordData = GveDailyRecordData
 
 // Default initial hourly entries in 12-hour format
 export const DEFAULT_12HR_TIMES = ["07:00 AM","08:00 AM","09:00 AM",

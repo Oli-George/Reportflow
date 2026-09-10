@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react"
 import logoImg from "./logo.jpeg"
 import {
-  GveKukaRecordData,
+  GveDailyRecordData,
   GveHourlyEntry,
   DEFAULT_12HR_TIMES,
   createEmptyGveEntry,
@@ -19,22 +19,40 @@ import {
   saveLastSiteName,
   getRecentSiteNames,
 } from "../lib/siteMemory"
+import { useFormAutoSave } from "../hooks/useFormAutoSave"
+import {
+  ClockIcon,
+  RefreshIcon,
+  EyeIcon,
+  EditIcon,
+  AlertIcon,
+  LockIcon,
+  UnlockIcon,
+  CheckIcon,
+  FileTextIcon,
+} from "./Icons"
 
-interface GveKukaHourlyFormProps {
-  initialData?: GveKukaRecordData
+export interface GveDailyHourlyFormProps {
+  initialData?: GveDailyRecordData
   readOnly?: boolean
   isAdmin?: boolean
-  onSave?: (data: GveKukaRecordData, status: "Draft" | "Submitted") => void
+  author?: string
+  reportId?: number | null
+  onSave?: (data: GveDailyRecordData, status: "Draft" | "Submitted") => void
   onCancel?: () => void
 }
 
-export default function GveKukaHourlyForm({
+export type GveKukaHourlyFormProps = GveDailyHourlyFormProps
+
+export default function GveDailyHourlyForm({
   initialData,
   readOnly = false,
   isAdmin = false,
+  author,
+  reportId,
   onSave,
   onCancel,
-}: GveKukaHourlyFormProps) {
+}: GveDailyHourlyFormProps) {
   const today = new Date()
   const defaultDateStr = today.toISOString().split("T")[0]
   const defaultDayStr = today.toLocaleDateString("en-US", { weekday: "long" })
@@ -42,7 +60,7 @@ export default function GveKukaHourlyForm({
 
   // Site Name state initialized from initialData or remembered site
   const [siteName, setSiteName] = useState(
-    initialData?.siteName || getLastSiteName() || "GVE KUKA SITE",
+    initialData?.siteName || getLastSiteName() || "GVE Daily Site",
   )
 
   const [date, setDate] = useState(initialData?.date || defaultDateStr)
@@ -64,6 +82,50 @@ export default function GveKukaHourlyForm({
   const [attachments, setAttachments] = useState<ReportAttachment[]>(
     initialData?.attachments || [],
   )
+
+  // Continuous 10-second IndexedDB Form Auto-Save
+  const currentFormData: GveDailyRecordData = useMemo(
+    () => ({
+      siteName: siteName || "GVE Daily Site",
+      title: title.trim(),
+      date,
+      day,
+      year,
+      entries,
+      attachments,
+    }),
+    [siteName, title, date, day, year, entries, attachments],
+  )
+
+  const {
+    lastSavedTime,
+    isSaving,
+    recoveredDraft,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormAutoSave<GveDailyRecordData>({
+    formType: "gveDaily",
+    author: author || "Field Technician",
+    reportId,
+    formData: currentFormData,
+    siteName,
+    title,
+    readOnly,
+  })
+
+  const handleRestoreDraft = () => {
+    const restored = restoreDraft()
+    if (restored) {
+      if (restored.siteName) setSiteName(restored.siteName)
+      if (restored.title) setTitle(restored.title)
+      if (restored.date) setDate(restored.date)
+      if (restored.day) setDay(restored.day)
+      if (restored.year) setYear(restored.year)
+      if (restored.entries && restored.entries.length > 0) setEntries(restored.entries)
+      if (restored.attachments) setAttachments(restored.attachments)
+    }
+  }
 
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -178,11 +240,21 @@ export default function GveKukaHourlyForm({
     setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
+  const extractSiteNameFromHourlyTitle = (titleText: string): string => {
+    if (!titleText) return ""
+    const trimmed = titleText.trim()
+    if (/Hourly Record/i.test(trimmed)) {
+      return trimmed.split(/Hourly Record/i)[0].trim().replace(/[—–\-]\s*$/, "").trim()
+    }
+    if (/[—–]/.test(trimmed)) {
+      return trimmed.split(/[—–]/)[0].trim()
+    }
+    return trimmed
+  }
+
   const handleSiteNameChange = (val: string) => {
     setSiteName(val)
-    if (!title || title.includes("Hourly Record")) {
-      setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
-    }
+    setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
     if (titleError) setTitleError(null)
   }
 
@@ -191,6 +263,8 @@ export default function GveKukaHourlyForm({
     if (val.trim()) {
       setTitleError(null)
     }
+    const extractedSite = extractSiteNameFromHourlyTitle(val)
+    setSiteName(extractedSite)
   }
 
   const validateReportTitle = (): boolean => {
@@ -202,7 +276,7 @@ export default function GveKukaHourlyForm({
     return true
   }
 
-  const handleSaveDraft = (e: React.FormEvent) => {
+  const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateReportTitle()) {
       return
@@ -211,10 +285,11 @@ export default function GveKukaHourlyForm({
     try {
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
+    await clearDraft()
     if (onSave) {
       onSave(
         {
-          siteName: siteName || "GVE KUKA SITE",
+          siteName: siteName || "GVE Daily Site",
           title: title.trim(),
           date,
           day,
@@ -227,7 +302,7 @@ export default function GveKukaHourlyForm({
     }
   }
 
-  const handleSubmitFinal = (e: React.FormEvent) => {
+  const handleSubmitFinal = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateReportTitle()) {
       setShowSubmitConfirmModal(false)
@@ -237,11 +312,12 @@ export default function GveKukaHourlyForm({
     try {
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
+    await clearDraft()
 
     if (onSave) {
       onSave(
         {
-          siteName: siteName || "GVE KUKA SITE",
+          siteName: siteName || "GVE Daily Site",
           title: title.trim(),
           date,
           day,
@@ -277,13 +353,13 @@ export default function GveKukaHourlyForm({
 
       {/* Security & Server Time Live Banner */}
       {!readOnly && (
-        <div className="no-print bg-zinc-900/90 border border-zinc-700/70 p-3 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+        <div className="no-print bg-card border border-border p-3 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
           {/* Time & Sync Status */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-black/50 border border-zinc-700 px-2.5 py-1 rounded-md font-mono text-zinc-200">
-              <span className="text-emerald-400">🕒</span>
+            <div className="flex items-center gap-1.5 bg-secondary border border-border px-2.5 py-1 rounded-md font-mono text-foreground font-semibold">
+              <ClockIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span className="font-bold text-foreground">{formattedTimeStr}</span>
-              <span className="text-[10px] text-zinc-400">
+              <span className="text-[10px] text-muted-foreground">
                 ({Intl.DateTimeFormat().resolvedOptions().timeZone})
               </span>
             </div>
@@ -291,30 +367,30 @@ export default function GveKukaHourlyForm({
             {/* Anti-tamper & Sync Pills */}
             {isTampered ? (
               <span
-                className="bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                className="bg-red-100 text-red-800 border border-red-300 dark:bg-red-950/80 dark:text-red-300 dark:border-red-700/60 px-2.5 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1 font-semibold"
                 title="Device clock was altered. System calibrated using server monotonic clock."
               >
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                Anti-Tamper Active: Using Protected Server Time
+                Anti-Tamper Active: Protected Time
               </span>
             ) : syncStatus === "synced" ? (
               <span
-                className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700/60 px-2.5 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1.5 font-semibold"
                 title="Synced directly with trusted server timestamp"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                 Server-Verified Time
               </span>
             ) : isOffline ? (
               <span
-                className="bg-amber-950/80 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1"
+                className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700/60 px-2.5 py-0.5 rounded-full text-[11px] font-mono flex items-center gap-1.5 font-semibold"
                 title="Offline mode: Time tracked via monotonic hardware timer calibrated against last sync"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 Offline Monotonic Mode
               </span>
             ) : (
-              <span className="bg-zinc-800 text-zinc-300 border border-zinc-600 px-2 py-0.5 rounded-full text-[11px] font-mono">
+              <span className="bg-secondary text-foreground border border-border px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium">
                 Calibrated Time
               </span>
             )}
@@ -323,16 +399,16 @@ export default function GveKukaHourlyForm({
           {/* Current Hour Window Countdown Indicator */}
           <div className="flex items-center gap-2">
             {currentActiveSlot ? (
-              <div className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-600/80 text-emerald-300 px-3 py-1 rounded-md font-mono text-[11px] animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div className="flex items-center gap-2 bg-emerald-100 text-emerald-800 border border-emerald-400 dark:bg-emerald-950/60 dark:border-emerald-600/80 dark:text-emerald-300 px-3 py-1 rounded-md font-mono text-[11px] font-semibold animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                 <span>
                   <strong>{currentActiveSlot.time}</strong> Slot OPEN —{" "}
                   {slotStatuses[currentActiveSlot.id]?.statusLabel}
                 </span>
               </div>
             ) : nextUpcomingSlot ? (
-              <div className="flex items-center gap-1.5 bg-zinc-800/80 border border-zinc-700 text-zinc-300 px-3 py-1 rounded-md font-mono text-[11px]">
-                <span>⏳</span>
+              <div className="flex items-center gap-1.5 bg-secondary border border-border text-foreground px-3 py-1 rounded-md font-mono text-[11px]">
+                <ClockIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 <span>
                   Next window: <strong>{nextUpcomingSlot.time}</strong> (
                   {Math.floor(
@@ -342,7 +418,7 @@ export default function GveKukaHourlyForm({
                 </span>
               </div>
             ) : (
-              <div className="text-zinc-400 font-mono text-[11px]">
+              <div className="text-muted-foreground font-mono text-[11px]">
                 Shift completed / No active windows
               </div>
             )}
@@ -352,24 +428,34 @@ export default function GveKukaHourlyForm({
               <button
                 type="button"
                 onClick={() => setAdminOverride(!adminOverride)}
-                className={`px-2.5 py-1 rounded text-[11px] font-mono border transition-all ${
+                className={`px-2.5 py-1 rounded text-[11px] font-mono border transition-all flex items-center gap-1 cursor-pointer ${
                   adminOverride
-                    ? "bg-purple-950 text-purple-300 border-purple-600"
-                    : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200"
+                    ? "bg-purple-100 text-purple-900 border-purple-400 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-600 font-bold"
+                    : "bg-secondary text-muted-foreground border-border hover:text-foreground font-medium"
                 }`}
                 title="Supervisors can unlock all hourly rows for backfill or historical corrections"
               >
-                {adminOverride ? "🔓 Admin Override Active" : "🔒 Admin Override"}
+                {adminOverride ? (
+                  <>
+                    <UnlockIcon className="w-3 h-3" />
+                    <span>Admin Override Active</span>
+                  </>
+                ) : (
+                  <>
+                    <LockIcon className="w-3 h-3" />
+                    <span>Admin Override</span>
+                  </>
+                )}
               </button>
             )}
 
             <button
               type="button"
               onClick={() => refreshServerTime()}
-              className="text-zinc-400 hover:text-zinc-200 p-1 text-xs"
+              className="p-1.5 rounded bg-secondary hover:bg-muted text-foreground border border-border transition-colors cursor-pointer"
               title="Resync server timestamp"
             >
-              🔄
+              <RefreshIcon className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -377,18 +463,18 @@ export default function GveKukaHourlyForm({
 
       {/* Progressive Shift Timeline Banner */}
       {!readOnly && (
-        <div className="no-print bg-zinc-900/70 border border-zinc-800 px-4 py-2.5 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+        <div className="no-print bg-card border border-border px-4 py-2.5 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-zinc-400 font-mono flex items-center gap-1.5">
-              <span>⏱️</span>
-              <span className="font-semibold text-zinc-300">Shift Progress:</span>
+            <span className="text-muted-foreground font-mono flex items-center gap-1.5">
+              <ClockIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold text-foreground">Shift Progress:</span>
             </span>
-            <span className="font-mono text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/60 text-[11px]">
+            <span className="font-mono text-emerald-800 dark:text-emerald-300 font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800/60 text-[11px]">
               {visibleEntries.length} of {entries.length} hours visible
             </span>
             {hiddenUpcomingCount > 0 && nextUpcomingSlot && (
-              <span className="text-zinc-400 font-mono text-[11px]">
-                • Next slot: <strong className="text-emerald-300">{nextUpcomingSlot.time}</strong> (opens in {Math.floor((slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60)}m with 15m entry window)
+              <span className="text-muted-foreground font-mono text-[11px]">
+                • Next slot: <strong className="text-emerald-700 dark:text-emerald-300">{nextUpcomingSlot.time}</strong> (opens in {Math.floor((slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60)}m with 15m entry window)
               </span>
             )}
           </div>
@@ -397,11 +483,14 @@ export default function GveKukaHourlyForm({
             <button
               type="button"
               onClick={() => setShowAllUpcoming(!showAllUpcoming)}
-              className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 underline underline-offset-2 flex items-center gap-1 transition-colors ml-auto cursor-pointer"
+              className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 underline underline-offset-2 flex items-center gap-1.5 transition-colors ml-auto cursor-pointer font-medium"
             >
-              {showAllUpcoming
-                ? "👁️ Hide upcoming locked hours"
-                : `👁️ Preview all 13 hours (${hiddenUpcomingCount} hidden)`}
+              <EyeIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                {showAllUpcoming
+                  ? "Hide upcoming locked hours"
+                  : `Preview all 13 hours (${hiddenUpcomingCount} hidden)`}
+              </span>
             </button>
           ) : null}
         </div>
@@ -410,7 +499,7 @@ export default function GveKukaHourlyForm({
       {/* Top Toolbar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-secondary/80 border border-border p-3 rounded-lg backdrop-blur-sm">
         <div className="flex-1 min-w-[260px] max-w-xl flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
           <div className="flex-1">
             <div className="flex items-center justify-between gap-2 mb-0.5">
               <label
@@ -419,14 +508,15 @@ export default function GveKukaHourlyForm({
               >
                 <span>Report Name</span>
                 {titleError && (
-                  <span className="text-rose-400 font-bold text-[9px] bg-rose-950/60 border border-rose-800/80 px-1.5 py-0.5 rounded animate-pulse">
+                  <span className="text-rose-700 dark:text-rose-400 font-bold text-[9px] bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800/80 px-1.5 py-0.5 rounded animate-pulse">
                     Required
                   </span>
                 )}
               </label>
               {titleError && (
-                <span className="text-[10px] font-mono text-rose-400 font-medium">
-                  ⚠️ {titleError}
+                <span className="text-[10px] font-mono text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                  <AlertIcon className="w-3 h-3 inline" />
+                  <span>{titleError}</span>
                 </span>
               )}
             </div>
@@ -444,12 +534,12 @@ export default function GveKukaHourlyForm({
                   placeholder="Enter report name..."
                   className={`w-full bg-background/90 border text-xs font-semibold px-2.5 py-1.5 rounded outline-none transition-all ${
                     titleError
-                      ? "border-rose-500 ring-2 ring-rose-500/50 text-rose-200 bg-rose-950/20"
+                      ? "border-rose-500 ring-2 ring-rose-500/50 text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/20"
                       : "border-border text-foreground hover:border-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   }`}
                 />
-                <span className="absolute right-2 text-zinc-400 text-xs pointer-events-none">
-                  ✏️
+                <span className="absolute right-2.5 text-muted-foreground pointer-events-none">
+                  <EditIcon className="w-3.5 h-3.5" />
                 </span>
               </div>
             )}
@@ -457,29 +547,51 @@ export default function GveKukaHourlyForm({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Auto-save status indicator (Strictly NO emojis) */}
+          {!readOnly && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-secondary/80 border border-border text-[11px] font-mono text-muted-foreground font-medium">
+              {isSaving ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+                  <span>Saving draft...</span>
+                </>
+              ) : lastSavedTime ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500 inline-block" />
+                  <span className="text-foreground">Auto-saved locally</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 inline-block" />
+                  <span>Auto-save active</span>
+                </>
+              )}
+            </div>
+          )}
+
           {/* View mode toggle */}
           <div className="flex items-center bg-background rounded-md p-1 border border-border text-xs">
             <button
               type="button"
               onClick={() => setViewMode("paper")}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                 viewMode === "paper"
-                  ? "bg-primary text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground font-medium"
               }`}
             >
-              📄 Physical Sheet View
+              Physical Sheet View
             </button>
             <button
               type="button"
               onClick={() => setViewMode("interactive")}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                 viewMode === "interactive"
-                  ? "bg-primary text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground font-medium"
               }`}
             >
-              ⚡ Fast Grid View
+              Fast Grid View
             </button>
           </div>
 
@@ -487,36 +599,56 @@ export default function GveKukaHourlyForm({
           <button
             type="button"
             onClick={() => setShowPdfModal(true)}
-            className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border transition-all"
+            className="flex items-center gap-1.5 bg-secondary hover:bg-border text-foreground px-3 py-1.5 rounded text-xs font-mono border border-border font-medium transition-all cursor-pointer"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            Export to PDF / Live Preview
+            <FileTextIcon className="w-3.5 h-3.5" />
+            <span>Export to PDF / Live Preview</span>
           </button>
 
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs transition-all"
+              className="bg-secondary hover:bg-muted text-foreground border border-border px-3 py-1.5 rounded text-xs font-semibold transition-all cursor-pointer"
             >
               Close
             </button>
           )}
         </div>
       </div>
+
+      {/* Unsaved Draft Recovery Notification Banner (Strictly NO emojis) */}
+      {recoveredDraft && (
+        <div className="mb-4 p-3 rounded-lg bg-secondary border border-border flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            <span>
+              Unsaved local draft from{" "}
+              {new Date(recoveredDraft.lastSavedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              found for {recoveredDraft.siteName || "this site"}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRestoreDraft}
+              className="px-2.5 py-1 bg-primary text-primary-foreground font-semibold rounded hover:opacity-90 transition-all text-xs cursor-pointer"
+            >
+              Restore Draft
+            </button>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="px-2.5 py-1 bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground border border-border rounded transition-all text-xs cursor-pointer"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Physical Form Render */}
       {viewMode === "paper" ? (
@@ -550,10 +682,10 @@ export default function GveKukaHourlyForm({
                       className="text-sm font-bold tracking-widest text-black uppercase text-center bg-transparent border-b border-dashed border-zinc-400 hover:border-black focus:border-emerald-600 focus:bg-emerald-50/50 outline-none px-2 py-0.5 w-full max-w-md transition-all"
                     />
                     <span
-                      className="text-[10px] text-zinc-400 opacity-60 group-hover:opacity-100 cursor-help"
+                      className="text-zinc-400 opacity-60 group-hover:opacity-100 cursor-help"
                       title="Editable site name (automatically remembers for your next report)"
                     >
-                      ✏️
+                      <EditIcon className="w-3.5 h-3.5" />
                     </span>
                   </div>
                   <span className="text-[8px] text-zinc-400 font-mono tracking-tight -mt-0.5">
@@ -1485,23 +1617,26 @@ export default function GveKukaHourlyForm({
                         {entry.time}
                       </span>
                       {statusInfo.status === "ACTIVE" && (
-                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-600 px-2 py-0.5 rounded text-[10px] font-mono animate-pulse">
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-400 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-600 px-2 py-0.5 rounded text-[10px] font-mono font-semibold animate-pulse">
                           ● OPEN FOR INPUT ({statusInfo.statusLabel})
                         </span>
                       )}
                       {statusInfo.status === "UPCOMING" && (
-                        <span className="bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded text-[10px] font-mono">
-                          ⏳ {statusInfo.statusLabel}
+                        <span className="bg-secondary text-muted-foreground border border-border px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1">
+                          <ClockIcon className="w-3 h-3 text-muted-foreground" />
+                          <span>{statusInfo.statusLabel}</span>
                         </span>
                       )}
                       {statusInfo.status === "LOCKED_RECORDED" && (
-                        <span className="bg-blue-950 text-blue-300 border border-blue-700 px-2 py-0.5 rounded text-[10px] font-mono">
-                          ✓ Locked Log
+                        <span className="bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
+                          <CheckIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>Locked Log</span>
                         </span>
                       )}
                       {statusInfo.status === "EXPIRED_MISSED" && (
-                        <span className="bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded text-[10px] font-mono">
-                          ⚠️ Window Expired
+                        <span className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
+                          <AlertIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Window Expired</span>
                         </span>
                       )}
                     </div>
@@ -1612,7 +1747,7 @@ export default function GveKukaHourlyForm({
             <button
               type="button"
               onClick={handleSaveDraft}
-              className="w-full flex items-center justify-center gap-2 bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:translate-y-px"
+              className="btn-save-draft w-full flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/50 dark:hover:bg-amber-900/80 dark:text-amber-300 dark:border-amber-700/60 font-mono px-4 py-2.5 rounded-lg text-xs font-bold transition-all shadow-2xs active:translate-y-px cursor-pointer"
               title="Save as Draft to edit later before submitting"
             >
               <svg
@@ -1633,7 +1768,7 @@ export default function GveKukaHourlyForm({
             <button
               type="button"
               onClick={() => setShowSubmitConfirmModal(true)}
-              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-foreground font-semibold px-4 py-2.5 rounded-lg text-xs transition-all shadow active:translate-y-px"
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-4 py-2.5 rounded-lg text-xs transition-all shadow-sm active:translate-y-px cursor-pointer"
               title="Submit final report for Admin review"
             >
               <svg
@@ -1675,14 +1810,14 @@ export default function GveKukaHourlyForm({
                   onClick={handleTriggerPrint}
                   className="bg-primary hover:bg-primary-hover text-white font-mono text-xs px-4 py-2 rounded flex items-center gap-1.5 shadow"
                 >
-                  🖨️ Print / Save as PDF
+                  Print / Save as PDF
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPdfModal(false)}
                   className="text-muted-foreground hover:text-foreground text-sm px-3 py-1.5"
                 >
-                  ✕ Close
+                  Close
                 </button>
               </div>
             </div>
@@ -1889,18 +2024,22 @@ export default function GveKukaHourlyForm({
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
-              <span>⚠️</span> Confirm Final Report Submission
+              <AlertIcon className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>Confirm Final Report Submission</span>
             </h3>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              Are you sure you want to submit this {siteName || "GVE Site"} Hourly
-              Record? Once submitted, it will be locked and sent to Site
+              Are you sure you want to submit{" "}
+              <strong className="text-foreground font-bold">
+                "{title || `${siteName || "GVE Site"} Hourly Record — ${date}`}"
+              </strong>
+              ? Once submitted, it will be locked and sent to Site
               Administrators for review.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowSubmitConfirmModal(false)}
-                className="px-4 py-2 rounded text-xs text-muted-foreground hover:text-foreground font-medium"
+                className="px-4 py-2 rounded text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer"
               >
                 Cancel
               </button>
@@ -1910,7 +2049,7 @@ export default function GveKukaHourlyForm({
                   setShowSubmitConfirmModal(false)
                   handleSubmitFinal(e)
                 }}
-                className="px-4 py-2 rounded text-xs bg-primary hover:bg-primary-hover text-foreground font-bold shadow"
+                className="px-4 py-2 rounded text-xs bg-primary hover:bg-primary-hover text-primary-foreground font-bold shadow cursor-pointer"
               >
                 Confirm & Submit
               </button>
