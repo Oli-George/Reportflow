@@ -1768,6 +1768,15 @@ function App() {
           topOffset={topOffset}
           sunlightMode={sunlightMode}
           onToggleSunlightMode={toggleSunlightMode}
+          isOffline={isOffline}
+          pendingQueueCount={pendingQueueCount}
+          onFlushQueue={async () => {
+            const res = await flushOfflineQueue()
+            if (res.synced > 0) {
+              fetchReportsFromSupabase()
+            }
+            return res
+          }}
         />
       )}
       <footer className="text-center py-4 bg-background border-t border-border/40 text-xs text-muted-foreground/80 font-mono">

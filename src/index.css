@@ -293,26 +293,102 @@ html.sunlight-mode .badge-draft {
   font-weight: 700 !important;
 }
 
-/* High-Contrast Deadlines for maximum legibility */
+/* Universal Sidebar Active Nav Styling */
+.sidebar-nav-active {
+  background-color: #00754a !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.sidebar-nav-active * {
+  color: #ffffff !important;
+}
+
+/* ─── High-Contrast Priority Badges ─── */
+.priority-badge-high {
+  background-color: rgba(225, 29, 72, 0.25);
+  border: 1px solid rgba(244, 63, 94, 0.6);
+  color: #ffe4e6;
+  font-weight: 700;
+}
+
+.priority-badge-medium {
+  background-color: rgba(217, 119, 6, 0.25);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: #fef08a;
+  font-weight: 700;
+}
+
+.priority-badge-low {
+  background-color: rgba(71, 85, 105, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+/* Deadline urgency badges in dark command-center mode */
+.deadline-badge-overdue {
+  background-color: rgba(225, 29, 72, 0.25);
+  border: 1px solid #f43f5e;
+  color: #fff1f2;
+  font-weight: 700;
+}
+
+.deadline-badge-urgent {
+  background-color: rgba(217, 119, 6, 0.25);
+  border: 1px solid #f59e0b;
+  color: #fffbeb;
+  font-weight: 700;
+}
+
+.deadline-badge-normal {
+  background-color: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  color: #ecfdf5;
+  font-weight: 600;
+}
+
+/* High-Contrast Deadlines & Badges for Sunlight Mode */
+html.sunlight-mode .priority-badge-high {
+  background-color: #ffe4e6 !important;
+  border: 1.5px solid #e11d48 !important;
+  color: #9f1239 !important;
+  font-weight: 800 !important;
+}
+
+html.sunlight-mode .priority-badge-medium {
+  background-color: #fef3c7 !important;
+  border: 1.5px solid #d97706 !important;
+  color: #92400e !important;
+  font-weight: 800 !important;
+}
+
+html.sunlight-mode .priority-badge-low {
+  background-color: #f1f5f9 !important;
+  border: 1.5px solid #64748b !important;
+  color: #1e293b !important;
+  font-weight: 700 !important;
+}
+
 html.sunlight-mode .deadline-badge-overdue {
   background-color: #ffe4e6 !important;
   color: #881337 !important;
   border: 1.5px solid #e11d48 !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
 html.sunlight-mode .deadline-badge-urgent {
   background-color: #fef3c7 !important;
   color: #78350f !important;
   border: 1.5px solid #d97706 !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
 html.sunlight-mode .deadline-badge-normal {
   background-color: #dcfce7 !important;
   color: #14532d !important;
   border: 1.5px solid #16a34a !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
 html.sunlight-mode .paper-sheet {

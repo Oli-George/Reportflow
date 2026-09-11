@@ -764,11 +764,13 @@ function Sidebar({
             <button
               key={id}
               onClick={() => onChange(id as View)}
-              className="flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors"
+              className={`flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                isActive ? "sidebar-nav-active font-semibold shadow-sm" : "sidebar-nav-inactive"
+              }`}
               style={{
-                backgroundColor: isActive ? "var(--primary)" : "transparent",
+                backgroundColor: isActive ? "#00754a" : "transparent",
                 color: isActive
-                  ? "var(--primary-foreground)"
+                  ? "#ffffff"
                   : "var(--muted-foreground)",
                 justifyContent: collapsed ? "center" : "flex-start",
                 gap: collapsed ? 0 : 10,
@@ -1263,19 +1265,27 @@ function DashboardView({
                               >
                                 {d.title}
                               </p>
-                              {d.priority === "High" && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
-                                  High
+                              {d.priority === "High" ? (
+                                <span className="priority-badge-high px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                  HIGH
+                                </span>
+                              ) : d.priority === "Medium" ? (
+                                <span className="priority-badge-medium px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                  MEDIUM
+                                </span>
+                              ) : (
+                                <span className="priority-badge-low px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                  LOW
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-secondary font-medium text-foreground border border-border">
                                 {d.department}
                               </span>
                               {d.description && !isSelected && (
                                 <span
-                                  className="text-[11px] text-muted-foreground truncate hidden sm:inline"
+                                  className="text-xs text-foreground/75 truncate hidden sm:inline"
                                   title={d.description}
                                 >
                                   · {d.description}
@@ -1285,17 +1295,23 @@ function DashboardView({
                           </div>
                           <div className="text-right shrink-0">
                             <span
-                              className={`text-xs font-mono px-2 py-1 rounded border block ${
+                              className={`text-xs font-mono px-2.5 py-1 rounded border block shadow-xs ${
                                 urgency.isOverdue
-                                  ? "bg-rose-950/40 border-rose-800 text-rose-400"
+                                  ? "deadline-badge-overdue"
                                   : urgency.isUrgent
-                                    ? "bg-amber-950/40 border-amber-800 text-amber-300"
-                                    : "bg-emerald-950/30 border-emerald-800/40 text-emerald-400"
+                                    ? "deadline-badge-urgent"
+                                    : "deadline-badge-normal"
                               }`}
                             >
                               {formatDeadlineDate(d.dueDate)}
                             </span>
-                            <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                            <span className={`text-[11px] font-mono font-semibold block mt-0.5 ${
+                              urgency.isOverdue
+                                ? "text-rose-400"
+                                : urgency.isUrgent
+                                  ? "text-amber-400"
+                                  : "text-emerald-400"
+                            }`}>
                               {urgency.label}
                             </span>
                           </div>

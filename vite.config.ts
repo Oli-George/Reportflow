@@ -26,20 +26,27 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['logo.jpeg'],
         manifest: {
-          name: 'ReportFlow',
+          name: 'ReportFlow — Field Reporting Portal',
           short_name: 'ReportFlow',
-          description: 'Mini-grid site reporting for field engineers',
-          theme_color: '#fff',
+          description: 'Offline-first field reporting and operational compliance coordination for GVE mini-grid infrastructure.',
+          theme_color: '#005030',
+          background_color: '#080f0b',
+          display: 'standalone',
+          orientation: 'portrait',
+          scope: '/',
+          start_url: '/',
           icons: [
             {
               src: 'logo.jpeg',
               sizes: '192x192',
-              type: 'image/jpeg'
+              type: 'image/jpeg',
+              purpose: 'any maskable'
             },
             {
               src: 'logo.jpeg',
               sizes: '512x512',
-              type: 'image/jpeg'
+              type: 'image/jpeg',
+              purpose: 'any maskable'
             }
           ]
         },

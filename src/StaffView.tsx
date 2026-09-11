@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 
 import {
   Report,
@@ -11,10 +11,12 @@ import {
 } from "./AdminView"
 
 import GveDailyHourlyForm from "./components/GveHourlyForm"
-
 import GveWeeklyForm from "./components/GveWeeklyForm"
-
+import GveQuarterlyForm from "./components/GveQuarterlyForm"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
+import { draftStorage, FormDraft } from "./lib/draftStorage"
+import { usePwaInstall } from "./hooks/usePwaInstall"
+import { flushOfflineQueue } from "./lib/syncQueue"
 import {
   ContrastIcon,
   FileTextIcon,
@@ -141,6 +143,12 @@ interface StaffViewProps {
   sunlightMode?: boolean
 
   onToggleSunlightMode?: () => void
+
+  isOffline?: boolean
+
+  pendingQueueCount?: number
+
+  onFlushQueue?: () => Promise<{ synced: number; failed: number }>
 }
 
 type StaffTab = "dashboard" | "history" | "submit"
@@ -154,6 +162,9 @@ export default function StaffView({
   topOffset = 0,
   sunlightMode = false,
   onToggleSunlightMode,
+  isOffline = typeof navigator !== "undefined" ? !navigator.onLine : false,
+  pendingQueueCount = 0,
+  onFlushQueue,
 }: StaffViewProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>("dashboard")
 
@@ -173,7 +184,55 @@ export default function StaffView({
     useState<number | null>(null)
 
   const [selectedFormFormat, setSelectedFormFormat] =
-    useState<"gveDaily" | "gveWeekly">("gveDaily")
+    useState<"gveDaily" | "gveWeekly" | "gveQuarterly">("gveDaily")
+
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [localDrafts, setLocalDrafts] = useState<FormDraft[]>([])
+
+  const { isInstallable, triggerInstall } = usePwaInstall()
+
+  // Load auto-saved form drafts for this technician
+  const loadDrafts = useCallback(async () => {
+    try {
+      const drafts = await draftStorage.listDraftsForAuthor(member.name)
+      setLocalDrafts(drafts)
+    } catch (err) {
+      console.warn("Could not list local drafts:", err)
+    }
+  }, [member.name])
+
+  useEffect(() => {
+    loadDrafts()
+    const interval = setInterval(loadDrafts, 10000)
+    return () => clearInterval(interval)
+  }, [loadDrafts, activeTab])
+
+  const handleManualSync = async () => {
+    if (isSyncing) return
+    setIsSyncing(true)
+    try {
+      const res = onFlushQueue ? await onFlushQueue() : await flushOfflineQueue()
+      if (res.synced > 0) {
+        setToastMessage(`Successfully synced ${res.synced} offline report(s)!`)
+        setTimeout(() => setToastMessage(null), 3000)
+      }
+    } catch (err) {
+      console.error("Sync error:", err)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleResumeDraft = (draft: FormDraft) => {
+    setSelectedFormFormat(draft.formType)
+    setEditingReportId(draft.reportId ?? null)
+    setActiveTab("submit")
+  }
+
+  const handleDiscardDraft = async (draft: FormDraft) => {
+    await draftStorage.deleteDraft(draft.formType, member.name, draft.reportId)
+    await loadDrafts()
+  }
 
   const sidebarW = collapsed ? 56 : 240
 
@@ -333,13 +392,13 @@ export default function StaffView({
                 key={id}
                 onClick={() => setActiveTab(id)}
                 className={`flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? "sidebar-nav-active" : "sidebar-nav-inactive"
+                  isActive ? "sidebar-nav-active font-semibold shadow-sm" : "sidebar-nav-inactive"
                 }`}
                 style={{
-                  backgroundColor: isActive ? "var(--primary)" : "transparent",
+                  backgroundColor: isActive ? "#00754a" : "transparent",
 
                   color: isActive
-                    ? "var(--primary-foreground)"
+                    ? "#ffffff"
                     : "var(--muted-foreground)",
 
                   justifyContent: collapsed ? "center" : "flex-start",
@@ -479,7 +538,51 @@ export default function StaffView({
                 ? "Revise Report"
                 : "Submit Report"}
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Offline / Sync Queue Status Chip */}
+          {isOffline ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-950/80 border border-amber-600/70 text-amber-300 text-xs font-mono shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="font-semibold">Offline</span>
+              {pendingQueueCount > 0 && (
+                <span className="bg-amber-900/80 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                  {pendingQueueCount} queued
+                </span>
+              )}
+            </div>
+          ) : pendingQueueCount > 0 ? (
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-900/90 hover:bg-emerald-800 border border-emerald-600 text-emerald-100 text-xs font-mono font-semibold cursor-pointer transition-colors shadow-xs"
+              title="Click to flush cached offline reports to Supabase"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{isSyncing ? "Syncing..." : `Sync (${pendingQueueCount})`}</span>
+            </button>
+          ) : (
+            <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono text-emerald-400/90 bg-emerald-950/30 border border-emerald-900/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>Online</span>
+            </div>
+          )}
+
+          {/* PWA Install Button */}
+          {isInstallable && (
+            <button
+              type="button"
+              onClick={triggerInstall}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border text-xs font-mono font-semibold bg-emerald-900/60 hover:bg-emerald-800 border-emerald-600 text-emerald-200 transition-all cursor-pointer shadow-xs"
+              title="Install ReportFlow as standalone app on this device (Privacy: all cached drafts remain strictly local until submitted)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span className="hidden sm:inline">Install App</span>
+            </button>
+          )}
+
           {onToggleSunlightMode && (
             <button
               type="button"
@@ -627,6 +730,74 @@ export default function StaffView({
               </div>
             </div>
 
+            {/* Active Local Drafts (Auto-Saved in IndexedDB) */}
+            {localDrafts.length > 0 && (
+              <div className="rounded-lg border bg-card border-amber-500/40 p-5 flex flex-col gap-3 shadow-md animate-fadeIn">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                    <h2 className="font-display font-700 text-sm text-foreground">
+                      Active Local Drafts (Auto-Saved)
+                    </h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
+                      {localDrafts.length} Saved in IndexedDB
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">
+                    Protected locally from device battery loss
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {localDrafts.map((d) => {
+                    const formLabel =
+                      d.formType === "gveDaily"
+                        ? "Physical Form: Hourly Log"
+                        : d.formType === "gveWeekly"
+                          ? "Physical Form: Weekly Report"
+                          : "Physical Form: Quarterly Audit"
+
+                    const timeStr = new Date(d.lastSavedAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+
+                    return (
+                      <div
+                        key={d.id}
+                        className="rounded-md border border-border bg-secondary/40 p-3.5 flex items-center justify-between gap-3 hover:border-primary-hover transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-mono font-bold text-foreground truncate">
+                            {formLabel}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            Site: <strong className="text-foreground">{d.siteName || "Unspecified"}</strong> · Saved at {timeStr}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleResumeDraft(d)}
+                            className="px-2.5 py-1 rounded text-xs font-mono font-bold bg-primary hover:bg-primary-hover text-primary-foreground transition-colors shadow-2xs cursor-pointer"
+                          >
+                            Resume
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardDraft(d)}
+                            className="px-2 py-1 rounded text-xs font-mono text-muted-foreground hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                            title="Discard this local draft"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Content Split: Submissions on Left, Deadlines on Right */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               {/* Left Column: Recent activity of this member */}
@@ -712,19 +883,27 @@ export default function StaffView({
                                 >
                                   {d.title}
                                 </p>
-                                {d.priority === "High" && (
-                                  <span className="deadline-badge-overdue px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-700/60 text-rose-300 shrink-0">
-                                    High
+                                {d.priority === "High" ? (
+                                  <span className="priority-badge-high px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                    HIGH
+                                  </span>
+                                ) : d.priority === "Medium" ? (
+                                  <span className="priority-badge-medium px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                    MEDIUM
+                                  </span>
+                                ) : (
+                                  <span className="priority-badge-low px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                    LOW
                                   </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border/50">
+                                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-secondary font-medium text-foreground border border-border">
                                   {d.department}
                                 </span>
                                 {d.description && (
                                   <span
-                                    className="text-[11px] text-muted-foreground truncate hidden sm:inline"
+                                    className="text-xs text-foreground/75 truncate hidden sm:inline"
                                     title={d.description}
                                   >
                                     · {d.description}
@@ -734,17 +913,23 @@ export default function StaffView({
                             </div>
                             <div className="text-right shrink-0">
                               <span
-                                className={`text-xs font-mono px-2 py-1 rounded border block ${
+                                className={`text-xs font-mono px-2.5 py-1 rounded border block shadow-xs ${
                                   urgency.isOverdue
-                                    ? "deadline-badge-overdue bg-rose-950/40 border-rose-800 text-rose-400"
+                                    ? "deadline-badge-overdue"
                                     : urgency.isUrgent
-                                      ? "deadline-badge-urgent bg-amber-950/40 border-amber-800 text-amber-300"
-                                      : "deadline-badge-normal bg-emerald-950/30 border-emerald-800/40 text-emerald-400"
+                                      ? "deadline-badge-urgent"
+                                      : "deadline-badge-normal"
                                 }`}
                               >
                                 {formatDeadlineDate(d.dueDate)}
                               </span>
-                              <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                              <span className={`text-[11px] font-mono font-semibold block mt-0.5 ${
+                                urgency.isOverdue
+                                  ? "text-rose-400"
+                                  : urgency.isUrgent
+                                    ? "text-amber-400"
+                                    : "text-emerald-400"
+                              }`}>
                                 {urgency.label}
                               </span>
                             </div>
@@ -923,7 +1108,7 @@ export default function StaffView({
                   Choose physical site form replica format
                 </p>
               </div>
-              <div className="flex items-center gap-2 bg-secondary p-1 rounded-md border border-border">
+              <div className="flex items-center gap-2 bg-secondary p-1 rounded-md border border-border flex-wrap">
                 <button
                   type="button"
                   onClick={() => setSelectedFormFormat("gveDaily")}
@@ -947,6 +1132,18 @@ export default function StaffView({
                 >
                   <ClipboardIcon className="w-3.5 h-3.5" />
                   <span>Physical Form: Weekly Site Report</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFormFormat("gveQuarterly")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                    selectedFormFormat === "gveQuarterly"
+                      ? "format-selector-active bg-primary text-primary-foreground font-bold shadow-xs border border-emerald-800"
+                      : "bg-card/70 hover:bg-card text-foreground font-semibold border border-border/80 shadow-2xs"
+                  }`}
+                >
+                  <ClipboardIcon className="w-3.5 h-3.5" />
+                  <span>Physical Form: Quarterly Inspection</span>
                 </button>
               </div>
             </div>
@@ -1024,7 +1221,7 @@ export default function StaffView({
                   }}
                   onCancel={() => handleCancelEdit()}
                 />
-              ) : (
+              ) : selectedFormFormat === "gveWeekly" ? (
                 <GveWeeklyForm
                   key={editingReportId ?? "new-weekly"}
                   author={member.name}
@@ -1087,6 +1284,63 @@ export default function StaffView({
 
                       setEditingReportId(null)
 
+                      setToastMessage(null)
+                    }, 1400)
+                  }}
+                  onCancel={() => handleCancelEdit()}
+                />
+              ) : (
+                <GveQuarterlyForm
+                  key={editingReportId ?? "new-quarterly"}
+                  author={member.name}
+                  reportId={editingReportId}
+                  initialData={
+                    reports.find((r) => r.id === editingReportId)?.gveQuarterlyData
+                  }
+                  onSave={(quarterlyData, status) => {
+                    const newId =
+                      reports.length > 0
+                        ? Math.max(...reports.map((r) => r.id)) + 1
+                        : 1
+
+                    const siteTitle =
+                      quarterlyData.title ||
+                      (quarterlyData.siteName
+                        ? `Quarterly Site Inspection Form — ${quarterlyData.siteName}`
+                        : "Quarterly Site Inspection Form")
+
+                    const newReport: Report = {
+                      id: editingReportId ?? newId,
+                      title: siteTitle,
+                      author: member.name,
+                      department: member.department,
+                      type: "Quarterly",
+                      submitted: new Date(),
+                      status: status,
+                      summary: `Comprehensive 10-page Quarterly Site Audit and Preventive Maintenance Inspection for ${quarterlyData.siteName || "Mini-Grid"}.`,
+                      attachments: [],
+                      gveQuarterlyData: quarterlyData,
+                    }
+
+                    if (editingReportId !== null) {
+                      setReports((prev) =>
+                        prev.map((r) =>
+                          r.id === editingReportId ? newReport : r,
+                        ),
+                      )
+                    } else {
+                      setReports((prev) => [newReport, ...prev])
+                    }
+
+                    setToastMessage(
+                      status === "Draft"
+                        ? "Quarterly Audit Saved as Draft! View or edit it anytime."
+                        : "Quarterly Audit Submitted Successfully! Sent to Admin for review.",
+                    )
+
+                    setTimeout(() => {
+                      setActiveTab("history")
+                      setEditingReportId(null)
                       setToastMessage(null)
                     }, 1400)
                   }}
