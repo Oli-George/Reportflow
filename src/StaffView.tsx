@@ -17,6 +17,7 @@ import ReportPhotoUploader from "./components/ReportPhotoUploader"
 import { draftStorage, FormDraft } from "./lib/draftStorage"
 import { usePwaInstall } from "./hooks/usePwaInstall"
 import { flushOfflineQueue } from "./lib/syncQueue"
+import logoImg from "./components/logo.jpeg"
 import {
   ContrastIcon,
   FileTextIcon,
@@ -24,106 +25,12 @@ import {
   AlertIcon,
   InfoIcon,
   CheckIcon,
+  HomeIcon,
+  ListIcon,
+  PlusIcon,
+  LogOutIcon,
+  CalendarIcon,
 } from "./components/Icons"
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function HomeIcon({ size = 16 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  )
-}
-
-function ListIcon({ size = 16 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  )
-}
-
-function PlusIcon({ size = 16 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-
-function LogOutIcon({ size = 16 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ size = 16 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
 
 // ─── Types & Props ──────────────────────────────────────────────────────────
 
@@ -234,7 +141,18 @@ export default function StaffView({
     await loadDrafts()
   }
 
-  const sidebarW = collapsed ? 56 : 240
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
+  // 85% of desktop 240px sidebar width is 204px on mobile viewports
+  const sidebarW = collapsed ? 56 : isMobile ? 204 : 240
 
   // Filter reports belonging to the current staff member
 
@@ -360,11 +278,13 @@ export default function StaffView({
           className="flex items-center gap-3 px-4 border-b shrink-0"
           style={{ height: 56, borderColor: "var(--border)" }}
         >
-          <div className="shrink-0 w-7 h-7 rounded flex items-center justify-center"
-          style={{ backgroundColor: "var(--primary)" }}
-        >
-          <img src="./src/components/logo.jpeg" alt="GVE Logo" />
-        </div>
+          <div
+            className={`shrink-0 flex items-center justify-center rounded-md bg-white border border-border/40 shadow-xs ${
+              collapsed ? "w-10 h-8 p-1" : "h-8 w-20 p-1"
+            }`}
+          >
+            <img src={logoImg} alt="GVE Logo" className="w-full h-full object-contain" />
+          </div>
           {!collapsed && (
             <span className="font-display font-700 text-base tracking-tight truncate text-foreground">
               ReportFlow
@@ -529,7 +449,7 @@ export default function StaffView({
           borderColor: "var(--border)",
         }}
       >
-        <h1 className="font-display font-600 text-lg text-foreground capitalize">
+        <h1 className="font-display font-600 text-base sm:text-lg text-foreground capitalize whitespace-nowrap shrink-0">
           {activeTab === "dashboard"
             ? "My Portal"
             : activeTab === "history"
@@ -561,19 +481,14 @@ export default function StaffView({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{isSyncing ? "Syncing..." : `Sync (${pendingQueueCount})`}</span>
             </button>
-          ) : (
-            <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono text-emerald-400/90 bg-emerald-950/30 border border-emerald-900/50">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>Online</span>
-            </div>
-          )}
+          ) : null}
 
           {/* PWA Install Button */}
           {isInstallable && (
             <button
               type="button"
               onClick={triggerInstall}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border text-xs font-mono font-semibold bg-emerald-900/60 hover:bg-emerald-800 border-emerald-600 text-emerald-200 transition-all cursor-pointer shadow-xs"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-md border text-xs font-mono font-semibold bg-emerald-900/60 hover:bg-emerald-800 border-emerald-600 text-emerald-200 transition-all cursor-pointer shadow-xs shrink-0"
               title="Install ReportFlow as standalone app on this device (Privacy: all cached drafts remain strictly local until submitted)"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -587,16 +502,16 @@ export default function StaffView({
             <button
               type="button"
               onClick={onToggleSunlightMode}
-              className="sunlight-toggle-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition-all cursor-pointer shadow-sm hover:opacity-90"
+              className="sunlight-toggle-btn flex items-center justify-center gap-1.5 px-2 lg:px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-all cursor-pointer shadow-xs hover:opacity-90 shrink-0"
               style={{
-                backgroundColor: sunlightMode ? "#0f172a" : "var(--secondary)",
+                backgroundColor: sunlightMode ? "#003822" : "var(--secondary)",
                 color: sunlightMode ? "#ffffff" : "var(--foreground)",
-                borderColor: sunlightMode ? "#0f172a" : "var(--border)",
+                border: "1px solid transparent",
               }}
-              title="Toggle high-contrast sunlight display mode for outdoor mobile readability"
+              title={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
             >
               <ContrastIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">
+              <span className="hidden lg:inline">
                 {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
               </span>
             </button>
@@ -604,7 +519,7 @@ export default function StaffView({
 
           {showSearch && (
             <div
-              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+              className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink-0"
               style={{
                 borderColor: searchQuery
                   ? "var(--primary-hover)"
@@ -634,8 +549,8 @@ export default function StaffView({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search my reports…"
-                className="search-bar-input bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-32 focus:w-48 transition-all"
+                placeholder="Search reports…"
+                className="search-bar-input bg-transparent border-none outline-none text-xs sm:text-sm text-foreground placeholder:text-muted-foreground w-20 sm:w-28 md:w-36 lg:w-44 focus:w-28 sm:focus:w-36 md:focus:w-48 transition-all"
               />
               {searchQuery && (
                 <button
@@ -647,12 +562,12 @@ export default function StaffView({
               )}
             </div>
           )}
-          <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-            <span>
+          <div className="flex items-center gap-2.5 text-xs font-mono text-muted-foreground shrink-0">
+            <span className="hidden sm:inline">
               Department:{" "}
               <strong className="text-foreground">{member.department}</strong>
             </span>
-            <span className="hidden sm:inline">
+            <span className="hidden xl:inline">
               Role: <strong className="text-foreground">{member.role}</strong>
             </span>
           </div>
@@ -747,14 +662,14 @@ export default function StaffView({
                     Protected locally from device battery loss
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="flex flex-col gap-2.5 pt-1 w-full">
                   {localDrafts.map((d) => {
                     const formLabel =
                       d.formType === "gveDaily"
-                        ? "Physical Form: Hourly Log"
+                        ? "Physical Form: Hourly Operational Log"
                         : d.formType === "gveWeekly"
-                          ? "Physical Form: Weekly Report"
-                          : "Physical Form: Quarterly Audit"
+                          ? "Physical Form: Weekly Operational Report"
+                          : "Physical Form: Quarterly System Audit"
 
                     const timeStr = new Date(d.lastSavedAt).toLocaleTimeString([], {
                       hour: "2-digit",
@@ -764,7 +679,7 @@ export default function StaffView({
                     return (
                       <div
                         key={d.id}
-                        className="rounded-md border border-border bg-secondary/40 p-3.5 flex items-center justify-between gap-3 hover:border-primary-hover transition-all"
+                        className="w-full rounded-md border border-border bg-secondary/40 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-primary-hover transition-all"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-mono font-bold text-foreground truncate">
@@ -774,11 +689,11 @@ export default function StaffView({
                             Site: <strong className="text-foreground">{d.siteName || "Unspecified"}</strong> · Saved at {timeStr}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                           <button
                             type="button"
                             onClick={() => handleResumeDraft(d)}
-                            className="px-2.5 py-1 rounded text-xs font-mono font-bold bg-primary hover:bg-primary-hover text-primary-foreground transition-colors shadow-2xs cursor-pointer"
+                            className="px-3 py-1 rounded text-xs font-mono font-bold bg-primary hover:bg-primary-hover text-primary-foreground transition-colors shadow-2xs cursor-pointer"
                           >
                             Resume
                           </button>
@@ -889,7 +804,8 @@ export default function StaffView({
                                   </span>
                                 ) : d.priority === "Medium" ? (
                                   <span className="priority-badge-medium px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                                    MEDIUM
+                                    <span className="hidden sm:inline">MEDIUM</span>
+                                    <span className="sm:hidden">MED</span>
                                   </span>
                                 ) : (
                                   <span className="priority-badge-low px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
@@ -1152,7 +1068,8 @@ export default function StaffView({
             <div className="bg-card border border-border rounded-lg p-4 shadow-lg relative">
               {toastMessage && (
                 <div className="mb-4 p-3 rounded-md bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
-                  <span className="text-emerald-400">✓</span> {toastMessage}
+                  <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{toastMessage}</span>
                 </div>
               )}
               {selectedFormFormat === "gveDaily" ? (
@@ -1350,10 +1267,11 @@ export default function StaffView({
             </div>
           </div>
         )}
+        {/* Institutional Footer */}
+        <footer className="mt-12 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground/80 font-mono">
+          {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field Infrastructure Network.
+        </footer>
       </main>
-      <footer className="text-xs text-muted-foreground/80 mt-1 italic">
-        {new Date().getFullYear()} &copy; ReportFlow. All rights reserved.
-      </footer>
 
       {/* 2nd Verification Modal for Direct History Submit */}
       {confirmSubmitReportId !== null && (() => {
@@ -1421,9 +1339,6 @@ export default function StaffView({
           </div>
         )
       })()}
-      <footer className="text-xs  justify-between text-muted-foreground/80 mt-1 italic">
-        {new Date().getFullYear()} &copy; ReportFlow. All rights reserved.
-      </footer>
     </div>
   )
 }

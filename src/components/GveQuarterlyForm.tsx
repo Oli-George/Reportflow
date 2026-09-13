@@ -17,6 +17,7 @@ import {
   getRecentSiteNames,
 } from "../lib/siteMemory"
 import { useFormAutoSave } from "../hooks/useFormAutoSave"
+import { AlertIcon, EditIcon } from "./Icons"
 
 interface GveQuarterlyFormProps {
   initialData?: GveQuarterlyRecordData
@@ -1291,8 +1292,9 @@ export default function GveQuarterlyForm({
                 )}
               </label>
               {titleError && (
-                <span className="text-[10px] font-mono text-rose-400 font-medium">
-                  ⚠️ {titleError}
+                <span className="text-[10px] font-mono text-rose-400 font-medium inline-flex items-center gap-1">
+                  <AlertIcon className="w-3 h-3 text-rose-400 shrink-0" />
+                  <span>{titleError}</span>
                 </span>
               )}
             </div>
@@ -1314,8 +1316,8 @@ export default function GveQuarterlyForm({
                       : "border-border text-foreground hover:border-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   }`}
                 />
-                <span className="absolute right-2 text-zinc-400 text-xs pointer-events-none">
-                  ✏️
+                <span className="absolute right-2 text-zinc-400 pointer-events-none flex items-center">
+                  <EditIcon className="w-3.5 h-3.5" />
                 </span>
               </div>
             )}

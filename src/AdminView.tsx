@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 
 import GveDailyHourlyForm from "./components/GveHourlyForm"
 import GveWeeklyForm from "./components/GveWeeklyForm"
@@ -8,7 +8,12 @@ import { GveDailyRecordData } from "./types/gveDaily"
 import { GveWeeklyRecordData } from "./types/gveWeekly"
 import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
-import { ContrastIcon } from "./components/Icons"
+import logoImg from "./components/logo.jpeg"
+import {
+  ContrastIcon, GridIcon, FileIcon,
+  UsersIcon, ChartIcon, BellIcon,
+  CalendarIcon, TrashIcon, AlertIcon,
+} from "./components/Icons"
 import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
 import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
 import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
@@ -16,14 +21,10 @@ import ReportDistributionChart from "./components/analytics/ReportDistributionCh
 import SiteEnergyAnalytics from "./components/analytics/SiteEnergyAnalytics"
 import DepartmentComplianceTable from "./components/analytics/DepartmentComplianceTable"
 import {
-  AnalyticsFilter,
-  filterReports,
-  calculateKPIs,
-  getSubmissionVelocity,
-  getReportTypeDistribution,
-  getDepartmentMetrics,
-  getSolarMiniGridTelemetry,
-  getTechnicianLeaderboard,
+  AnalyticsFilter, filterReports,
+  calculateKPIs, getSubmissionVelocity,
+  getReportTypeDistribution, getDepartmentMetrics,
+  getSolarMiniGridTelemetry, getTechnicianLeaderboard,
 } from "./lib/analyticsCalculator"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -703,44 +704,42 @@ function Sidebar({
   collapsed,
 
   onLogout,
-
   topOffset = 0,
+  sidebarW,
 }: {
   active: View
-
   onChange: (v: View) => void
-
   collapsed: boolean
-
   onLogout?: () => void
-
   topOffset?: number
+  sidebarW?: number
 }) {
   return (
     <aside
       className="fixed left-0 flex flex-col border-r z-20 transition-all duration-200"
       style={{
         top: topOffset,
-
         height: topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh",
-
-        width: collapsed ? 56 : 240,
-
+        width: sidebarW ?? (collapsed ? 56 : 240),
         backgroundColor: "var(--card)",
-
         borderColor: "var(--border)",
       }}
     >
       {/* Logo */}
       <div
-        className="flex items-center gap-3 px-4 border-b"
+        className="flex items-center gap-3 px-3.5 border-b"
         style={{ height: 56, borderColor: "var(--border)", minWidth: 0 }}
       >
         <div
-          className="shrink-0 w-7 h-7 rounded flex items-center justify-center"
-          style={{ backgroundColor: "var(--primary)" }}
+          className={`shrink-0 flex items-center justify-center rounded-md bg-white border border-border/40 shadow-xs ${
+            collapsed ? "w-10 h-8 p-1" : "h-8 w-20 p-1"
+          }`}
         >
-          <img src="./src/components/logo.jpeg" alt="GVE Logo" />
+          <img
+            src={logoImg}
+            alt="GVE Logo"
+            className="w-full h-full object-contain"
+          />
         </div>
         {!collapsed && (
           <span
@@ -928,7 +927,7 @@ function Header({
 }) {
   return (
     <header
-      className="fixed right-0 flex items-center justify-between px-6 border-b z-10 transition-all duration-200"
+      className="fixed right-0 flex items-center justify-between px-4 sm:px-6 gap-3 sm:gap-6 border-b z-10 transition-all duration-200"
       style={{
         top: topOffset,
         left: sidebarW,
@@ -937,48 +936,29 @@ function Header({
         borderColor: "var(--border)",
       }}
     >
-      <div className="flex items-center gap-3">
-        <h1 className="font-display font-600 text-lg"
+      <div className="flex items-center gap-3 shrink-0">
+        <h1 className="font-display font-600 text-base sm:text-lg whitespace-nowrap shrink-0"
           style={{ color: "var(--foreground)" }}
         >
           {VIEW_TITLES[view]}
         </h1>
         <button
           onClick={onOpenCreateModal}
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-primary hover:bg-primary-hover text-foreground transition-all shadow-sm active:translate-y-px"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium bg-primary hover:bg-primary-hover text-primary-foreground transition-all shadow-sm active:translate-y-px shrink-0"
         >
           <span className="text-sm font-bold leading-none">+</span> Write Report
         </button>
       </div>
-      <div className="flex items-center gap-3">
-        {onToggleSunlightMode && (
-          <button
-            type="button"
-            onClick={onToggleSunlightMode}
-            className="sunlight-toggle-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition-all cursor-pointer shadow-sm hover:opacity-90"
-            style={{
-              backgroundColor: sunlightMode ? "#0f172a" : "var(--secondary)",
-              color: sunlightMode ? "#ffffff" : "var(--foreground)",
-              borderColor: sunlightMode ? "#0f172a" : "var(--border)",
-            }}
-            title="Toggle high-contrast sunlight display mode for outdoor mobile readability"
-          >
-            <ContrastIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">
-              {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
-            </span>
-          </button>
-        )}
-        <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Search Bar */}
+        <div className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-[110px] max-w-xs"
           style={{
             borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
-
             backgroundColor: "var(--card)",
-
             color: "var(--muted-foreground)",
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
             <circle
               cx="5.5"
               cy="5.5"
@@ -995,29 +975,51 @@ function Header({
           </svg>
           <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search reports…"
-            className="search-bar-input bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-36 focus:w-52 transition-all"
+            className="search-bar-input bg-transparent border-none outline-none text-xs sm:text-sm text-foreground placeholder:text-muted-foreground w-16 sm:w-28 md:w-36 lg:w-44 focus:w-28 sm:focus:w-36 md:focus:w-48 transition-all min-w-0"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange("")}
-              className="text-muted-foreground hover:text-foreground text-xs"
+              className="text-muted-foreground hover:text-foreground text-xs shrink-0"
             >
               ✕
             </button>
           )}
         </div>
-        <button className="relative p-1.5 rounded-md transition-colors"
+
+        {/* Sunlight Mode Toggle */}
+        {onToggleSunlightMode && (
+          <button
+            type="button"
+            onClick={onToggleSunlightMode}
+            className="sunlight-toggle-btn flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-all cursor-pointer shadow-xs hover:opacity-90 shrink-0 border"
+            style={{
+              backgroundColor: "var(--secondary)",
+              color: "var(--foreground)",
+              borderColor: "var(--border)",
+            }}
+            title={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
+            aria-label={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
+          >
+            <ContrastIcon className="w-4 h-4 shrink-0" />
+            <span className="hidden xl:inline">
+              {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
+            </span>
+          </button>
+        )}
+
+        <button className="relative p-1.5 rounded-md transition-colors shrink-0"
           style={{ color: "var(--muted-foreground)" }}
+          aria-label="Notifications"
         >
           <BellIcon size={16} />
           <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
             style={{ backgroundColor: "var(--accent)" }}
           />
         </button>
-        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono"
+        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono shrink-0"
           style={{
             backgroundColor: "var(--primary)",
-
             color: "var(--primary-foreground)",
           }}
         >
@@ -1054,40 +1056,44 @@ function DashboardView({
     "all" | "Submitted" | "Approved" | "Flagged"
   >("all")
 
+  // Strictly enforce non-draft reports in DashboardView
+  const nonDraftReports = useMemo(
+    () => reports.filter((r) => r.status !== "Draft"),
+    [reports],
+  )
+
   const filteredReports = useMemo(() => {
-    if (!searchQuery.trim()) return reports
+    if (!searchQuery.trim()) return nonDraftReports
 
     const q = searchQuery.toLowerCase()
 
-    return reports.filter(
+    return nonDraftReports.filter(
       (r) =>
         r.title.toLowerCase().includes(q) ||
         r.author.toLowerCase().includes(q) ||
         r.department.toLowerCase().includes(q) ||
         r.summary.toLowerCase().includes(q),
     )
-  }, [reports, searchQuery])
+  }, [nonDraftReports, searchQuery])
 
   // Sort real report activities chronologically (newest first, strictly EXCLUDING Drafts)
   const sortedActivities = useMemo(() => {
-    const list = reports
-      .filter((r) => r.status !== "Draft")
-      .sort(
-        (a, b) =>
-          new Date(b.submitted).getTime() - new Date(a.submitted).getTime(),
-      )
+    const list = nonDraftReports.sort(
+      (a, b) =>
+        new Date(b.submitted).getTime() - new Date(a.submitted).getTime(),
+    )
     if (activityFilter === "all") return list
     return list.filter((r) => r.status === activityFilter)
-  }, [reports, activityFilter])
+  }, [nonDraftReports, activityFilter])
 
   const recent = filteredReports.slice(0, 5)
   const now = new Date()
 
   let options = { day: "numeric", month: "short", year: "numeric" } as const
   let today = now.toLocaleDateString("en-US", options)
-  const totalCount = reports.length
-  const pendingCount = reports.filter((r) => r.status === "Submitted").length
-  const flaggedCount = reports.filter((r) => r.status === "Flagged").length
+  const totalCount = nonDraftReports.length
+  const pendingCount = nonDraftReports.filter((r) => r.status === "Submitted").length
+  const flaggedCount = nonDraftReports.filter((r) => r.status === "Flagged").length
 
   const teamCount = MEMBERS.length
 
@@ -1199,7 +1205,7 @@ function DashboardView({
               style={{ borderColor: "var(--border)" }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm">📅</span>
+                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                 <h2
                   className="font-display font-600 text-sm"
                   style={{ color: "var(--foreground)" }}
@@ -1271,7 +1277,8 @@ function DashboardView({
                                 </span>
                               ) : d.priority === "Medium" ? (
                                 <span className="priority-badge-medium px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                                  MEDIUM
+                                  <span className="hidden sm:inline">MEDIUM</span>
+                                  <span className="sm:hidden">MED</span>
                                 </span>
                               ) : (
                                 <span className="priority-badge-low px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
@@ -1346,7 +1353,7 @@ function DashboardView({
                                     : "bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300"
                                 }`}
                               >
-                                <span>🗑️</span>
+                                <TrashIcon className="w-3.5 h-3.5" />
                                 <span>
                                   {confirmDeleteId === d.id
                                     ? "Confirm Delete?"
@@ -1546,12 +1553,11 @@ const REPORT_TYPES: (ReportType | "All")[] = [
   "Yearly",
 ]
 
-const REPORT_STATUSES: (ReportStatus | "All")[] = [
+const REPORT_STATUSES: (Exclude<ReportStatus, "Draft"> | "All")[] = [
   "All",
   "Approved",
   "Submitted",
   "Flagged",
-  "Draft",
 ]
 
 function ReportsView({
@@ -1581,7 +1587,7 @@ function ReportsView({
 }) {
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All")
 
-  const [statusFilter, setStatusFilter] = useState<ReportStatus | "All">("All")
+  const [statusFilter, setStatusFilter] = useState<Exclude<ReportStatus, "Draft"> | "All">("All")
 
   const [expanded, setExpanded] = useState<number | null>(null)
 
@@ -1590,6 +1596,7 @@ function ReportsView({
 
     return reports.filter(
       (r) =>
+        r.status !== "Draft" &&
         (typeFilter === "All" || r.type === typeFilter) &&
         (statusFilter === "All" || r.status === statusFilter) &&
         (!q ||
@@ -2270,123 +2277,6 @@ function AnalyticsView({
   )
 }
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function GridIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect
-        x="1"
-        y="1"
-        width="6"
-        height="6"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <rect
-        x="9"
-        y="1"
-        width="6"
-        height="6"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <rect
-        x="1"
-        y="9"
-        width="6"
-        height="6"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <rect
-        x="9"
-        y="9"
-        width="6"
-        height="6"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-    </svg>
-  )
-}
-
-function FileIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <path
-        d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d="M5 7h6M5 10h4"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function UsersIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d="M14.5 14c0-1.933-1.119-3-2.5-3"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function ChartIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <path
-        d="M2 12L5.5 7.5L8.5 10L12 5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <rect x="1" y="13" width="14" height="1" rx="0.5" fill="currentColor" />
-    </svg>
-  )
-}
-
-function BellIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <path
-        d="M8 2a5 5 0 00-5 5v3l-1 1.5h12L13 10V7a5 5 0 00-5-5z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M6.5 13a1.5 1.5 0 003 0"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-    </svg>
-  )
-}
-
 // ─── Inspector & Flag Modals ───────────────────────────────────────────────────
 
 function FullReportModal({
@@ -2630,10 +2520,13 @@ function FlagReportModal({
           </div>
 
           {!canFlag ? (
-            <div className="p-3 rounded bg-amber-950/40 border border-amber-800/40 text-amber-300 text-xs font-mono">
-              ⚠️ Policy Restriction: Reports older than 30 days (submitted on{" "}
-              {new Date(report.submitted).toLocaleDateString()}) cannot be
-              flagged for revision.
+            <div className="p-3 rounded bg-amber-950/40 border border-amber-800/40 text-amber-300 text-xs font-mono flex items-start gap-2">
+              <AlertIcon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Policy Restriction: Reports older than 30 days (submitted on{" "}
+                {new Date(report.submitted).toLocaleDateString()}) cannot be
+                flagged for revision.
+              </span>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -3006,7 +2899,7 @@ function CreateDeadlineModal({
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center text-primary-foreground font-mono font-bold text-sm">
-              📅
+              <CalendarIcon className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <h2 className="font-display font-bold text-base text-foreground">
@@ -3179,10 +3072,9 @@ export default function AdminView({
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Filter out any reports in Draft stage so they are not accessible to admins
-
+  // Strictly filter out any reports in Draft stage so they are completely inaccessible to admins
   const adminReports = useMemo(
-    () => reports,
+    () => reports.filter((r) => r.status !== "Draft"),
     [reports],
   )
 
@@ -3194,7 +3086,18 @@ export default function AdminView({
     }
   }
 
-  const sidebarW = collapsed ? 56 : 240
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
+  // 85% of desktop 240px sidebar width is 204px
+  const sidebarW = collapsed ? 56 : isMobile ? 204 : 240
   const handleApproveReport = (id: number) => {
     setReports((prev) =>
       prev.map((item) =>
@@ -3247,6 +3150,7 @@ export default function AdminView({
         collapsed={collapsed}
         onLogout={onLogout}
         topOffset={topOffset}
+        sidebarW={sidebarW}
       />
       <Header view={view}
         sidebarW={sidebarW}
@@ -3322,6 +3226,11 @@ export default function AdminView({
             deadlines={deadlines}
           />
         )}
+
+        {/* Institutional Footer */}
+        <footer className="mt-12 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground/80 font-mono">
+          {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field Infrastructure Network.
+        </footer>
       </main>
 
       {/* Admin Create Report Modal */}

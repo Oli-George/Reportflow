@@ -255,13 +255,19 @@ html.sunlight-mode .btn-save-draft:hover {
 
 /* Sunlight toggle button in header */
 html.sunlight-mode .sunlight-toggle-btn {
-  background-color: #005030 !important;
-  color: #ffffff !important;
-  border: 1.5px solid #005030 !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+html.sunlight-mode .sunlight-toggle-btn:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
 }
 
 html.sunlight-mode .sunlight-toggle-btn * {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 /* High-Contrast Status Badges for maximum legibility */

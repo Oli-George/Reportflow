@@ -18,6 +18,7 @@ import { ReportAttachment } from "./types/attachment"
 import logoImg from "./components/logo.jpeg"
 import { useOfflineReports } from "./hooks/useOfflineReports"
 import { useIsMobile } from "./hooks/useIsMobile"
+import { WifiOffIcon } from "./components/Icons"
 
 export interface UserSession {
   role: "admin" | "staff"
@@ -1191,8 +1192,10 @@ function App() {
         {/* Offline notification banner on login */}
         {isOffline && (
           <div className="absolute top-0 left-0 right-0 bg-amber-950/90 border-b border-amber-700/60 text-amber-200 py-2 px-4 text-xs font-mono text-center flex items-center justify-center gap-2 z-30">
-            <span>⚡</span> <strong>OFFLINE MODE ACTIVE:</strong> Field
-            operations mode enabled. Reports will be saved locally.
+            <WifiOffIcon className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>
+              <strong>OFFLINE MODE ACTIVE:</strong> Field operations mode enabled. Reports will be saved locally.
+            </span>
           </div>
         )}
 
@@ -1201,11 +1204,11 @@ function App() {
 
           {/* Logo and Header */}
           <div className="flex flex-col items-center gap-2 mb-6 text-center">
-            <div className="w-20 h-16 rounded-lg flex items-center justify-center bg-card text-foreground mb-1 shadow-inner border border-border/60 p-2">
+            <div className="w-24 h-12 rounded-lg flex items-center justify-center bg-white mb-1 shadow-sm border border-border/60 p-1.5">
               <img
                 src={logoImg}
                 alt="ReportFlow Logo"
-                className="max-h-full max-w-full object-contain"
+                className="w-full h-full object-contain"
               />
             </div>
             <h1 className="text-2xl font-display font-700 tracking-tight text-foreground">
@@ -1746,7 +1749,7 @@ function App() {
           </div>
         ) : (
           <AdminView
-            reports={reports}
+            reports={reports.filter((r) => r.status !== "Draft")}
             setReports={handleUpdateReports}
             members={members}
             deadlines={deadlines}
@@ -1779,10 +1782,6 @@ function App() {
           }}
         />
       )}
-      <footer className="text-center py-4 bg-background border-t border-border/40 text-xs text-muted-foreground/80 font-mono">
-        {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field
-        Infrastructure Network.
-      </footer>
     </>
   )
 }

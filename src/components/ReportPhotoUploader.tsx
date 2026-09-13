@@ -6,6 +6,14 @@ import {
   formatFileSize,
 } from "../types/attachment"
 import { compressImageFile } from "../lib/imageCompression"
+import {
+  CameraIcon,
+  FolderIcon,
+  TrashIcon,
+  CloudIcon,
+  WifiOffIcon,
+  SearchIcon,
+} from "./Icons"
 
 interface ReportPhotoUploaderProps {
   attachments: ReportAttachment[]
@@ -175,7 +183,7 @@ export default function ReportPhotoUploader({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <span className="text-base">📸</span>
+            <CameraIcon className="w-4 h-4 text-emerald-400 shrink-0" />
             <h3 className="text-sm font-display font-bold text-foreground tracking-tight">
               {title}
             </h3>
@@ -196,10 +204,10 @@ export default function ReportPhotoUploader({
               type="button"
               onClick={() => cameraInputRef.current?.click()}
               disabled={isProcessing}
-              className="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/90 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/90 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
               title="Take Photo with Camera"
             >
-              <span>📷</span>
+              <CameraIcon className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Take Photo</span>
             </button>
 
@@ -208,9 +216,9 @@ export default function ReportPhotoUploader({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold bg-primary text-primary-foreground hover:bg-primary-hover transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold bg-primary text-primary-foreground hover:bg-primary-hover transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <span>📁</span>
+              <FolderIcon className="w-3.5 h-3.5" />
               <span>Upload Photos</span>
             </button>
           </div>
@@ -239,7 +247,9 @@ export default function ReportPhotoUploader({
             </div>
           ) : (
             <div className="space-y-1.5 pointer-events-none">
-              <div className="text-2xl">📸 ➕</div>
+              <div className="w-10 h-10 mx-auto rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center text-primary mb-1.5">
+                <CameraIcon className="w-5 h-5" />
+              </div>
               <p className="text-xs font-medium text-foreground">
                 Drop site photos here, or{" "}
                 <span className="text-primary underline">
@@ -291,17 +301,23 @@ export default function ReportPhotoUploader({
                     </span>
 
                     {/* Sync Status Badge */}
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/75 text-zinc-300 border border-white/10 backdrop-blur-md">
-                      {item.url && !item.isOfflineOnly
-                        ? "☁️ Cloud"
-                        : "📶 Offline"}
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/75 text-zinc-300 border border-white/10 backdrop-blur-md inline-flex items-center gap-1">
+                      {item.url && !item.isOfflineOnly ? (
+                        <>
+                          <CloudIcon className="w-3 h-3 text-sky-400" /> Cloud
+                        </>
+                      ) : (
+                        <>
+                          <WifiOffIcon className="w-3 h-3 text-amber-400" /> Offline
+                        </>
+                      )}
                     </span>
                   </div>
 
                   {/* Hover Overlay with Zoom Icon */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
                     <span className="px-3 py-1 rounded-full bg-black/75 text-white text-xs font-mono font-medium backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
-                      <span>🔍</span> Click to Inspect
+                      <SearchIcon className="w-3.5 h-3.5" /> Click to Inspect
                     </span>
                   </div>
                 </div>
@@ -380,9 +396,9 @@ export default function ReportPhotoUploader({
                       <button
                         type="button"
                         onClick={() => handleRemoveAttachment(item.id)}
-                        className="no-print text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1 font-medium transition-colors"
+                        className="no-print text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1 font-medium transition-colors cursor-pointer"
                       >
-                        <span>🗑️</span> Remove
+                        <TrashIcon className="w-3.5 h-3.5" /> Remove
                       </button>
                     )}
                   </div>
@@ -410,7 +426,7 @@ export default function ReportPhotoUploader({
             {/* Lightbox Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 bg-zinc-900/90 text-white">
               <div className="flex items-center gap-3">
-                <span className="text-lg">🔍</span>
+                <SearchIcon className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div>
                   <h4 className="text-sm font-display font-bold truncate max-w-md">
                     {activePhoto.name}
@@ -438,9 +454,12 @@ export default function ReportPhotoUploader({
                 <a
                   href={activePhoto.dataUrl || activePhoto.url}
                   download={activePhoto.name}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-mono transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-mono transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>⬇️</span> Download
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download</span>
                 </a>
 
                 {/* Close Button */}

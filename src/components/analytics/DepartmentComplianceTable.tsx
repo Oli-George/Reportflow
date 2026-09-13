@@ -1,4 +1,5 @@
 import { DepartmentMetricItem, TechnicianLeaderboardItem } from "../../lib/analyticsCalculator"
+import { AwardIcon } from "../Icons"
 
 export interface DepartmentComplianceTableProps {
   departments: DepartmentMetricItem[]
@@ -134,8 +135,8 @@ export default function DepartmentComplianceTable({
                       {tech.name}
                     </span>
                     {index === 0 && (
-                      <span className="text-[10px] text-amber-400" title="Top Performer">
-                        👑
+                      <span title="Top Performer">
+                        <AwardIcon className="w-3.5 h-3.5 text-amber-400 shrink-0 inline-block" />
                       </span>
                     )}
                   </div>

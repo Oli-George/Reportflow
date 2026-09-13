@@ -979,18 +979,18 @@ export default function GveDailyHourlyForm({
                                 </span>
                               )}
                               {statusInfo.status === "UPCOMING" && (
-                                <span className="text-zinc-500 font-normal">
-                                  🔒 Locked
+                                <span className="text-zinc-500 font-normal inline-flex items-center gap-0.5">
+                                  <LockIcon className="w-2 h-2" /> Locked
                                 </span>
                               )}
                               {statusInfo.status === "LOCKED_RECORDED" && (
-                                <span className="text-blue-800 font-medium">
-                                  ✓ Recorded
+                                <span className="text-blue-800 font-medium inline-flex items-center gap-0.5">
+                                  <CheckIcon className="w-2 h-2" /> Recorded
                                 </span>
                               )}
                               {statusInfo.status === "EXPIRED_MISSED" && (
-                                <span className="text-amber-700 font-medium">
-                                  ⚠️ Missed
+                                <span className="text-amber-700 font-medium inline-flex items-center gap-0.5">
+                                  <AlertIcon className="w-2 h-2" /> Missed
                                 </span>
                               )}
                             </span>
@@ -1793,7 +1793,7 @@ export default function GveDailyHourlyForm({
           <div className="bg-zinc-900 border border-border rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2">
-                <span className="text-emerald-400 text-lg">📄</span>
+                <FileTextIcon className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div>
                   <h3 className="text-sm font-display font-bold text-foreground">
                     Live PDF Export & Physical Print Preview
