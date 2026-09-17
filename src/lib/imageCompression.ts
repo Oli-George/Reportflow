@@ -17,11 +17,101 @@ export interface CompressedImageResult {
 /**
  * Compresses an image file client-side using HTML5 Canvas.
  * Reduces 5MB-15MB camera photos down to 80KB-250KB for snappy offline storage and fast cloud syncing.
+export interface WatermarkOptions {
+  enabled?: boolean
+  siteName?: string
+  author?: string
+  gpsCoords?: { latitude: number; longitude: number } | null
+  timestamp?: string
+  opacity?: number // 0.3 - 1.0 (default: 0.55)
+}
+
+/**
+ * Format timestamp for West Africa Time (WAT)
+ */
+export function getWatTimestamp(): string {
+  try {
+    return (
+      new Date().toLocaleString("en-GB", {
+        timeZone: "Africa/Lagos",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }) + " WAT"
+    )
+  } catch (e) {
+    return new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC"
+  }
+}
+
+/**
+ * Draws a forensic, tamper-proof audit watermark banner onto the canvas.
+ */
+function drawForensicWatermark(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: WatermarkOptions,
+) {
+  const site = (options.siteName || "GVE Mini-Grid Site").trim().toUpperCase()
+  const inspector = (options.author || "Field Technician").trim().toUpperCase()
+  const timestamp = options.timestamp || getWatTimestamp()
+  const opacity = Math.min(Math.max(options.opacity ?? 0.55, 0.2), 0.95)
+
+  // Scale font and bar proportionally to image resolution
+  const fontSize = Math.max(12, Math.round(width * 0.016))
+  const barHeight = Math.max(42, fontSize * 2.8)
+  const y = height - barHeight
+
+  ctx.save()
+
+  // 1. Semi-transparent dark forensic banner
+  ctx.fillStyle = `rgba(8, 15, 11, ${opacity})`
+  ctx.fillRect(0, y, width, barHeight)
+
+  // 2. ReportFlow Forest-Green top border line
+  ctx.fillStyle = `rgba(0, 117, 74, ${Math.min(opacity + 0.3, 1)})`
+  ctx.fillRect(0, y, width, Math.max(2, Math.round(fontSize * 0.15)))
+
+  // 3. Crisp Monospace text formatting
+  ctx.font = `600 ${fontSize}px "DM Mono", Menlo, Monaco, Consolas, monospace`
+  ctx.textBaseline = "middle"
+
+  // Primary text line (Site & Inspector)
+  ctx.fillStyle = "#ffffff"
+  const line1 = `[SITE: ${site}]  [TECH: ${inspector}]`
+  ctx.fillText(line1, fontSize, y + barHeight * 0.38)
+
+  // Secondary text line (Timestamp & GPS if available)
+  ctx.fillStyle = "#a3e635" // High-visibility lime/amber accent for audit time
+  let line2 = `[TIME: ${timestamp}]`
+  if (options.gpsCoords) {
+    const lat = options.gpsCoords.latitude.toFixed(5)
+    const lon = options.gpsCoords.longitude.toFixed(5)
+    line2 += `  [GPS: ${lat}°N, ${lon}°E]`
+  } else {
+    line2 += `  [VERIFIED FIELD UPLOAD]`
+  }
+
+  ctx.font = `500 ${Math.max(10, Math.round(fontSize * 0.85))}px "DM Mono", Menlo, Monaco, Consolas, monospace`
+  ctx.fillText(line2, fontSize, y + barHeight * 0.74)
+
+  ctx.restore()
+}
+
+/**
+ * Compresses an image file client-side using HTML5 Canvas.
+ * Optionally burns a forensic watermark with site, timestamp, and technician metadata.
  */
 export async function compressImageFile(
   file: File,
   maxDimension = 1440,
   quality = 0.8,
+  watermarkOptions?: WatermarkOptions,
 ): Promise<CompressedImageResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -62,6 +152,11 @@ export async function compressImageFile(
           ctx.imageSmoothingEnabled = true
           ctx.imageSmoothingQuality = "high"
           ctx.drawImage(img, 0, 0, width, height)
+
+          // Apply forensic watermark if enabled
+          if (watermarkOptions && watermarkOptions.enabled !== false) {
+            drawForensicWatermark(ctx, width, height, watermarkOptions)
+          }
 
           // Try WebP if supported, fallback to JPEG
           const outputMime =

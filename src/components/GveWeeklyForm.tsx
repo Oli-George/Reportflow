@@ -459,12 +459,12 @@ export default function GveWeeklyForm({
             </div>
 
             {/* Row 2: Supervisor */}
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 flex items-center border-r border-black">
-                <div className="w-44 px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+            <div className="flex flex-col md:grid md:grid-cols-12 border-b border-black divide-y md:divide-y-0">
+              <div className="md:col-span-6 flex items-center md:border-r border-black">
+                <div className="w-36 md:w-44 px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   SUPERVISOR'S NAME
                 </div>
-                <div className="flex-1 px-2 py-1">
+                <div className="flex-1 px-2 py-1 min-w-0">
                   <input
                     type="text"
                     value={formData.supervisorName}
@@ -473,15 +473,15 @@ export default function GveWeeklyForm({
                       updateField("supervisorName", e.target.value)
                     }
                     placeholder="Supervisor Name"
-                    className="w-full bg-transparent font-medium border-none outline-none text-black"
+                    className="w-full bg-transparent font-medium border-none outline-none text-black text-xs min-w-0"
                   />
                 </div>
               </div>
-              <div className="col-span-3 flex items-center border-r border-black">
-                <div className="px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+              <div className="md:col-span-3 flex items-center md:border-r border-black">
+                <div className="w-24 md:w-auto px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   SIGNATURE
                 </div>
-                <div className="flex-1 px-2 py-1 flex items-center justify-between">
+                <div className="flex-1 px-2 py-1 flex items-center justify-between min-w-0">
                   {formData.supervisorSignature ? (
                     <img
                       src={formData.supervisorSignature}
@@ -497,18 +497,18 @@ export default function GveWeeklyForm({
                     <button
                       type="button"
                       onClick={() => setActiveSigField("supervisor")}
-                      className="no-print text-[9px] bg-emerald-800 text-white px-1.5 py-0.5 rounded ml-1 font-mono hover:bg-emerald-700 shrink-0"
+                      className="no-print text-[9px] bg-emerald-800 text-white px-1.5 py-0.5 rounded ml-1 font-mono hover:bg-emerald-700 shrink-0 cursor-pointer"
                     >
                       Sign
                     </button>
                   )}
                 </div>
               </div>
-              <div className="col-span-3 flex items-center">
-                <div className="px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+              <div className="md:col-span-3 flex items-center">
+                <div className="w-24 md:w-auto px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   DATE
                 </div>
-                <div className="flex-1 px-2 py-1">
+                <div className="flex-1 px-2 py-1 min-w-0">
                   <input
                     type="date"
                     value={formData.supervisorDate}
@@ -516,19 +516,19 @@ export default function GveWeeklyForm({
                     onChange={(e) =>
                       updateField("supervisorDate", e.target.value)
                     }
-                    className="w-full bg-transparent font-mono border-none outline-none text-black"
+                    className="w-full bg-transparent font-mono border-none outline-none text-black min-w-0 text-xs"
                   />
                 </div>
               </div>
             </div>
 
             {/* Row 3: Operator */}
-            <div className="grid grid-cols-12">
-              <div className="col-span-6 flex items-center border-r border-black">
-                <div className="w-44 px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+            <div className="flex flex-col md:grid md:grid-cols-12 divide-y md:divide-y-0">
+              <div className="md:col-span-6 flex items-center md:border-r border-black">
+                <div className="w-36 md:w-44 px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   OPERATOR'S NAME
                 </div>
-                <div className="flex-1 px-2 py-1">
+                <div className="flex-1 px-2 py-1 min-w-0">
                   <input
                     type="text"
                     value={formData.operatorName}
@@ -537,15 +537,15 @@ export default function GveWeeklyForm({
                       updateField("operatorName", e.target.value)
                     }
                     placeholder="Operator Name"
-                    className="w-full bg-transparent font-medium border-none outline-none text-black"
+                    className="w-full bg-transparent font-medium border-none outline-none text-black text-xs min-w-0"
                   />
                 </div>
               </div>
-              <div className="col-span-3 flex items-center border-r border-black">
-                <div className="px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+              <div className="md:col-span-3 flex items-center md:border-r border-black">
+                <div className="w-24 md:w-auto px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   SIGNATURE
                 </div>
-                <div className="flex-1 px-2 py-1 flex items-center justify-between">
+                <div className="flex-1 px-2 py-1 flex items-center justify-between min-w-0">
                   {formData.operatorSignature ? (
                     <img
                       src={formData.operatorSignature}
@@ -561,18 +561,18 @@ export default function GveWeeklyForm({
                     <button
                       type="button"
                       onClick={() => setActiveSigField("operator")}
-                      className="no-print text-[9px] bg-emerald-800 text-white px-1.5 py-0.5 rounded ml-1 font-mono hover:bg-emerald-700 shrink-0"
+                      className="no-print text-[9px] bg-emerald-800 text-white px-1.5 py-0.5 rounded ml-1 font-mono hover:bg-emerald-700 shrink-0 cursor-pointer"
                     >
                       Sign
                     </button>
                   )}
                 </div>
               </div>
-              <div className="col-span-3 flex items-center">
-                <div className="px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0">
+              <div className="md:col-span-3 flex items-center">
+                <div className="w-24 md:w-auto px-2 py-1.5 bg-zinc-100 border-r border-black font-bold uppercase shrink-0 text-[10px] md:text-[11px]">
                   DATE
                 </div>
-                <div className="flex-1 px-2 py-1">
+                <div className="flex-1 px-2 py-1 min-w-0">
                   <input
                     type="date"
                     value={formData.operatorDate}
@@ -580,7 +580,7 @@ export default function GveWeeklyForm({
                     onChange={(e) =>
                       updateField("operatorDate", e.target.value)
                     }
-                    className="w-full bg-transparent font-mono border-none outline-none text-black"
+                    className="w-full bg-transparent font-mono border-none outline-none text-black min-w-0 text-xs"
                   />
                 </div>
               </div>
@@ -987,8 +987,10 @@ export default function GveWeeklyForm({
         attachments={formData.attachments || []}
         onChange={(attachments) => updateField("attachments", attachments)}
         readOnly={readOnly}
+        siteName={formData.siteName}
+        author={author}
         title="Weekly Site Photos & Visual Evidence"
-        description="Attach photos of power house condition, equipment status, damage or maintenance work performed."
+        description="Attach photos of power house condition, equipment status, damage or maintenance work performed. Images are forensically watermarked."
       />
 
       {/* ─── Bottom Actions Bar (Save Draft & Submit Report) ──────────────── */}

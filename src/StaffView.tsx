@@ -31,6 +31,7 @@ import {
   LogOutIcon,
   CalendarIcon,
 } from "./components/Icons"
+import SettingsModal from "./components/SettingsModal"
 
 // ─── Types & Props ──────────────────────────────────────────────────────────
 
@@ -74,9 +75,8 @@ export default function StaffView({
   onFlushQueue,
 }: StaffViewProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>("dashboard")
-
   const [collapsed, setCollapsed] = useState(false)
-
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
 
   // Composer Form State
@@ -275,15 +275,17 @@ export default function StaffView({
       >
         {/* Logo */}
         <div
-          className="flex items-center gap-3 px-4 border-b shrink-0"
+          className={`flex items-center border-b shrink-0 ${
+            collapsed ? "justify-center px-0" : "gap-3 px-4"
+          }`}
           style={{ height: 56, borderColor: "var(--border)" }}
         >
           <div
             className={`shrink-0 flex items-center justify-center rounded-md bg-white border border-border/40 shadow-xs ${
-              collapsed ? "w-10 h-8 p-1" : "h-8 w-20 p-1"
+              collapsed ? "w-10 h-7.5 p-1" : "h-8 w-24 px-2 py-1"
             }`}
           >
-            <img src={logoImg} alt="GVE Logo" className="w-full h-full object-contain" />
+            <img src={logoImg} alt="GVE Logo" className="max-h-full max-w-full object-contain" />
           </div>
           {!collapsed && (
             <span className="font-display font-700 text-base tracking-tight truncate text-foreground">
@@ -352,15 +354,21 @@ export default function StaffView({
           })}
         </nav>
 
-        {/* User profile & Logout */}
+        {/* User profile & Settings Card (Click anywhere to open Settings) */}
         <div
           className="p-3 border-t flex flex-col gap-2"
           style={{ borderColor: "var(--border)" }}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
+          <div
+            onClick={() => setIsSettingsOpen(true)}
+            className={`group/user flex items-center ${
+              collapsed ? "justify-center" : "justify-between"
+            } gap-2 p-1.5 -m-1.5 rounded-lg hover:bg-secondary/70 cursor-pointer transition-all border border-transparent hover:border-border/60 select-none`}
+            title="System Settings"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-600 shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-semibold shrink-0 group-hover/user:scale-105 transition-transform"
                 style={{
                   backgroundColor: `${member.color}33`,
                   color: "var(--foreground)",
@@ -371,7 +379,7 @@ export default function StaffView({
               </div>
               {!collapsed && (
                 <div className="min-w-0">
-                  <p className="text-xs font-medium truncate text-foreground">
+                  <p className="text-xs font-medium truncate text-foreground group-hover/user:text-primary transition-colors">
                     {member.name}
                   </p>
                   <p className="text-[10px] truncate text-muted-foreground">
@@ -382,18 +390,25 @@ export default function StaffView({
             </div>
             {!collapsed && (
               <button
-                onClick={onLogout}
-                className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onLogout?.()
+                }}
+                className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors shrink-0"
                 title="Log Out"
               >
                 <LogOutIcon size={16} />
               </button>
             )}
           </div>
-          {collapsed && (
+          {collapsed && onLogout && (
             <button
-              onClick={onLogout}
-              className="w-full py-2 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onLogout()
+              }}
+              className="w-full py-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center cursor-pointer"
               title="Log Out"
             >
               <LogOutIcon size={16} />
@@ -405,20 +420,15 @@ export default function StaffView({
       {/* Collapse toggle button */}
       <button
         onClick={() => setCollapsed((c) => !c)}
-        className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
+        className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200 cursor-pointer shadow-xs hover:bg-secondary"
         style={{
-          top: topOffset + 16,
-
+          top: "50%",
+          transform: "translateY(-50%)",
           left: sidebarW - 12,
-
           width: 24,
-
           height: 24,
-
           backgroundColor: "var(--card)",
-
           borderColor: "var(--border)",
-
           color: "var(--muted-foreground)",
         }}
         aria-label="Toggle sidebar"
@@ -971,6 +981,8 @@ export default function StaffView({
                               <ReportPhotoUploader
                                 attachments={r.attachments}
                                 readOnly={true}
+                                author={r.author}
+                                isAdmin={false}
                                 title="Attached Site Photos"
                               />
                             </div>
@@ -1339,6 +1351,16 @@ export default function StaffView({
           </div>
         )
       })()}
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        role="staff"
+        userName={member.name}
+        userDepartment={member.department}
+        sunlightMode={sunlightMode}
+        onToggleSunlightMode={onToggleSunlightMode}
+      />
     </div>
   )
 }

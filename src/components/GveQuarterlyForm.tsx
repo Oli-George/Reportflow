@@ -23,6 +23,7 @@ interface GveQuarterlyFormProps {
   initialData?: GveQuarterlyRecordData
   readOnly?: boolean
   author?: string
+  isAdmin?: boolean
   reportId?: number | null
   onSave?: (data: GveQuarterlyRecordData, status: "Draft" | "Submitted") => void
   onCancel?: () => void
@@ -44,6 +45,7 @@ export default function GveQuarterlyForm({
   initialData,
   readOnly = false,
   author,
+  isAdmin = false,
   reportId,
   onSave,
   onCancel,
@@ -57,8 +59,7 @@ export default function GveQuarterlyForm({
 
   const recentSites = useMemo(() => getRecentSiteNames(), [])
 
-  const [activeCategory, setActiveCategory] =
-    useState<AuditCategoryTab>("general")
+  const [activeCategory, setActiveCategory] = useState<AuditCategoryTab>("general")
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
   const [activePaperPage, setActivePaperPage] = useState<number | "all">("all")
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -1691,8 +1692,11 @@ export default function GveQuarterlyForm({
         attachments={formData.attachments || []}
         onChange={(attachments) => updateField("attachments", attachments)}
         readOnly={readOnly}
+        siteName={formData.siteName}
+        author={author}
+        isAdmin={isAdmin}
         title="Quarterly Site Audit Photos & Visual Evidence"
-        description="Attach photos for all audit categories (PV, Inverters, BESS, Earthing, PPEs, Switchgear, Site condition). Works offline and auto-syncs."
+        description="Attach photos for all audit categories (PV, Inverters, BESS, Earthing, PPEs, Switchgear, Site condition). Forensically watermarked and offline capable."
       />
 
       {/* Bottom Actions Bar (Save Draft & Submit Audit) */}

@@ -13,7 +13,9 @@ import {
   CloudIcon,
   WifiOffIcon,
   SearchIcon,
+  ShieldCheckIcon,
 } from "./Icons"
+import { getStoredAppSettings } from "../lib/settingsStorage"
 
 interface ReportPhotoUploaderProps {
   attachments: ReportAttachment[]
@@ -22,6 +24,9 @@ interface ReportPhotoUploaderProps {
   maxPhotos?: number
   title?: string
   description?: string
+  siteName?: string
+  author?: string
+  isAdmin?: boolean
 }
 
 export default function ReportPhotoUploader({
@@ -31,6 +36,9 @@ export default function ReportPhotoUploader({
   maxPhotos = 20,
   title = "Site Photos & Visual Evidence",
   description = "Attach photos of PV arrays, inverters, battery bank, damages, or general site cleanliness. Images are compressed locally and available offline.",
+  siteName,
+  author,
+  isAdmin = false,
 }: ReportPhotoUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -58,15 +66,49 @@ export default function ReportPhotoUploader({
 
     setIsProcessing(true)
     const newAttachments: ReportAttachment[] = []
+    const appSettings = getStoredAppSettings()
+
+    // Fetch GPS coordinates if watermark with GPS is enabled
+    let gpsCoords: { latitude: number; longitude: number } | null = null
+    if (
+      appSettings.watermarkEnabled &&
+      appSettings.watermarkIncludeGps &&
+      typeof navigator !== "undefined" &&
+      navigator.geolocation
+    ) {
+      try {
+        gpsCoords = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+              }),
+            () => resolve(null),
+            { timeout: 3500, enableHighAccuracy: true },
+          )
+        })
+      } catch (e) {
+        // Fallback
+      }
+    }
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       setProcessingStatus(
-        `Optimizing image ${i + 1} of ${files.length} (${file.name})...`,
+        `Watermarking & optimizing image ${i + 1} of ${files.length} (${file.name})...`,
       )
 
       try {
-        const compressed = await compressImageFile(file, 1440, 0.8)
+        const compressed = await compressImageFile(file, 1440, 0.8, {
+          enabled: appSettings.watermarkEnabled,
+          siteName: siteName || appSettings.defaultSiteName,
+          author: author || "Field Technician",
+          gpsCoords,
+          opacity: isAdmin
+            ? appSettings.watermarkAdminOpacity
+            : appSettings.watermarkStaffOpacity,
+        })
         const isOffline = !navigator.onLine
 
         const newAtt: ReportAttachment = {
@@ -300,18 +342,26 @@ export default function ReportPhotoUploader({
                       {currentCat.label}
                     </span>
 
-                    {/* Sync Status Badge */}
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/75 text-zinc-300 border border-white/10 backdrop-blur-md inline-flex items-center gap-1">
-                      {item.url && !item.isOfflineOnly ? (
-                        <>
-                          <CloudIcon className="w-3 h-3 text-sky-400" /> Cloud
-                        </>
-                      ) : (
-                        <>
-                          <WifiOffIcon className="w-3 h-3 text-amber-400" /> Offline
-                        </>
-                      )}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {/* Forensic Watermark Badge */}
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/80 text-emerald-400 border border-emerald-500/30 backdrop-blur-md inline-flex items-center gap-1">
+                        <ShieldCheckIcon size={10} />
+                        <span>Verified</span>
+                      </span>
+
+                      {/* Sync Status Badge */}
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/75 text-zinc-300 border border-white/10 backdrop-blur-md inline-flex items-center gap-1">
+                        {item.url && !item.isOfflineOnly ? (
+                          <>
+                            <CloudIcon className="w-3 h-3 text-sky-400" /> Cloud
+                          </>
+                        ) : (
+                          <>
+                            <WifiOffIcon className="w-3 h-3 text-amber-400" /> Offline
+                          </>
+                        )}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Hover Overlay with Zoom Icon */}
@@ -529,7 +579,11 @@ export default function ReportPhotoUploader({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 font-mono text-[11px]">
+              <div className="flex items-center gap-2 font-mono text-[11px] flex-wrap">
+                <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-600/40 inline-flex items-center gap-1 shadow-xs">
+                  <ShieldCheckIcon size={12} />
+                  <span>{isAdmin ? "Forensically Verified (Admin Inspection)" : "Forensic Watermark Baked"}</span>
+                </span>
                 <span className="text-zinc-400">
                   Uploaded:{" "}
                   {new Date(activePhoto.uploadedAt).toLocaleDateString(

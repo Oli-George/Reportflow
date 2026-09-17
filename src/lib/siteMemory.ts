@@ -1,11 +1,11 @@
 // Helper for managing and remembering site names across all report forms
+import { getStoredAppSettings } from "./settingsStorage"
 
 const STORAGE_KEY_LAST_SITE = "reportflow_last_site_name"
 const STORAGE_KEY_RECENT_SITES = "reportflow_recent_sites"
-const DEFAULT_SITE_NAME = "GVE SITE"
 
 /**
- * Get the most recently used site name, or default fallback
+ * Get the most recently used site name, or default fallback from Settings
  */
 export function getLastSiteName(): string {
   try {
@@ -16,7 +16,7 @@ export function getLastSiteName(): string {
   } catch (e) {
     console.warn("Failed to read last site name from localStorage", e)
   }
-  return DEFAULT_SITE_NAME
+  return getStoredAppSettings().defaultSiteName || "GVE Kuka Mini-Grid"
 }
 
 /**
@@ -53,10 +53,8 @@ export function getRecentSiteNames(): string[] {
   } catch (e) {
     console.warn("Failed to read recent sites from localStorage", e)
   }
+
   return [
-    "GVE KUKA SITE",
-    "GVE KUDU SOLAR FARM",
-    "GVE ABUJA HQ MINI-GRID",
-    "GVE ONITSHA HYBRID STATION",
+    "GVE Mini-Grid",
   ]
 }

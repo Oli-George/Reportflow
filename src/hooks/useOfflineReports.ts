@@ -19,7 +19,14 @@ export function useOfflineReports() {
       try {
         const storedReports = await localforage.getItem<Report[]>("reports")
         if (storedReports && Array.isArray(storedReports) && storedReports.length > 0) {
-          setReports(storedReports)
+          // Clean any legacy mock reports that were mistakenly saved with "Draft" status
+          const sanitized = storedReports.map((r) =>
+            r.status && r.status.toLowerCase().trim() === "draft"
+              ? { ...r, status: "Submitted" as const }
+              : r
+          )
+          setReports(sanitized)
+          await localforage.setItem("reports", sanitized)
         } else {
           // Fallback to localStorage or mock data for first-time migration
           const legacySaved = localStorage.getItem("reportflow_cached_reports")

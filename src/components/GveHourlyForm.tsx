@@ -654,9 +654,9 @@ export default function GveDailyHourlyForm({
       {viewMode === "paper" ? (
         <div className="print-area paper-sheet p-4 md:p-6 rounded-lg overflow-x-auto border border-zinc-300 text-black">
           {/* Header Section matching HOURLY RECORD sheet */}
-          <div className="flex items-stretch border border-black mb-1 bg-white">
+          <div className="flex flex-col sm:flex-row items-stretch border border-black mb-1 bg-white">
             {/* Logo */}
-            <div className="w-48 p-2 border-r border-black flex flex-col justify-center items-center text-center">
+            <div className="w-full sm:w-40 md:w-48 p-2 border-b sm:border-b-0 sm:border-r border-black flex flex-col justify-center items-center text-center shrink-0">
               <img
                 src={logoImg}
                 alt="GVE Logo"
@@ -665,7 +665,7 @@ export default function GveDailyHourlyForm({
             </div>
 
             {/* Title with Editable Site Name */}
-            <div className="flex-1 flex flex-col justify-center items-center py-2 bg-white px-2">
+            <div className="flex-1 flex flex-col justify-center items-center py-2 bg-white px-2 min-w-0">
               {readOnly ? (
                 <h1 className="text-sm font-bold tracking-widest text-black uppercase text-center">
                   {siteName || "GVE KUKA SITE"}
@@ -700,9 +700,9 @@ export default function GveDailyHourlyForm({
           </div>
 
           {/* Date / Day / Year Bar */}
-          <div className="grid grid-cols-3 border-x border-b border-black text-center text-[10px] font-bold uppercase mb-2 bg-zinc-100 py-1">
-            <div className="flex items-center justify-center gap-2 border-r border-black px-2">
-              <span>DATE:</span>
+          <div className="flex flex-wrap items-center justify-between border-x border-b border-black text-center text-[10px] font-bold uppercase mb-2 bg-zinc-100 py-1 px-1 sm:px-2 gap-1.5 sm:gap-2">
+            <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 flex-1 min-w-[185px]">
+              <span className="shrink-0">DATE:</span>
               <input
                 type="date"
                 value={date}
@@ -721,27 +721,27 @@ export default function GveDailyHourlyForm({
                     }
                   } catch (err) {}
                 }}
-                className="w-32 text-center font-mono font-bold uppercase bg-transparent outline-none"
+                className="w-full max-w-[160px] text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
-            <div className="flex items-center justify-center gap-2 border-r border-black px-2">
-              <span>DAY:</span>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 flex-1 min-w-[130px] border-l border-black/30 sm:border-black">
+              <span className="shrink-0">DAY:</span>
               <input
                 type="text"
                 value={day}
                 disabled={readOnly}
                 onChange={(e) => setDay(e.target.value)}
-                className="w-28 text-center font-mono font-bold uppercase bg-transparent outline-none"
+                className="w-full max-w-[110px] text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
-            <div className="flex items-center justify-center gap-2 px-2">
-              <span>YEAR:</span>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 flex-1 min-w-[90px] border-l border-black/30 sm:border-black">
+              <span className="shrink-0">YEAR:</span>
               <input
                 type="text"
                 value={year}
                 disabled={readOnly}
                 onChange={(e) => setYear(e.target.value)}
-                className="w-20 text-center font-mono font-bold uppercase bg-transparent outline-none"
+                className="w-full max-w-[70px] text-center font-mono font-bold uppercase bg-transparent outline-none"
               />
             </div>
           </div>
@@ -1736,8 +1736,11 @@ export default function GveDailyHourlyForm({
         attachments={attachments}
         onChange={setAttachments}
         readOnly={readOnly}
+        siteName={siteName}
+        author={author}
+        isAdmin={isAdmin}
         title="Site Photos & Operational Evidence"
-        description="Attach photos of the solar PV field, inverter readings, battery room, or site damages. Available offline and syncs automatically."
+        description="Attach photos of the solar PV field, inverter readings, battery room, or site damages. Images are forensically watermarked and available offline."
       />
 
       {/* ─── Bottom Actions Bar (Save Draft & Submit Report) ──────────────── */}
@@ -1844,10 +1847,10 @@ export default function GveDailyHourlyForm({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 border-x border-b border-black text-center text-[10px] font-bold uppercase mb-2 bg-zinc-100 py-1">
-                    <div>DATE: {date}</div>
-                    <div>DAY: {day}</div>
-                    <div>YEAR: {year}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black border-x border-b border-black text-center text-[10px] font-bold uppercase mb-2 bg-zinc-100 py-1">
+                    <div className="p-1">DATE: {date}</div>
+                    <div className="p-1">DAY: {day}</div>
+                    <div className="p-1">YEAR: {year}</div>
                   </div>
 
                   <div className="paper-grid overflow-x-auto">

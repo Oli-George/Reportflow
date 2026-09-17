@@ -14,6 +14,7 @@ import {
   UsersIcon, ChartIcon, BellIcon,
   CalendarIcon, TrashIcon, AlertIcon,
 } from "./components/Icons"
+import SettingsModal from "./components/SettingsModal"
 import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
 import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
 import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
@@ -425,7 +426,7 @@ export const REPORTS: Report[] = [
     department: "Engineering",
     type: "Daily",
     submitted: new Date("2026-07-27T00:00:00Z"),
-    status: "Draft",
+    status: "Submitted",
     summary:
       "Service mesh upgrade in staging. No production deployments today. Canary tests for payment service running at 5% traffic split.",
   },
@@ -698,14 +699,12 @@ const NAV = [
 
 function Sidebar({
   active,
-
   onChange,
-
   collapsed,
-
   onLogout,
   topOffset = 0,
   sidebarW,
+  onOpenSettings,
 }: {
   active: View
   onChange: (v: View) => void
@@ -713,6 +712,7 @@ function Sidebar({
   onLogout?: () => void
   topOffset?: number
   sidebarW?: number
+  onOpenSettings?: () => void
 }) {
   return (
     <aside
@@ -727,30 +727,34 @@ function Sidebar({
     >
       {/* Logo */}
       <div
-        className="flex items-center gap-3 px-3.5 border-b"
+        className={`flex items-center border-b ${
+          collapsed ? "justify-center px-0" : "gap-2 px-3"
+        }`}
         style={{ height: 56, borderColor: "var(--border)", minWidth: 0 }}
       >
         <div
           className={`shrink-0 flex items-center justify-center rounded-md bg-white border border-border/40 shadow-xs ${
-            collapsed ? "w-10 h-8 p-1" : "h-8 w-20 p-1"
+            collapsed ? "w-10 h-7.5 p-1" : "h-7.5 w-16 px-1.5 py-0.5"
           }`}
         >
           <img
             src={logoImg}
             alt="GVE Logo"
-            className="w-full h-full object-contain"
+            className="max-h-full max-w-full object-contain"
           />
         </div>
         {!collapsed && (
-          <span
-            className="font-display font-700 text-base tracking-tight truncate flex items-center"
-            style={{ color: "var(--foreground)" }}
-          >
-            ReportFlow{" "}
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary-hover/30 text-secondary-foreground ml-1.5 border border-border">
+          <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+            <span
+              className="font-display font-bold text-sm tracking-tight whitespace-nowrap"
+              style={{ color: "var(--foreground)" }}
+            >
+              ReportFlow
+            </span>
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary-hover/30 text-secondary-foreground border border-border shrink-0">
               Admin
             </span>
-          </span>
+          </div>
         )}
       </div>
 
@@ -804,15 +808,21 @@ function Sidebar({
         })}
       </nav>
 
-      {/* User */}
+      {/* User Card — Click anywhere to open System Settings */}
       <div
         className="p-3 border-t flex flex-col gap-2"
         style={{ borderColor: "var(--border)" }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
+        <div
+          onClick={onOpenSettings}
+          className={`group/user flex items-center ${
+            collapsed ? "justify-center" : "justify-between"
+          } gap-2 p-1.5 -m-1.5 rounded-lg hover:bg-secondary/70 cursor-pointer transition-all border border-transparent hover:border-border/60 select-none`}
+          title="System Settings"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-mono font-500"
+              className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-mono font-semibold group-hover/user:scale-105 transition-transform"
               style={{
                 backgroundColor: "var(--primary)",
                 color: "var(--primary-foreground)",
@@ -823,14 +833,13 @@ function Sidebar({
             {!collapsed && (
               <div className="min-w-0">
                 <p
-                  className="text-xs font-medium truncate"
+                  className="text-xs font-medium truncate group-hover/user:text-primary transition-colors"
                   style={{ color: "var(--foreground)" }}
                 >
                   George
                 </p>
                 <p
-                  className="text-[10px] truncate"
-                  style={{ color: "var(--muted-foreground)" }}
+                  className="text-[10px] truncate text-muted-foreground"
                 >
                   IT Dept
                 </p>
@@ -839,8 +848,11 @@ function Sidebar({
           </div>
           {!collapsed && onLogout && (
             <button
-              onClick={onLogout}
-              className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onLogout()
+              }}
+              className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors shrink-0"
               title="Log Out"
             >
               <svg
@@ -862,8 +874,12 @@ function Sidebar({
         </div>
         {collapsed && onLogout && (
           <button
-            onClick={onLogout}
-            className="w-full py-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onLogout()
+            }}
+            className="w-full py-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center cursor-pointer"
             title="Log Out"
           >
             <svg
@@ -944,12 +960,35 @@ function Header({
         </h1>
         <button
           onClick={onOpenCreateModal}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium bg-primary hover:bg-primary-hover text-primary-foreground transition-all shadow-sm active:translate-y-px shrink-0"
+          className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-medium bg-primary hover:bg-primary-hover text-primary-foreground transition-all shadow-sm active:translate-y-px shrink-0 cursor-pointer"
+          title="Write New Report"
         >
-          <span className="text-sm font-bold leading-none">+</span> Write Report
+          <span className="text-sm font-bold leading-none">+</span>
+          <span className="hidden md:inline">Write Report</span>
         </button>
       </div>
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Sunlight Mode Toggle */}
+        {onToggleSunlightMode && (
+          <button
+            type="button"
+            onClick={onToggleSunlightMode}
+            className="sunlight-toggle-btn flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-all cursor-pointer shadow-xs hover:opacity-90 shrink-0 border"
+            style={{
+              backgroundColor: sunlightMode ? "#003822" : "var(--secondary)",
+              color: sunlightMode ? "#ffffff" : "var(--foreground)",
+              borderColor: sunlightMode ? "transparent" : "var(--border)",
+            }}
+            title={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
+            aria-label={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
+          >
+            <ContrastIcon className="w-4 h-4 shrink-0" />
+            <span className="hidden xl:inline">
+              {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
+            </span>
+          </button>
+        )}
+
         {/* Search Bar */}
         <div className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-[110px] max-w-xs"
           style={{
@@ -986,27 +1025,6 @@ function Header({
             </button>
           )}
         </div>
-
-        {/* Sunlight Mode Toggle */}
-        {onToggleSunlightMode && (
-          <button
-            type="button"
-            onClick={onToggleSunlightMode}
-            className="sunlight-toggle-btn flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-all cursor-pointer shadow-xs hover:opacity-90 shrink-0 border"
-            style={{
-              backgroundColor: "var(--secondary)",
-              color: "var(--foreground)",
-              borderColor: "var(--border)",
-            }}
-            title={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
-            aria-label={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
-          >
-            <ContrastIcon className="w-4 h-4 shrink-0" />
-            <span className="hidden xl:inline">
-              {sunlightMode ? "Standard Mode" : "Sunlight Mode"}
-            </span>
-          </button>
-        )}
 
         <button className="relative p-1.5 rounded-md transition-colors shrink-0"
           style={{ color: "var(--muted-foreground)" }}
@@ -1058,7 +1076,7 @@ function DashboardView({
 
   // Strictly enforce non-draft reports in DashboardView
   const nonDraftReports = useMemo(
-    () => reports.filter((r) => r.status !== "Draft"),
+    () => reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft"),
     [reports],
   )
 
@@ -1078,7 +1096,7 @@ function DashboardView({
 
   // Sort real report activities chronologically (newest first, strictly EXCLUDING Drafts)
   const sortedActivities = useMemo(() => {
-    const list = nonDraftReports.sort(
+    const list = [...nonDraftReports].sort(
       (a, b) =>
         new Date(b.submitted).getTime() - new Date(a.submitted).getTime(),
     )
@@ -1596,7 +1614,8 @@ function ReportsView({
 
     return reports.filter(
       (r) =>
-        r.status !== "Draft" &&
+        r.status &&
+        r.status.toLowerCase().trim() !== "draft" &&
         (typeFilter === "All" || r.type === typeFilter) &&
         (statusFilter === "All" || r.status === statusFilter) &&
         (!q ||
@@ -2423,6 +2442,8 @@ function FullReportModal({
               <ReportPhotoUploader
                 attachments={report.attachments}
                 readOnly={true}
+                author={report.author}
+                isAdmin={true}
                 title="Attached Report Photos & Evidence"
                 description="Visual documentation and photographic evidence attached to this report submission."
               />
@@ -2786,6 +2807,7 @@ function AdminCreateReportModal({
             attachments={attachments}
             onChange={setAttachments}
             readOnly={false}
+            isAdmin={true}
             title="Attached Photos & Inspection Evidence"
             description="Add site photos, charts, or visual evidence for this report."
           />
@@ -3066,6 +3088,7 @@ export default function AdminView({
 }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
   const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -3074,7 +3097,7 @@ export default function AdminView({
 
   // Strictly filter out any reports in Draft stage so they are completely inaccessible to admins
   const adminReports = useMemo(
-    () => reports.filter((r) => r.status !== "Draft"),
+    () => reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft"),
     [reports],
   )
 
@@ -3096,8 +3119,8 @@ export default function AdminView({
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
-  // 85% of desktop 240px sidebar width is 204px
-  const sidebarW = collapsed ? 56 : isMobile ? 204 : 240
+  // Generous sidebar width for fitted logo and Admin badge
+  const sidebarW = collapsed ? 56 : isMobile ? 216 : 248
   const handleApproveReport = (id: number) => {
     setReports((prev) =>
       prev.map((item) =>
@@ -3151,6 +3174,7 @@ export default function AdminView({
         onLogout={onLogout}
         topOffset={topOffset}
         sidebarW={sidebarW}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
       <Header view={view}
         sidebarW={sidebarW}
@@ -3161,12 +3185,22 @@ export default function AdminView({
         sunlightMode={sunlightMode}
         onToggleSunlightMode={onToggleSunlightMode}
       />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        role="admin"
+        userName="George"
+        userDepartment="IT Dept"
+        sunlightMode={sunlightMode}
+        onToggleSunlightMode={onToggleSunlightMode}
+      />
 
       {/* Collapse toggle */}
       <button onClick={() => setCollapsed((c) => !c)}
-        className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200"
+        className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200 cursor-pointer shadow-xs hover:bg-secondary"
         style={{
-          top: topOffset + 16,
+          top: "50%",
+          transform: "translateY(-50%)",
           left: sidebarW - 12,
           width: 24,
           height: 24,
