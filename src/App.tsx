@@ -26,7 +26,7 @@ export interface UserSession {
   email?: string
 }
 
-const DEPARTMENTS = ["Engineering","Operations","Finance","HSE","Management",]
+const DEPARTMENTS = ["Engineering","Operations","Finance","HSE","Management"]
 
 const ROLES = [ "Field Engineer","Site Technician","Operations Lead","HSE Officer","Solar PV Specialist",]
 
@@ -1204,11 +1204,11 @@ function App() {
 
           {/* Logo and Header */}
           <div className="flex flex-col items-center gap-2 mb-6 text-center">
-            <div className="w-24 h-12 rounded-lg flex items-center justify-center bg-white mb-1 shadow-sm border border-border/60 p-1.5">
+            <div className="w-28 h-12 rounded-lg flex items-center justify-center bg-white mb-1 shadow-sm border border-border/60 px-2 py-1">
               <img
                 src={logoImg}
                 alt="ReportFlow Logo"
-                className="w-full h-full object-contain"
+                className="max-h-full max-w-full object-contain"
               />
             </div>
             <h1 className="text-2xl font-display font-700 tracking-tight text-foreground">
@@ -1749,7 +1749,7 @@ function App() {
           </div>
         ) : (
           <AdminView
-            reports={reports.filter((r) => r.status !== "Draft")}
+            reports={reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft")}
             setReports={handleUpdateReports}
             members={members}
             deadlines={deadlines}
