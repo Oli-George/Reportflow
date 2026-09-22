@@ -1,13 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
-
-import {
-  Report,
-  Member,
-  Badge,
-  Deadline,
-  formatDeadlineDate,
-  getDeadlineUrgency,
-  DEFAULT_DEADLINES,
+import { Report,Member, Badge, Deadline,
+formatDeadlineDate, getDeadlineUrgency, DEFAULT_DEADLINES,
 } from "./AdminView"
 
 import GveDailyHourlyForm from "./components/GveHourlyForm"
@@ -19,17 +12,10 @@ import { usePwaInstall } from "./hooks/usePwaInstall"
 import { flushOfflineQueue } from "./lib/syncQueue"
 import logoImg from "./components/logo.jpeg"
 import {
-  ContrastIcon,
-  FileTextIcon,
-  ClipboardIcon,
-  AlertIcon,
-  InfoIcon,
-  CheckIcon,
-  HomeIcon,
-  ListIcon,
-  PlusIcon,
-  LogOutIcon,
-  CalendarIcon,
+  ContrastIcon, FileTextIcon, ClipboardIcon,
+  AlertIcon, InfoIcon, CheckIcon,
+  HomeIcon, ListIcon,
+  PlusIcon, LogOutIcon, CalendarIcon,
 } from "./components/Icons"
 import SettingsModal from "./components/SettingsModal"
 

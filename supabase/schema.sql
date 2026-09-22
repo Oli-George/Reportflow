@@ -52,15 +52,83 @@ ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deadlines ENABLE ROW LEVEL SECURITY;
 
--- 5. Create Public Access Policies (Allow authenticated & anon read/write for app client)
-CREATE POLICY "Allow public read access to members" ON public.members FOR SELECT USING (true);
-CREATE POLICY "Allow public insert/update to members" ON public.members FOR ALL USING (true);
+-- 5. Create Secure Row Level Security Policies
 
-CREATE POLICY "Allow public read access to reports" ON public.reports FOR SELECT USING (true);
-CREATE POLICY "Allow public insert/update/delete to reports" ON public.reports FOR ALL USING (true);
+-- Helper function to check if current user is an administrator
+CREATE OR REPLACE FUNCTION public.is_admin_user()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.members
+        WHERE email = (auth.jwt() ->> 'email')
+          AND is_admin = true
+    ) OR (auth.jwt() -> 'user_metadata' ->> 'role' = 'Admin');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE POLICY "Allow public read access to deadlines" ON public.deadlines FOR SELECT USING (true);
-CREATE POLICY "Allow public insert/update/delete to deadlines" ON public.deadlines FOR ALL USING (true);
+-- 5.1 Members Policies
+-- Everyone authenticated can view team members
+CREATE POLICY "Allow authenticated read to members" 
+    ON public.members FOR SELECT 
+    TO authenticated, anon
+    USING (true);
+
+-- Users can insert their initial profile upon registration
+CREATE POLICY "Allow authenticated user to insert member profile" 
+    ON public.members FOR INSERT 
+    TO authenticated
+    WITH CHECK (email = (auth.jwt() ->> 'email'));
+
+-- Users can ONLY update their OWN profile (Admins cannot modify another member's profile)
+CREATE POLICY "Allow users to update ONLY their own profile" 
+    ON public.members FOR UPDATE 
+    TO authenticated
+    USING (email = (auth.jwt() ->> 'email'))
+    WITH CHECK (email = (auth.jwt() ->> 'email'));
+
+-- 5.2 Reports Policies
+-- Authenticated staff can view reports
+CREATE POLICY "Allow authenticated read access to reports" 
+    ON public.reports FOR SELECT 
+    TO authenticated
+    USING (true);
+
+-- Authenticated staff can submit/create reports
+CREATE POLICY "Allow authenticated staff to submit reports" 
+    ON public.reports FOR INSERT 
+    TO authenticated
+    WITH CHECK (true);
+
+-- Authors can update their own drafts/reports; Admins can update status, approvals & feedback
+CREATE POLICY "Allow author or admin to update reports" 
+    ON public.reports FOR UPDATE 
+    TO authenticated
+    USING (
+        author = (auth.jwt() ->> 'email') 
+        OR author = (auth.jwt() -> 'user_metadata' ->> 'full_name')
+        OR public.is_admin_user()
+    )
+    WITH CHECK (true);
+
+-- ONLY Administrators can delete reports (protects operational audit trails)
+CREATE POLICY "Allow ONLY admins to delete reports" 
+    ON public.reports FOR DELETE 
+    TO authenticated
+    USING (public.is_admin_user());
+
+-- 5.3 Deadlines Policies
+-- All staff can view scheduled operational deadlines
+CREATE POLICY "Allow staff to read deadlines" 
+    ON public.deadlines FOR SELECT 
+    TO authenticated
+    USING (true);
+
+-- ONLY Administrators can create, edit, or delete deadlines
+CREATE POLICY "Allow ONLY admins to manage deadlines" 
+    ON public.deadlines FOR ALL 
+    TO authenticated
+    USING (public.is_admin_user())
+    WITH CHECK (public.is_admin_user());
 
 -- 6. Enable Realtime Replication (so changes appear instantly without refreshing)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.reports;

@@ -1,24 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from "react"
-import AdminView, {
-  MEMBERS,
-  Report, Member,
-  Deadline, DEFAULT_DEADLINES,
-} from "./AdminView"
-
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react"
+import { MEMBERS, Report, Member, Deadline, DEFAULT_DEADLINES} from "./AdminView"
 import StaffView from "./StaffView"
 import { supabase, isValidGveEmail } from "./lib/supabase"
-import {
-  initOfflineSyncListener,
-  getOfflineQueue,
-  flushOfflineQueue,
-  queueOfflineReport,
-} from "./lib/syncQueue"
+import { initOfflineSyncListener, getOfflineQueue, flushOfflineQueue, queueOfflineReport} from "./lib/syncQueue"
 import { uploadAttachmentFile } from "./lib/storageProviders"
 import { ReportAttachment } from "./types/attachment"
 import logoImg from "./components/logo.jpeg"
 import { useOfflineReports } from "./hooks/useOfflineReports"
 import { useIsMobile } from "./hooks/useIsMobile"
 import { WifiOffIcon } from "./components/Icons"
+
+const AdminView = lazy(() => import("./AdminView"))
 
 export interface UserSession {
   role: "admin" | "staff"
@@ -28,7 +20,7 @@ export interface UserSession {
 
 const DEPARTMENTS = ["Engineering","Operations","Finance","HSE","Management"]
 
-const ROLES = [ "Field Engineer","Site Technician","Operations Lead","HSE Officer","Solar PV Specialist",]
+const ROLES = [ "Field Engineer","Site Technician","Operations Lead","HSE Officer","Solar PV Specialist"]
 
 // Helper to prevent and clean duplicate report rows safely
 export function deduplicateReportsList(list: Report[]): Report[] {
@@ -142,12 +134,12 @@ function App() {
 
   const [session, setSession] = useState<UserSession | null>(() => {
     try {
-      const saved = sessionStorage.getItem("reportflow_user_session")
+      const saved = localStorage.getItem("reportflow_user_session")
       if (saved) {
         return JSON.parse(saved) as UserSession
       }
     } catch (e) {
-      console.warn("Failed to parse cached session from sessionStorage", e)
+      console.warn("Failed to parse cached session from localStorage", e)
     }
     return null
   })
@@ -187,19 +179,19 @@ function App() {
   const syncingIdsRef = useRef<Set<number>>(new Set())
   const tempIdMapRef = useRef<Map<number, number>>(new Map())
 
-  // Persist session to sessionStorage for tab isolation
+  // Persist session to localStorage for offline access and PWA resilience
   useEffect(() => {
     try {
       if (session) {
-        sessionStorage.setItem(
+        localStorage.setItem(
           "reportflow_user_session",
           JSON.stringify(session),
         )
       } else {
-        sessionStorage.removeItem("reportflow_user_session")
+        localStorage.removeItem("reportflow_user_session")
       }
     } catch (e) {
-      console.warn("Failed to persist session to sessionStorage", e)
+      console.warn("Failed to persist session to localStorage", e)
     }
   }, [session])
 
@@ -241,6 +233,16 @@ function App() {
     useState<"signin" | "signup" | "forgot_password" | "reset_password">(
       "signin",
     )
+  const [resetCooldown, setResetCooldown] = useState<number>(0)
+
+  // 60-second cooldown timer for password reset emails
+  useEffect(() => {
+    if (resetCooldown <= 0) return
+    const timer = setTimeout(() => {
+      setResetCooldown((prev) => prev - 1)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [resetCooldown])
 
   // On mobile screens, force loginRole to staff so admin is completely unavailable
   useEffect(() => {
@@ -469,12 +471,41 @@ function App() {
 
     window.addEventListener("offline", handleOffline)
 
+    // Check URL query parameters and hash fragments on mount (e.g. password reset links)
+    try {
+      const fullUrl = window.location.href
+      if (fullUrl.includes("error=") || fullUrl.includes("error_description=")) {
+        const urlParams = new URLSearchParams(window.location.search)
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+        const errorDesc =
+          hashParams.get("error_description") ||
+          urlParams.get("error_description") ||
+          "This password reset link is invalid or has expired. Please request a new one."
+        setError(decodeURIComponent(errorDesc.replace(/\+/g, " ")))
+        setAuthMode("forgot_password")
+        window.history.replaceState({}, document.title, window.location.pathname)
+      } else if (
+        fullUrl.includes("type=recovery") ||
+        window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("type=recovery")
+      ) {
+        setAuthMode("reset_password")
+        setError("")
+        setSuccessMsg("Email verified. Please enter your new password below.")
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }
+    } catch (e) {
+      console.warn("Failed to parse URL auth parameters", e)
+    }
+
     // Supabase Auth state listener for recovery / password resets
     const {
       data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === "PASSWORD_RECOVERY") {
         setAuthMode("reset_password")
+        setError("")
+        setSuccessMsg("Email verified. Please enter your new password below.")
       }
     })
 
@@ -713,7 +744,13 @@ function App() {
       if (authMode === "forgot_password") {
         if (!isValidGveEmail(cleanEmail)) {
           setError('Access Restricted: Email must end with "@gve-group.com"')
+          setLoading(false)
+          return
+        }
 
+        if (resetCooldown > 0) {
+          setError(`Please wait ${resetCooldown}s before requesting another reset email.`)
+          setLoading(false)
           return
         }
 
@@ -721,7 +758,7 @@ function App() {
           setError(
             "Cannot send password reset request while offline. Please check your network connection.",
           )
-
+          setLoading(false)
           return
         }
 
@@ -735,22 +772,26 @@ function App() {
         if (resetErr) {
           setError(resetErr.message || "Failed to send password reset request.")
         } else {
-          setSuccessMsg("A password reset link has been sent to your email.")
+          setSuccessMsg(
+            "If an account exists for this email, a password reset link has been sent. Please check your inbox and spam folder.",
+          )
+          setResetCooldown(60)
         }
 
+        setLoading(false)
         return
       }
 
       if (authMode === "reset_password") {
         if (password.length < 6) {
           setError("Password must be at least 6 characters long.")
-
+          setLoading(false)
           return
         }
 
         if (password !== confirmPassword) {
           setError("Passwords do not match. Please re-enter.")
-
+          setLoading(false)
           return
         }
 
@@ -758,7 +799,7 @@ function App() {
           setError(
             "Cannot update password while offline. Please check your network connection.",
           )
-
+          setLoading(false)
           return
         }
 
@@ -769,54 +810,49 @@ function App() {
         if (updateErr) {
           setError(updateErr.message || "Failed to update password.")
         } else {
+          // Clear any temporary recovery auth state
+          await supabase.auth.signOut()
+
           setSuccessMsg(
             "Password updated successfully! Redirecting to sign in...",
           )
 
           setTimeout(() => {
             setAuthMode("signin")
-
-            setSuccessMsg("")
-
+            setSuccessMsg("Password updated! You can now sign in with your new password.")
             setPassword("")
-
             setConfirmPassword("")
-
-            setEmail("")
-          }, 3000)
+            setEmail(cleanEmail)
+          }, 2000)
         }
 
+        setLoading(false)
         return
       }
 
       if (loginRole === "admin") {
         // Admin domain constraint check
-
         if (!isValidGveEmail(cleanEmail)) {
           setError('Access Restricted: Email must end with "@gve-group.com"')
-
           setLoading(false)
-
           return
         }
 
-        // Demo super-admin check
-
+        // Demo super-admin check (development environment only)
         if (
-          cleanEmail === "admin@gve-group.com" ||
-          cleanEmail === "info@gve-group.com"
+          import.meta.env.DEV &&
+          (cleanEmail === "admin@gve-group.com" ||
+            cleanEmail === "info@gve-group.com")
         ) {
           if (password === "admin" || password === "admin123") {
             setSession({ role: "admin", email: cleanEmail })
-
+            setLoading(false)
             return
           } else {
             setError(
               "Invalid administrator password. Please verify credentials.",
             )
-
             setLoading(false)
-
             return
           }
         }
@@ -1033,18 +1069,17 @@ function App() {
             })
 
           if (authError) {
-            // Check if user is offline and using standard pre-seeded demo credentials
-
+            // Check if user is offline and using standard pre-seeded demo credentials (development only)
             if (
+              import.meta.env.DEV &&
               !navigator.onLine &&
               (password === "gve2026" ||
                 password === "password123" ||
                 password === "admin123")
             ) {
-              // Valid offline demo password
+              // Valid offline demo password in development
             } else {
-              // Reject invalid credentials immediately — Zero password bypass!
-
+              // Reject invalid credentials immediately — Zero password bypass in production
               setError(
                 authError.message ||
                   "Invalid email or password. Please verify your credentials.",
@@ -1579,13 +1614,15 @@ function App() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (authMode === "forgot_password" && resetCooldown > 0)}
               className="w-full bg-primary hover:bg-primary-hover text-foreground font-display font-600 text-sm py-2.5 rounded-md mt-2 transition-all shadow-md active:translate-y-px disabled:opacity-50 cursor-pointer"
             >
               {loading
                 ? "Processing…"
                 : authMode === "forgot_password"
-                  ? "Send Reset Link"
+                  ? resetCooldown > 0
+                    ? `Resend Link (${resetCooldown}s)`
+                    : "Send Reset Link"
                   : authMode === "reset_password"
                     ? "Update Password"
                     : loginRole === "admin"
@@ -1748,18 +1785,29 @@ function App() {
             </div>
           </div>
         ) : (
-          <AdminView
-            reports={reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft")}
-            setReports={handleUpdateReports}
-            members={members}
-            deadlines={deadlines}
-            onCreateDeadline={handleCreateDeadline}
-            onDeleteDeadline={handleDeleteDeadline}
-            onLogout={handleLogout}
-            topOffset={topOffset}
-            sunlightMode={sunlightMode}
-            onToggleSunlightMode={toggleSunlightMode}
-          />
+          <Suspense
+            fallback={
+              <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground font-mono text-xs">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <span>Loading Administrator Console…</span>
+                </div>
+              </div>
+            }
+          >
+            <AdminView
+              reports={reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft")}
+              setReports={handleUpdateReports}
+              members={members}
+              deadlines={deadlines}
+              onCreateDeadline={handleCreateDeadline}
+              onDeleteDeadline={handleDeleteDeadline}
+              onLogout={handleLogout}
+              topOffset={topOffset}
+              sunlightMode={sunlightMode}
+              onToggleSunlightMode={toggleSunlightMode}
+            />
+          </Suspense>
         )
       ) : (
         <StaffView

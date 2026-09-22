@@ -18,6 +18,15 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: emitSourcemaps ? "inline" : false,
       minify: !emitSourcemaps,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("recharts")) {
+              return "recharts"
+            }
+          },
+        },
+      },
     },
     plugins: [
       react(),

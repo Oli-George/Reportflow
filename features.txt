@@ -37,3 +37,123 @@ Great Compliance & UI Features:
 
 This is a very robust product roadmap. Which of these features would you like to tackle first? Converting the app to an offline-capable PWA (Feature 7) or adding the Auto-Calculations (Feature 1) might be great places to start.
 
+Here are custom, high-impact feature suggestions specifically tailored to the real-world operational challenges of managing solar hybrid mini-grids in Nigeria (e.g., rural GVE sites like Bisanti, Kuka, Kolokalo).
+
+These are grouped by operational impact:
+
+1. Operational Intelligence & Cost Control (Anti-Theft & Asset Protection)
+⚡ A. Diesel Fuel Pilferage & Genset Efficiency Anomaly Engine
+The Reality on the Ground: Fuel theft and "phantom generator runs" are among the highest operational expense (OpEx) leaks for rural mini-grids.
+How It Works:
+Automatically cross-references logged Generator Run-Hours, Diesel Consumed (Liters), and Energy Generated (kWh) from the Weekly and Hourly logs.
+Uses standard diesel generator specific fuel consumption curves (typically $0.28 \text{ to } 0.33\text{ L/kWh}$).
+The Alert: If a technician logs 4 hours of generator run time and 60 Liters consumed, but only 35 kWh produced (burn rate $> 1.7\text{ L/kWh}$), the system flags an immediate amber/red badge:
+⚠️ Fuel Discrepancy Alert: Specific fuel consumption (1.71 L/kWh) is 420% above nominal. Suspected fuel leakage, theft, or severe engine injector fault.
+
+Value: Saves millions of Naira annually in fuel loss and prevents unrecorded diesel diversion.
+🔋 B. Battery Bank Degradation & Deep Discharge (DoD) Early Warning
+The Reality on the Ground: Battery storage (Lithium-ion or tubular gel/lead-acid) accounts for 40%–50% of the entire capital cost of a mini-grid. Running batteries too deep destroys their cycle life.
+How It Works:
+Analyzes hourly Battery Voltage, SoC, and SoH trends across days.
+Automatically flags whenever a site's battery bank drops below safe depth-of-discharge thresholds (e.g., SoC $< 20%$ or voltage $< 46\text{V}$ on a 48V bank) during night-time operation.
+Tracks SOH degradation rate week-over-week to predict battery replacement cycles before unexpected blackouts happen.
+📉 C. T&D Loss & Revenue Leakage Calculator
+The Reality on the Ground: Power theft (illegal bypasses, meter tampering) and faulty distribution lines cause unaccounted energy loss.
+How It Works:
+Compares Total Energy Sent Out from the powerhouse busbar (kWh) vs. Total Customer Vending / Energy Billed (kWh) from the weekly reports.
+Auto-computes Transmission & Distribution (T&D) Loss %: $$\text{T&D Loss (%)} = \left(\frac{\text{Energy Sent Out} - \text{Energy Billed}}{\text{Energy Sent Out}}\right) \times 100%$$
+Automatically warns when technical/commercial losses exceed 10%–12%, suggesting line inspection or anti-tamper meter sweeps in the village.
+2. Field Productivity & Technician UX (Built for Nigerian Rural Conditions)
+📸 D. Automated EXIF Extraction & Tamper-Proof Canvas Watermarking
+The Reality on the Ground: Technicians sometimes upload old photos from their phone gallery or recycled images from previous weeks instead of taking live photos of site equipment.
+How It Works:
+When a technician snaps or uploads a photo in 
+
+ReportPhotoUploader.tsx
+, ReportFlow draws it onto an HTML5 canvas and permanently burns a high-contrast forensic watermark in the bottom corner:
+[GVE MINI-GRID — BISANTI]
+[LAT: 9.1245° N | LON: 5.6812° E] [ACCURACY: ±6m]
+[TIMESTAMP: 17-SEP-2026 11:42 AM WAT]
+[INSPECTOR: S. IBRAHIM | ID: ENG-04]
+Watermarked images cannot be spoofed and are legally and regulatorily admissible for insurance claims, warranty replacements, and donor audits.
+📶 E. Low-Bandwidth "Tiered Sync" Mode (Text First, Media Later)
+The Reality on the Ground: Many rural sites only have 2G/EDGE or intermittent network signals that drop when uploading 5MB of camera images.
+How It Works:
+Tier 1 (Instant): The text and numerical report data (< 15 KB) syncs immediately over low-bandwidth 2G connection.
+Tier 2 (Background / Deferred): High-resolution photos stay queued in IndexedDB and automatically upload later when the phone detects a stable 3G/4G or Wi-Fi connection (or compresses them down to $< 100\text{ KB}$ webp).
+Emergency SMS/WhatsApp String Generator: If there is zero data connectivity, a one-tap button generates a short 140-character encrypted text summary string the technician can SMS or WhatsApp to the control room.
+🎙️ F. Voice-to-Text Maintenance Notes (Hands-Free Dictation)
+The Reality on the Ground: Field engineers wearing grease-covered safety gloves while working inside generator sheds or distribution kiosks hate typing long paragraphs on tiny phone keypads.
+How It Works:
+A microphone icon next to every remark and corrective action box allows one-tap audio dictation using the browser's speech recognition API.
+It transcribes speech into text in real time, keeping field notes detailed and legible.
+3. Closed-Loop Maintenance & Regulatory Compliance
+🛠️ G. Audit-to-Ticket Corrective Action Loop (CAPA)
+The Reality on the Ground: Currently, when a technician checks "DEFECTIVE" or "REPLACEMENT NEEDED" on a Quarterly Audit (e.g., Inverter cooling fan failed, Lightning arrester cable severed, Fire extinguisher expired), that finding sits passively inside a 10-page report.
+How It Works:
+Admins reviewing the audit can click a single button: "Convert to Work Order" on any failed checklist item.
+This creates a dedicated maintenance ticket with:
+Defect description + photo from the audit
+Assigned technician + target resolution date
+Required spare parts (e.g., 1x 50kA SPD module)
+The technician sees this on their Staff Dashboard under "Assigned Work Orders" and must upload a "Fixed" verification photo to resolve it.
+📋 H. Automated NERC & REA Monthly Compliance Packet Generator
+The Reality on the Ground: The Nigerian Electricity Regulatory Commission (NERC) and the Rural Electrification Agency (REA) under the Nigeria Electrification Project (NEP) mandate strict monthly KPI reports.
+How It Works:
+In the Admin view, clicking "Export REA / NERC Monthly Filing" aggregates 30 days of hourly and weekly data for any site.
+Automatically calculates mandatory regulatory metrics:
+System Availability & Uptime (%)
+Renewable Energy Fraction (Solar vs. Diesel %)
+Total Energy Delivered to the Community (MWh)
+Outage Frequency (SAIFI) & Average Outage Duration (SAIDI)
+Exports as an official PDF or Excel sheet ready to submit to regulatory bodies.
+🗺️ I. Mini-Grid Topology Health Heatmap (Single-Line Diagram Status)
+The Reality on the Ground: Management needs to see the real-time operational status of an entire mini-grid at a glance without reading through 24 hourly rows.
+How It Works:
+An interactive visual schematic representing the mini-grid power path: $$\text{Solar PV Array} \longrightarrow \text{Inverters / MPPT} \longrightarrow \text{Battery Bank} \longrightarrow \text{Diesel Genset} \longrightarrow \text{T&D Mini-Grid Bus} \longrightarrow \text{Consumers}$$
+Each node glows Green (Normal), Amber (Warning/Derated), or Red (Faulted) based on the latest hourly log values (e.g., if inverter temperature is $> 65^\circ\text{C}$ or battery SoC $< 25%$).
+Recommended "Next Steps" Feature Package
+If we combine your list with these suggestions, here is the ultimate 3-step sequence:
+
+Step 1 — Integrity & Anti-Theft Package:
+GPS Proximity Verification (Feature 4 from list)
+Fuel Burn & Inverter Efficiency Calculator (Feature 1 from list + Diesel Anomaly Engine)
+Step 2 — User Experience & Customization:
+Settings Modal in Bottom-Left (Feature 8 from list — site defaults, offline draft management)
+Photo Tamper-Proof Canvas Watermarking (Suggestion D)
+Step 3 — Management & Accountability:
+Structured Revision History & Field Diffs (Feature 2 from list)
+Audit-to-Work-Order Ticketing (CAPA) (Suggestion G)
+
+
+Step 3: Configure Supabase Auth & Email Reset (5 minutes)
+Now that Supabase knows your live website address:
+
+Set your Redirect URLs:
+
+In Supabase Dashboard, go to Authentication ➔ URL Configuration.
+Set Site URL to your live Vercel URL:
+text
+https://your-app-name.vercel.app
+In Redirect URLs, add both your live URL and your local development ports so you can test anywhere:
+text
+https://your-app-name.vercel.app/**
+http://localhost:8443/**
+http://localhost:5173/**
+Click Save.
+Paste the Custom Reset Email Template:
+
+In Supabase, go to Authentication ➔ Email Templates ➔ Reset Password.
+Change Subject to: Reset your ReportFlow account password
+Copy the pre-made HTML template from 
+
+docs/SUPABASE_SETUP.md
+ and paste it into the Message body.
+Click Save.
+(Optional / Recommended for Production) Connect Resend SMTP:
+
+Supabase provides default email sending (limited to ~3-4 emails/hour for testing).
+If you want reliable email delivery for all @gve-group.com emails, follow Section 2 in 
+
+docs/SUPABASE_SETUP.md
+ to plug in your free Resend SMTP API key.

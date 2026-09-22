@@ -1,19 +1,29 @@
 import { createClient } from "@supabase/supabase-js"
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ""
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ""
 
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+export const isSupabaseConfigured = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_ANON_KEY &&
+  !SUPABASE_URL.includes("your-project-id")
+)
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// Fallback to placeholder if not configured so createClient does not crash the entire app on load
+const safeUrl = isSupabaseConfigured ? SUPABASE_URL : "https://placeholder.supabase.co"
+const safeAnonKey = isSupabaseConfigured ? SUPABASE_ANON_KEY : "placeholder-anon-key"
+
+export const supabase = createClient(safeUrl, safeAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
+    detectSessionInUrl: true,
+    flowType: "pkce",
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
   },
 })
 
 // Helper to check domain constraint
-
 export function isValidGveEmail(email: string): boolean {
   return email.trim().toLowerCase().endsWith("@gve-group.com")
 }
