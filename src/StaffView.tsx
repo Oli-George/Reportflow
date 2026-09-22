@@ -785,7 +785,7 @@ export default function StaffView({
                       {member.department}
                     </span>
                   </div>
-                  <div className="divide-y divide-border max-h-[340px] overflow-y-auto">
+                  <div className="divide-y divide-border max-h-85 overflow-y-auto">
                     {myDeadlines.length === 0 ? (
                       <div className="p-6 text-center text-xs text-muted-foreground font-mono">
                         No upcoming submission deadlines scheduled for{" "}
@@ -798,7 +798,7 @@ export default function StaffView({
                         return (
                           <div
                             key={d.id}
-                            className="px-5 py-3.5 flex items-center justify-between gap-3 text-sm hover:bg-white/[0.02] transition-colors"
+                            className="px-5 py-3.5 flex items-center justify-between gap-3 text-sm hover:bg-white/2 transition-colors"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
@@ -874,7 +874,7 @@ export default function StaffView({
         {activeTab === "history" && (
           <div className="rounded-lg border bg-card border-border overflow-x-auto">
             <div
-              className="grid min-w-[540px] px-5 py-2.5 border-b text-xs font-mono uppercase tracking-wider bg-secondary border-border text-muted-foreground gap-x-4 items-center"
+              className="grid min-w-135 px-5 py-2.5 border-b text-xs font-mono uppercase tracking-wider bg-secondary border-border text-muted-foreground gap-x-4 items-center"
               style={{ gridTemplateColumns: "minmax(0, 1fr) 80px 110px 135px" }}
             >
               <span>Report Title</span>
@@ -898,7 +898,7 @@ export default function StaffView({
                         expandedReportId === r.id ? null : r.id,
                       )
                     }
-                    className="w-full grid min-w-[540px] px-5 py-3.5 border-b text-left transition-colors hover:bg-white/2 items-center border-border gap-x-4"
+                    className="w-full grid min-w-135 px-5 py-3.5 border-b text-left transition-colors hover:bg-white/2 items-center border-border gap-x-4"
                     style={{
                       gridTemplateColumns: "minmax(0, 1fr) 80px 110px 135px",
 
@@ -947,7 +947,7 @@ export default function StaffView({
                   </button>
 
                   {expandedReportId === r.id && (
-                    <div className="px-5 py-4 border-b border-border bg-background/50 min-w-[540px]">
+                    <div className="px-5 py-4 border-b border-border bg-background/50 min-w-135">
                       {r.gveData ? (
                         <div className="mb-4">
                           <p className="text-xs font-mono uppercase tracking-wider mb-2 text-emerald-400">

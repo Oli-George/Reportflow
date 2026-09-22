@@ -990,7 +990,7 @@ function Header({
         )}
 
         {/* Search Bar */}
-        <div className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-[110px] max-w-xs"
+        <div className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-27.5 max-w-xs"
           style={{
             borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
             backgroundColor: "var(--card)",
@@ -1242,7 +1242,7 @@ function DashboardView({
               )}
             </div>
             <div
-              className="divide-y max-h-[360px] overflow-y-auto"
+              className="divide-y max-h-95 overflow-y-auto"
               style={{ borderColor: "var(--border)" }}
             >
               {deadlines.length === 0 ? (
@@ -1276,7 +1276,7 @@ function DashboardView({
                         className={`px-5 py-3 transition-colors cursor-pointer ${
                           isSelected
                             ? "bg-secondary/60 border-l-2 border-l-primary"
-                            : "hover:bg-white/[0.02]"
+                            : "hover:bg-white/2"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -1441,7 +1441,7 @@ function DashboardView({
             </div>
 
             {/* Dynamic Activity List */}
-            <div className="divide-y divide-border/60 max-h-[380px] overflow-y-auto">
+            <div className="divide-y divide-border/60 max-h-95 overflow-y-auto">
               {sortedActivities.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground font-mono">
                   No report activity matches the selected filter.
@@ -1507,7 +1507,7 @@ function DashboardView({
                     <div
                       key={r.id}
                       onClick={() => onInspect(r)}
-                      className="px-5 py-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-white/[0.04] cursor-pointer group"
+                      className="px-5 py-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-white/4 cursor-pointer group"
                       title="Click to inspect this report in detail"
                     >
                       <div className="flex items-start gap-3 min-w-0 flex-1">
