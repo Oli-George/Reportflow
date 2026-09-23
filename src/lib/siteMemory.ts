@@ -31,7 +31,10 @@ export function saveLastSiteName(siteName: string): void {
 
     // Update recent sites list (keep up to 10 unique names)
     const recents = getRecentSiteNames()
-    const updated = [trimmed, ...recents.filter((s) => s.toLowerCase() !== trimmed.toLowerCase())].slice(0, 10)
+    const updated = [
+      trimmed,
+      ...recents.filter((s) => s.toLowerCase() !== trimmed.toLowerCase()),
+    ].slice(0, 10)
     localStorage.setItem(STORAGE_KEY_RECENT_SITES, JSON.stringify(updated))
   } catch (e) {
     console.warn("Failed to save site name to localStorage", e)
@@ -54,7 +57,5 @@ export function getRecentSiteNames(): string[] {
     console.warn("Failed to read recent sites from localStorage", e)
   }
 
-  return [
-    "GVE Mini-Grid",
-  ]
+  return ["GVE Mini-Grid"]
 }

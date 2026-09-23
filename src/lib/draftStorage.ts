@@ -25,7 +25,10 @@ class DraftStorageEngine {
     author: string,
     reportId?: number | null,
   ): string {
-    const cleanAuthor = (author || "anonymous").trim().toLowerCase().replace(/[^a-z0-9]/g, "_")
+    const cleanAuthor = (author || "anonymous")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "_")
     const repId = reportId != null ? String(reportId) : "new"
     return `draft_${formType}_${cleanAuthor}_${repId}`
   }
@@ -57,7 +60,7 @@ class DraftStorageEngine {
     return this.dbPromise
   }
 
-  async saveDraft<T>(draft: FormDraft<T>): Promise<void> {
+  async saveDraft<T,>(draft: FormDraft<T>): Promise<void> {
     try {
       const db = await this.getDB()
       return new Promise<void>((resolve, reject) => {
@@ -77,7 +80,7 @@ class DraftStorageEngine {
     }
   }
 
-  async getDraft<T>(
+  async getDraft<T,>(
     formType: string,
     author: string,
     reportId?: number | null,
@@ -159,8 +162,7 @@ class DraftStorageEngine {
           resolve(
             drafts.filter(
               (d) =>
-                !cleanAuthor ||
-                d.author.trim().toLowerCase() === cleanAuthor,
+                !cleanAuthor || d.author.trim().toLowerCase() === cleanAuthor,
             ),
           )
         }

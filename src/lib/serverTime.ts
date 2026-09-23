@@ -74,7 +74,10 @@ export async function syncServerTime(): Promise<{
         }
       }
     } catch (err) {
-      console.warn("Supabase time sync failed, trying fallback time API...", err)
+      console.warn(
+        "Supabase time sync failed, trying fallback time API...",
+        err,
+      )
     }
   }
 
@@ -177,7 +180,9 @@ export function getTrustedTime(): {
 /**
  * Parses time strings like "06:00 AM", "01:00 PM" into 24-hour hour & minute
  */
-export function parse12HourTime(timeStr: string): { hour24: number; minute: number } {
+export function parse12HourTime(
+  timeStr: string,
+): { hour24: number; minute: number } {
   const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
   if (!match) {
     return { hour24: 0, minute: 0 }
@@ -196,13 +201,7 @@ export function parse12HourTime(timeStr: string): { hour24: number; minute: numb
   return { hour24: hour, minute }
 }
 
-export type SlotStatus =
-  | "ACTIVE" // Currently in the 15-minute window for this hour (editable)
-  | "UPCOMING" // Hour has not yet arrived (locked/hidden)
-  | "LOCKED_RECORDED" // Window passed, data was recorded (locked for audit compliance)
-  | "EXPIRED_MISSED" // Window passed without entry (locked & marked missed)
-  | "HISTORICAL" // Viewing a past completed/submitted report
-  | "ADMIN_UNLOCKED" // Manually unlocked via admin override
+export type SlotStatus = "ACTIVE" | "UPCOMING" | "LOCKED_RECORDED" | "EXPIRED_MISSED" | "HISTORICAL" | "ADMIN_UNLOCKED" // Currently in the 15-minute window for this hour (editable) // Hour has not yet arrived (locked/hidden) // Window passed, data was recorded (locked for audit compliance) // Window passed without entry (locked & marked missed) // Viewing a past completed/submitted report // Manually unlocked via admin override
 
 export interface SlotStatusInfo {
   status: SlotStatus
@@ -329,7 +328,9 @@ export function getHourlySlotStatus(
       secondsRemainingInWindow: 0,
       secondsUntilUnlock: 0,
       isEditable: false,
-      statusLabel: hasData ? "Recorded (Past Date)" : "Window Expired (Past Date)",
+      statusLabel: hasData
+        ? "Recorded (Past Date)"
+        : "Window Expired (Past Date)",
     }
   }
 
@@ -348,7 +349,8 @@ export function getHourlySlotStatus(
   const currentHour = currentTime.getHours()
   const currentMinute = currentTime.getMinutes()
   const currentSecond = currentTime.getSeconds()
-  const currentDaySeconds = currentHour * 3600 + currentMinute * 60 + currentSecond
+  const currentDaySeconds =
+    currentHour * 3600 + currentMinute * 60 + currentSecond
 
   const slotStartSeconds = hour24 * 3600 + minute * 60
   const slotWindowDuration = 15 * 60 // 15 minutes = 900 seconds
@@ -367,7 +369,10 @@ export function getHourlySlotStatus(
   }
 
   // Case 2: Currently within the 15-minute leniency window (:00 to :15)
-  if (currentDaySeconds >= slotStartSeconds && currentDaySeconds <= slotEndSeconds) {
+  if (
+    currentDaySeconds >= slotStartSeconds &&
+    currentDaySeconds <= slotEndSeconds
+  ) {
     const secondsRemainingInWindow = slotEndSeconds - currentDaySeconds
     const mins = Math.floor(secondsRemainingInWindow / 60)
     const secs = secondsRemainingInWindow % 60
@@ -407,9 +412,10 @@ export function getHourlySlotStatus(
  */
 export function useServerTime() {
   const [trustedState, setTrustedState] = useState(() => getTrustedTime())
-  const [syncStatus, setSyncStatus] = useState<
-    "synced" | "syncing" | "cached" | "offline" | "device"
-  >(!navigator.onLine ? "offline" : "syncing")
+  const [syncStatus, setSyncStatus] =
+    useState<"synced" | "syncing" | "cached" | "offline" | "device">(
+      !navigator.onLine ? "offline" : "syncing",
+    )
 
   const refreshTime = useCallback(async () => {
     try {

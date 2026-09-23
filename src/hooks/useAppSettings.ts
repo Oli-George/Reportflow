@@ -3,7 +3,6 @@ import {
   AppSettings,
   DEFAULT_APP_SETTINGS,
   MiniGridSite,
-  PRESET_GVE_SITES,
   getStoredAppSettings,
   saveStoredAppSettings,
   getStoredMiniGridSites,
@@ -38,7 +37,10 @@ export function useAppSettings() {
     window.addEventListener("reportflow_sites_changed", handleSitesChange)
 
     return () => {
-      window.removeEventListener("reportflow_settings_changed", handleSettingsChange)
+      window.removeEventListener(
+        "reportflow_settings_changed",
+        handleSettingsChange,
+      )
       window.removeEventListener("reportflow_sites_changed", handleSitesChange)
     }
   }, [])
@@ -64,13 +66,16 @@ export function useAppSettings() {
     return newSite
   }, [])
 
-  const updateSite = useCallback((id: string, updates: Partial<MiniGridSite>) => {
-    setSites((prev) => {
-      const next = prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
-      saveStoredMiniGridSites(next)
-      return next
-    })
-  }, [])
+  const updateSite = useCallback(
+    (id: string, updates: Partial<MiniGridSite>) => {
+      setSites((prev) => {
+        const next = prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+        saveStoredMiniGridSites(next)
+        return next
+      })
+    },
+    [],
+  )
 
   const deleteSite = useCallback((id: string) => {
     setSites((prev) => {

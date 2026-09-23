@@ -26,7 +26,9 @@ export function useFormAutoSave<T>({
 }: UseFormAutoSaveProps<T>) {
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [recoveredDraft, setRecoveredDraft] = useState<FormDraft<T> | null>(null)
+  const [recoveredDraft, setRecoveredDraft] = useState<FormDraft<T> | null>(
+    null,
+  )
   const [hasDismissedRecovery, setHasDismissedRecovery] = useState(false)
 
   const lastSavedSerializedRef = useRef<string>("")

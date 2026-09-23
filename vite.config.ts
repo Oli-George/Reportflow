@@ -32,37 +32,38 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['logo.jpeg'],
+        registerType: "autoUpdate",
+        includeAssets: ["logo.jpeg"],
         manifest: {
-          name: 'ReportFlow — Field Reporting Portal',
-          short_name: 'ReportFlow',
-          description: 'Offline-first field reporting and operational compliance coordination for GVE mini-grid infrastructure.',
-          theme_color: '#005030',
-          background_color: '#080f0b',
-          display: 'standalone',
-          orientation: 'portrait',
-          scope: '/',
-          start_url: '/',
+          name: "ReportFlow — Field Reporting Portal",
+          short_name: "ReportFlow",
+          description:
+            "Offline-first field reporting and operational compliance coordination for GVE mini-grid infrastructure.",
+          theme_color: "#005030",
+          background_color: "#080f0b",
+          display: "standalone",
+          orientation: "portrait",
+          scope: "/",
+          start_url: "/",
           icons: [
             {
-              src: 'logo.jpeg',
-              sizes: '192x192',
-              type: 'image/jpeg',
-              purpose: 'any maskable'
+              src: "logo.jpeg",
+              sizes: "192x192",
+              type: "image/jpeg",
+              purpose: "any maskable",
             },
             {
-              src: 'logo.jpeg',
-              sizes: '512x512',
-              type: 'image/jpeg',
-              purpose: 'any maskable'
-            }
-          ]
+              src: "logo.jpeg",
+              sizes: "512x512",
+              type: "image/jpeg",
+              purpose: "any maskable",
+            },
+          ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg}'],
-          maximumFileSizeToCacheInBytes: 10000000
-        }
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,jpeg}"],
+          maximumFileSizeToCacheInBytes: 10000000,
+        },
       }),
       figmaSiteConfiguration(siteConfiguration as FigmaSiteConfiguration),
       figmaErrorOverlayReplay(),

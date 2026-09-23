@@ -176,6 +176,25 @@ By default, Supabase's built-in email service is rate-limited to 3–4 emails pe
 If you haven't already updated the Row Level Security (RLS) policies:
 
 1. Go to **Supabase Dashboard ➔ SQL Editor ➔ New query**.
-2. Open [`supabase/schema.sql`] in this repository.
+2. Open [`supabase/schema.sql`](file:///c:/Users/USER/OneDrive/Desktop/ReportFlow/supabase/schema.sql) in this repository.
 3. Copy its contents and paste them into the SQL Editor.
 4. Click **Run**.
+
+---
+
+## 5. Parent Administrator Model (`info@gve-group.com`)
+
+ReportFlow uses a two-tier administrative hierarchy:
+
+1. **Parent Administrator (`info@gve-group.com`)**:
+   - The primary supervisory account for GVE Operations.
+   - **Exclusively authorized** to promote normal field staff to administrators or revoke administrative privileges.
+   - Guarded by the database trigger `trg_admin_promotion` which rejects unauthorized promotion attempts even if invoked via API or client code.
+
+2. **Operational Administrators**:
+   - Promoted staff members (e.g. Area Managers, Operations Leads).
+   - Can approve/flag reports, set deadlines, inspect telemetry, and manage field submissions.
+   - Cannot promote or demote other staff accounts.
+
+To ensure your initial Parent Admin user exists in Supabase Auth, register `info@gve-group.com` through the ReportFlow sign-up interface or invite them in **Supabase Dashboard ➔ Authentication ➔ Users**.
+

@@ -268,7 +268,11 @@ export async function clearSyncedDrafts(author: string): Promise<number> {
   for (const draft of drafts) {
     // If draft is linked to a submitted report ID
     if (draft.reportId && draft.reportId > 0) {
-      await draftStorage.deleteDraft(draft.formType, draft.author, draft.reportId)
+      await draftStorage.deleteDraft(
+        draft.formType,
+        draft.author,
+        draft.reportId,
+      )
       removedCount++
     }
   }

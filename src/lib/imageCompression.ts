@@ -17,6 +17,7 @@ export interface CompressedImageResult {
 /**
  * Compresses an image file client-side using HTML5 Canvas.
  * Reduces 5MB-15MB camera photos down to 80KB-250KB for snappy offline storage and fast cloud syncing.
+ */
 export interface WatermarkOptions {
   enabled?: boolean
   siteName?: string

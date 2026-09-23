@@ -37,7 +37,10 @@ export function usePwaInstall(): PwaInstallState {
     window.addEventListener("appinstalled", handleAppInstalled)
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      )
       window.removeEventListener("appinstalled", handleAppInstalled)
     }
   }, [])

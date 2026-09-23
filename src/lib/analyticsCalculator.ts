@@ -1,4 +1,6 @@
-import { Report, Member, Deadline, ReportStatus, ReportType } from "../AdminView"
+import type { Report, ReportStatus, ReportType } from "../types/report"
+import type { Member } from "../types/member"
+import type { Deadline } from "../types/deadline"
 
 export type TimeframeOption = "7d" | "30d" | "90d" | "quarter" | "year" | "all"
 
@@ -105,7 +107,10 @@ export const DEPT_COLORS: Record<string, string> = {
   "All Departments": "#64748b",
 }
 
-export function getTimeframeDateRange(timeframe: TimeframeOption, referenceDate = new Date()): { start: Date; end: Date; priorStart: Date; priorEnd: Date } {
+export function getTimeframeDateRange(
+  timeframe: TimeframeOption,
+  referenceDate = new Date(),
+): { start: Date; end: Date; priorStart: Date; priorEnd: Date } {
   const end = new Date(referenceDate)
   end.setHours(23, 59, 59, 999)
 
@@ -130,18 +135,31 @@ export function getTimeframeDateRange(timeframe: TimeframeOption, referenceDate 
   return { start, end, priorStart, priorEnd }
 }
 
-export function filterReports(reports: Report[], filter: AnalyticsFilter): { current: Report[]; prior: Report[] } {
-  const { start, end, priorStart, priorEnd } = getTimeframeDateRange(filter.timeframe)
+export function filterReports(
+  reports: Report[],
+  filter: AnalyticsFilter,
+): { current: Report[]; prior: Report[] } {
+  const { start, end, priorStart, priorEnd } = getTimeframeDateRange(
+    filter.timeframe,
+  )
 
   const matchesFilters = (r: Report) => {
-    if (filter.department !== "All" && filter.department !== "All Departments") {
-      if (r.department.toLowerCase() !== filter.department.toLowerCase()) return false
+    if (
+      filter.department !== "All" &&
+      filter.department !== "All Departments"
+    ) {
+      if (r.department.toLowerCase() !== filter.department.toLowerCase())
+        return false
     }
     if (filter.reportType !== "All") {
       if (r.type !== filter.reportType) return false
     }
     if (filter.site !== "All") {
-      const site = r.gveData?.siteName || r.gveWeeklyData?.siteName || r.gveQuarterlyData?.siteName || ""
+      const site =
+        r.gveData?.siteName ||
+        r.gveWeeklyData?.siteName ||
+        r.gveQuarterlyData?.siteName ||
+        ""
       if (!site.toLowerCase().includes(filter.site.toLowerCase())) return false
     }
     return true
@@ -157,7 +175,10 @@ export function filterReports(reports: Report[], filter: AnalyticsFilter): { cur
 
     if (submittedTime >= start.getTime() && submittedTime <= end.getTime()) {
       current.push(r)
-    } else if (submittedTime >= priorStart.getTime() && submittedTime <= priorEnd.getTime()) {
+    } else if (
+      submittedTime >= priorStart.getTime() &&
+      submittedTime <= priorEnd.getTime()
+    ) {
       prior.push(r)
     }
   }
@@ -174,30 +195,55 @@ export function filterReports(reports: Report[], filter: AnalyticsFilter): { cur
   return { current, prior }
 }
 
-export function calculateKPIs(currentReports: Report[], priorReports: Report[], deadlines: Deadline[] = []): SummaryKPIs {
+export function calculateKPIs(
+  currentReports: Report[],
+  priorReports: Report[],
+  deadlines: Deadline[] = [],
+): SummaryKPIs {
   const totalReports = currentReports.length
   const priorTotal = priorReports.length
 
-  const totalDeltaPct = priorTotal > 0 ? Math.round(((totalReports - priorTotal) / priorTotal) * 100) : totalReports > 0 ? 100 : 0
+  const totalDeltaPct =
+    priorTotal > 0
+      ? Math.round(((totalReports - priorTotal) / priorTotal) * 100)
+      : totalReports > 0
+        ? 100
+        : 0
 
-  const approvedCount = currentReports.filter((r) => r.status === "Approved").length
-  const flaggedCount = currentReports.filter((r) => r.status === "Flagged").length
-  const pendingCount = currentReports.filter((r) => r.status === "Submitted").length
+  const approvedCount = currentReports.filter(
+    (r) => r.status === "Approved",
+  ).length
+  const flaggedCount = currentReports.filter(
+    (r) => r.status === "Flagged",
+  ).length
+  const pendingCount = currentReports.filter(
+    (r) => r.status === "Submitted",
+  ).length
 
-  const approvalRate = totalReports > 0 ? Math.round((approvedCount / totalReports) * 100) : 0
-  const flaggedRate = totalReports > 0 ? Math.round((flaggedCount / totalReports) * 100) : 0
+  const approvalRate =
+    totalReports > 0 ? Math.round((approvedCount / totalReports) * 100) : 0
+  const flaggedRate =
+    totalReports > 0 ? Math.round((flaggedCount / totalReports) * 100) : 0
 
-  const priorApproved = priorReports.filter((r) => r.status === "Approved").length
-  const priorApprovalRate = priorTotal > 0 ? Math.round((priorApproved / priorTotal) * 100) : approvalRate
+  const priorApproved = priorReports.filter(
+    (r) => r.status === "Approved",
+  ).length
+  const priorApprovalRate =
+    priorTotal > 0
+      ? Math.round((priorApproved / priorTotal) * 100)
+      : approvalRate
   const approvalRateDelta = approvalRate - priorApprovalRate
 
   // Dynamic Turnaround time calculation:
   // Derived from approval ratio and report depth, average turnaround averages 12-18 hours for solar mini-grid logs
   let avgTurnaroundHours = 14
   if (totalReports > 0) {
-    const approvedWeight = (approvedCount / totalReports)
+    const approvedWeight = approvedCount / totalReports
     const quickFactor = flaggedCount > 0 ? 1.3 : 0.85
-    avgTurnaroundHours = Math.max(4, Math.round((24 - approvedWeight * 12) * quickFactor))
+    avgTurnaroundHours = Math.max(
+      4,
+      Math.round((24 - approvedWeight * 12) * quickFactor),
+    )
   }
   const turnaroundDeltaPct = -18 // 18% improvement trend
 
@@ -207,7 +253,10 @@ export function calculateKPIs(currentReports: Report[], priorReports: Report[], 
     if (r.status === "Draft") continue
     const subDate = new Date(r.submitted)
     // Compare with any active deadline for the department
-    const matchingDeadline = deadlines.find((d) => d.department === r.department || d.department === "All Departments")
+    const matchingDeadline = deadlines.find(
+      (d) =>
+        d.department === r.department || d.department === "All Departments",
+    )
     if (matchingDeadline) {
       const dueDate = new Date(matchingDeadline.dueDate)
       if (subDate <= dueDate) {
@@ -218,10 +267,15 @@ export function calculateKPIs(currentReports: Report[], priorReports: Report[], 
       onTimeCount++
     }
   }
-  const onTimeRate = totalReports > 0 ? Math.round((onTimeCount / totalReports) * 100) : 95
+  const onTimeRate =
+    totalReports > 0 ? Math.round((onTimeCount / totalReports) * 100) : 95
 
   // Active technicians count
-  const uniqueAuthors = new Set(currentReports.map((r) => (r.author || "").trim().toLowerCase()).filter(Boolean))
+  const uniqueAuthors = new Set(
+    currentReports
+      .map((r) => (r.author || "").trim().toLowerCase())
+      .filter(Boolean),
+  )
   const activeTechnicians = uniqueAuthors.size || 1
 
   // Mini-grid energy totals
@@ -252,7 +306,10 @@ export function calculateKPIs(currentReports: Report[], priorReports: Report[], 
     totalEnergyGenKwh = totalReports * 142.5
     totalEnergyLoadKwh = totalReports * 118.2
   }
-  const avgBatteryHealth = batteryHealthCount > 0 ? Math.round(batteryHealthSum / batteryHealthCount) : 98
+  const avgBatteryHealth =
+    batteryHealthCount > 0
+      ? Math.round(batteryHealthSum / batteryHealthCount)
+      : 98
 
   return {
     totalReports,
@@ -271,7 +328,10 @@ export function calculateKPIs(currentReports: Report[], priorReports: Report[], 
   }
 }
 
-export function getSubmissionVelocity(reports: Report[], timeframe: TimeframeOption): VelocityDataPoint[] {
+export function getSubmissionVelocity(
+  reports: Report[],
+  timeframe: TimeframeOption,
+): VelocityDataPoint[] {
   if (reports.length === 0) {
     const sampleWeeks = ["W26", "W27", "W28", "W29", "W30", "W31"]
     return sampleWeeks.map((w) => ({
@@ -285,7 +345,12 @@ export function getSubmissionVelocity(reports: Report[], timeframe: TimeframeOpt
   }
 
   // Group reports by calendar week or day
-  const bucketMap = new Map<string, { submitted: number; approved: number; flagged: number; draft: number }>()
+  const bucketMap = new Map<string, {
+    submitted: number
+    approved: number
+    flagged: number
+    draft: number
+  }>()
 
   const sortedReports = [...reports].sort(
     (a, b) => new Date(a.submitted).getTime() - new Date(b.submitted).getTime(),
@@ -297,18 +362,32 @@ export function getSubmissionVelocity(reports: Report[], timeframe: TimeframeOpt
 
     let bucketKey = ""
     if (timeframe === "7d") {
-      bucketKey = d.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" })
+      bucketKey = d.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "numeric",
+        day: "numeric",
+      })
     } else if (timeframe === "30d") {
-      bucketKey = d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      bucketKey = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
     } else {
       const firstDayOfYear = new Date(d.getFullYear(), 0, 1)
       const pastDaysOfYear = (d.getTime() - firstDayOfYear.getTime()) / 86400000
-      const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
+      const weekNum = Math.ceil(
+        (pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7,
+      )
       bucketKey = `W${weekNum}`
     }
 
     if (!bucketMap.has(bucketKey)) {
-      bucketMap.set(bucketKey, { submitted: 0, approved: 0, flagged: 0, draft: 0 })
+      bucketMap.set(bucketKey, {
+        submitted: 0,
+        approved: 0,
+        flagged: 0,
+        draft: 0,
+      })
     }
 
     const data = bucketMap.get(bucketKey)!
@@ -321,11 +400,46 @@ export function getSubmissionVelocity(reports: Report[], timeframe: TimeframeOpt
   // If fewer than 4 points exist, ensure realistic chart display with historical reference
   if (bucketMap.size < 3) {
     const defaultPoints: VelocityDataPoint[] = [
-      { period: "W26", submitted: 4, approved: 38, flagged: 2, draft: 1, total: 45 },
-      { period: "W27", submitted: 6, approved: 52, flagged: 3, draft: 1, total: 62 },
-      { period: "W28", submitted: 5, approved: 48, flagged: 4, draft: 1, total: 58 },
-      { period: "W29", submitted: 8, approved: 58, flagged: 3, draft: 1, total: 70 },
-      { period: "W30", submitted: 7, approved: 54, flagged: 5, draft: 1, total: 67 },
+      {
+        period: "W26",
+        submitted: 4,
+        approved: 38,
+        flagged: 2,
+        draft: 1,
+        total: 45,
+      },
+      {
+        period: "W27",
+        submitted: 6,
+        approved: 52,
+        flagged: 3,
+        draft: 1,
+        total: 62,
+      },
+      {
+        period: "W28",
+        submitted: 5,
+        approved: 48,
+        flagged: 4,
+        draft: 1,
+        total: 58,
+      },
+      {
+        period: "W29",
+        submitted: 8,
+        approved: 58,
+        flagged: 3,
+        draft: 1,
+        total: 70,
+      },
+      {
+        period: "W30",
+        submitted: 7,
+        approved: 54,
+        flagged: 5,
+        draft: 1,
+        total: 67,
+      },
       {
         period: "W31 (Current)",
         submitted: reports.filter((r) => r.status === "Submitted").length || 3,
@@ -348,7 +462,9 @@ export function getSubmissionVelocity(reports: Report[], timeframe: TimeframeOpt
   }))
 }
 
-export function getReportTypeDistribution(reports: Report[]): TypeDistributionItem[] {
+export function getReportTypeDistribution(
+  reports: Report[],
+): TypeDistributionItem[] {
   const counts: Record<ReportType, number> = {
     Daily: 0,
     Weekly: 0,
@@ -364,7 +480,13 @@ export function getReportTypeDistribution(reports: Report[]): TypeDistributionIt
   }
 
   const total = reports.length || 1
-  const types: ReportType[] = ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"]
+  const types: ReportType[] = [
+    "Daily",
+    "Weekly",
+    "Monthly",
+    "Quarterly",
+    "Yearly",
+  ]
 
   return types
     .filter((t) => counts[t] > 0 || total === 1)
@@ -376,13 +498,28 @@ export function getReportTypeDistribution(reports: Report[]): TypeDistributionIt
     }))
 }
 
-export function getDepartmentMetrics(reports: Report[], members: Member[] = []): DepartmentMetricItem[] {
-  const deptMap = new Map<string, { total: number; approved: number; flagged: number; submitted: number; draft: number }>()
+export function getDepartmentMetrics(
+  reports: Report[],
+  members: Member[] = [],
+): DepartmentMetricItem[] {
+  const deptMap = new Map<string, {
+    total: number
+    approved: number
+    flagged: number
+    submitted: number
+    draft: number
+  }>()
 
   for (const r of reports) {
     const dept = r.department || "Engineering"
     if (!deptMap.has(dept)) {
-      deptMap.set(dept, { total: 0, approved: 0, flagged: 0, submitted: 0, draft: 0 })
+      deptMap.set(dept, {
+        total: 0,
+        approved: 0,
+        flagged: 0,
+        submitted: 0,
+        draft: 0,
+      })
     }
     const counts = deptMap.get(dept)!
     counts.total++
@@ -393,40 +530,70 @@ export function getDepartmentMetrics(reports: Report[], members: Member[] = []):
   }
 
   // Ensure default core departments exist
-  const coreDepts = ["Engineering", "Operations", "Finance", "Marketing", "HR", "Sales", "Legal"]
+  const coreDepts = [
+    "Engineering",
+    "Operations",
+    "Finance",
+    "Marketing",
+    "HR",
+    "Sales",
+    "Legal",
+  ]
   for (const cd of coreDepts) {
     if (!deptMap.has(cd)) {
-      deptMap.set(cd, { total: 0, approved: 0, flagged: 0, submitted: 0, draft: 0 })
+      deptMap.set(cd, {
+        total: 0,
+        approved: 0,
+        flagged: 0,
+        submitted: 0,
+        draft: 0,
+      })
     }
   }
 
-  return Array.from(deptMap.entries()).map(([department, data]) => {
-    const activeInDept = members.filter((m) => m.department.toLowerCase() === department.toLowerCase()).length || 1
-    const approvalRate = data.total > 0 ? Math.round((data.approved / data.total) * 100) : 100
-    const complianceRate = Math.min(100, Math.max(70, Math.round(approvalRate * 0.95 + 5)))
+  return Array.from(deptMap.entries())
+    .map(([department, data]) => {
+      const activeInDept =
+        members.filter(
+          (m) => m.department.toLowerCase() === department.toLowerCase(),
+        ).length || 1
+      const approvalRate =
+        data.total > 0 ? Math.round((data.approved / data.total) * 100) : 100
+      const complianceRate = Math.min(
+        100,
+        Math.max(70, Math.round(approvalRate * 0.95 + 5)),
+      )
 
-    return {
-      department,
-      total: data.total,
-      approved: data.approved,
-      flagged: data.flagged,
-      submitted: data.submitted,
-      draft: data.draft,
-      approvalRate,
-      complianceRate,
-      activeMembers: activeInDept,
-      color: DEPT_COLORS[department] || "#10b981",
-    }
-  }).sort((a, b) => b.total - a.total)
+      return {
+        department,
+        total: data.total,
+        approved: data.approved,
+        flagged: data.flagged,
+        submitted: data.submitted,
+        draft: data.draft,
+        approvalRate,
+        complianceRate,
+        activeMembers: activeInDept,
+        color: DEPT_COLORS[department] || "#10b981",
+      }
+    })
+    .sort((a, b) => b.total - a.total)
 }
 
-export function getSolarMiniGridTelemetry(reports: Report[]): EnergyTelemetryPoint[] {
+export function getSolarMiniGridTelemetry(
+  reports: Report[],
+): EnergyTelemetryPoint[] {
   const points: EnergyTelemetryPoint[] = []
 
   for (const r of reports) {
     if (r.gveData) {
       const siteName = r.gveData.siteName || "Kuka Site"
-      const date = r.gveData.date || new Date(r.submitted).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      const date =
+        r.gveData.date ||
+        new Date(r.submitted).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })
       let pvEnergy = 0
       let loadEnergy = 0
       let peakKw = 0
@@ -464,11 +631,46 @@ export function getSolarMiniGridTelemetry(reports: Report[]): EnergyTelemetryPoi
   // Provide realistic multi-day mini-grid baseline if reports only have 1 active entry
   if (points.length < 5) {
     return [
-      { date: "Jul 23", siteName: "Kuka Mini-Grid", pvEnergyKwh: 138.2, loadEnergyKwh: 115.0, peakPvKw: 13.8, avgBatterySoc: 98 },
-      { date: "Jul 24", siteName: "Kuka Mini-Grid", pvEnergyKwh: 144.5, loadEnergyKwh: 120.4, peakPvKw: 14.2, avgBatterySoc: 99 },
-      { date: "Jul 25", siteName: "Kuka Mini-Grid", pvEnergyKwh: 129.0, loadEnergyKwh: 118.6, peakPvKw: 12.9, avgBatterySoc: 96 },
-      { date: "Jul 26", siteName: "Kuka Mini-Grid", pvEnergyKwh: 152.1, loadEnergyKwh: 128.0, peakPvKw: 15.1, avgBatterySoc: 100 },
-      { date: "Jul 27", siteName: "Kuka Mini-Grid", pvEnergyKwh: 158.4, loadEnergyKwh: 131.2, peakPvKw: 15.4, avgBatterySoc: 99 },
+      {
+        date: "Jul 23",
+        siteName: "Kuka Mini-Grid",
+        pvEnergyKwh: 138.2,
+        loadEnergyKwh: 115.0,
+        peakPvKw: 13.8,
+        avgBatterySoc: 98,
+      },
+      {
+        date: "Jul 24",
+        siteName: "Kuka Mini-Grid",
+        pvEnergyKwh: 144.5,
+        loadEnergyKwh: 120.4,
+        peakPvKw: 14.2,
+        avgBatterySoc: 99,
+      },
+      {
+        date: "Jul 25",
+        siteName: "Kuka Mini-Grid",
+        pvEnergyKwh: 129.0,
+        loadEnergyKwh: 118.6,
+        peakPvKw: 12.9,
+        avgBatterySoc: 96,
+      },
+      {
+        date: "Jul 26",
+        siteName: "Kuka Mini-Grid",
+        pvEnergyKwh: 152.1,
+        loadEnergyKwh: 128.0,
+        peakPvKw: 15.1,
+        avgBatterySoc: 100,
+      },
+      {
+        date: "Jul 27",
+        siteName: "Kuka Mini-Grid",
+        pvEnergyKwh: 158.4,
+        loadEnergyKwh: 131.2,
+        peakPvKw: 15.4,
+        avgBatterySoc: 99,
+      },
       ...points,
     ]
   }
@@ -476,24 +678,36 @@ export function getSolarMiniGridTelemetry(reports: Report[]): EnergyTelemetryPoi
   return points
 }
 
-export function getTechnicianLeaderboard(reports: Report[], members: Member[]): TechnicianLeaderboardItem[] {
-  return members.map((m) => {
-    const authorReports = reports.filter((r) => (r.author || "").trim().toLowerCase() === m.name.toLowerCase())
-    const total = authorReports.length
-    const approved = authorReports.filter((r) => r.status === "Approved").length
-    const rate = total > 0 ? Math.round((approved / total) * 100) : 100
+export function getTechnicianLeaderboard(
+  reports: Report[],
+  members: Member[],
+): TechnicianLeaderboardItem[] {
+  return members
+    .map((m) => {
+      const authorReports = reports.filter(
+        (r) => (r.author || "").trim().toLowerCase() === m.name.toLowerCase(),
+      )
+      const total = authorReports.length
+      const approved = authorReports.filter(
+        (r) => r.status === "Approved",
+      ).length
+      const rate = total > 0 ? Math.round((approved / total) * 100) : 100
 
-    return {
-      id: m.id,
-      name: m.name,
-      department: m.department,
-      role: m.role,
-      initials: m.initials,
-      color: m.color,
-      reportsSubmitted: total,
-      approvalRate: rate,
-      lastActive: m.lastReport,
-      compliance: m.compliance,
-    }
-  }).sort((a, b) => b.compliance - a.compliance || b.reportsSubmitted - a.reportsSubmitted)
+      return {
+        id: m.id,
+        name: m.name,
+        department: m.department,
+        role: m.role,
+        initials: m.initials,
+        color: m.color,
+        reportsSubmitted: total,
+        approvalRate: rate,
+        lastActive: m.lastReport,
+        compliance: m.compliance,
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.compliance - a.compliance || b.reportsSubmitted - a.reportsSubmitted,
+    )
 }

@@ -1,6 +1,6 @@
 // ─── IndexedDB Offline Media & Reports Storage Engine ────────────────────────
 
-import { Report } from "../AdminView"
+import type { Report } from "../types/report"
 
 const DB_NAME = "reportflow_offline_db"
 const DB_VERSION = 1
@@ -117,6 +117,28 @@ class OfflineStorageEngine {
     }
   }
 
+  async removeAttachmentsForReport(reportId: string): Promise<void> {
+    try {
+      const db = await this.getDB()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_ATTACHMENTS, "readwrite")
+        const store = tx.objectStore(STORE_ATTACHMENTS)
+        const index = store.index("reportId")
+        const req = index.getAllKeys(reportId)
+        req.onsuccess = () => {
+          const keys = req.result
+          if (keys && keys.length > 0) {
+            keys.forEach((k) => store.delete(k))
+          }
+          resolve()
+        }
+        req.onerror = () => reject(req.error)
+      })
+    } catch (e) {
+      console.warn("Error removing attachments for report from IndexedDB:", e)
+    }
+  }
+
   async removeReport(id: string): Promise<void> {
     try {
       const db = await this.getDB()
@@ -129,6 +151,12 @@ class OfflineStorageEngine {
       })
     } catch (e) {
       // Ignore
+    }
+    // Also cascade delete any attachments stored in IndexedDB for this report
+    try {
+      await this.removeAttachmentsForReport(id)
+    } catch (e) {
+
     }
     try {
       localStorage.removeItem(`reportflow_offline_report_${id}`)

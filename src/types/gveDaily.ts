@@ -61,9 +61,20 @@ export interface GveDailyRecordData {
 export type GveKukaRecordData = GveDailyRecordData
 
 // Default initial hourly entries in 12-hour format
-export const DEFAULT_12HR_TIMES = ["07:00 AM","08:00 AM","09:00 AM",
-  "10:00 AM","11:00 AM","12:00 PM","01:00 PM","02:00 PM","03:00 PM",
-  "04:00 PM","05:00 PM","06:00 PM",]
+export const DEFAULT_12HR_TIMES = [
+  "07:00 AM",
+  "08:00 AM",
+  "09:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "01:00 PM",
+  "02:00 PM",
+  "03:00 PM",
+  "04:00 PM",
+  "05:00 PM",
+  "06:00 PM",
+]
 
 export function createEmptyGveEntry(
   time: string,
@@ -85,9 +96,12 @@ export function createEmptyGveEntry(
       energy: "",
     },
     grid: {
-      l1_v: "", l1_a: "",
-      l2_v: "", l2_c: "",
-      l3_v: "", l3_c: "",
+      l1_v: "",
+      l1_a: "",
+      l2_v: "",
+      l2_c: "",
+      l3_v: "",
+      l3_c: "",
       power: "",
       energy: "",
     },

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import localforage from "localforage"
-import { Report, REPORTS } from "../AdminView"
+import { Report } from "../types/report"
+import { REPORTS } from "../constants/defaults"
 
 // Configure localforage to use IndexedDB
 localforage.config({

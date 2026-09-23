@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import { Report } from "../AdminView"
+import type { Report } from "../types/report"
 import { ReportAttachment } from "../types/attachment"
 import { offlineStorage } from "./offlineStorage"
 import { uploadAttachmentFile } from "./storageProviders"
@@ -26,9 +26,29 @@ export function getOfflineQueue(): OfflineReportQueueItem[] {
   }
 }
 
+// Strip heavy base64 strings so localStorage quota (~5MB) is never exceeded;
+// full images are preserved safely in IndexedDB via offlineStorage.
+function sanitizeQueueForLocalStorage(
+  queue: OfflineReportQueueItem[],
+): OfflineReportQueueItem[] {
+  return queue.map((item) => ({
+    ...item,
+    report: {
+      ...item.report,
+      attachments: item.report.attachments
+        ? item.report.attachments.map((att) => ({
+            ...att,
+            dataUrl: undefined,
+          }))
+        : undefined,
+    },
+  }))
+}
+
 export function saveOfflineQueue(queue: OfflineReportQueueItem[]): void {
   try {
-    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
+    const sanitized = sanitizeQueueForLocalStorage(queue)
+    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(sanitized))
   } catch (e) {
     console.error("Failed to write offline queue to localStorage", e)
   }
@@ -50,11 +70,11 @@ export async function queueOfflineReport(
     status: "pending_sync",
   }
 
-  // Save to memory/localStorage queue
+  // Save to memory/localStorage queue (sanitized without base64 strings)
   queue.unshift(item)
   saveOfflineQueue(queue)
 
-  // Also persist in robust IndexedDB store
+  // Also persist in robust IndexedDB store with full attachments
   try {
     await offlineStorage.saveReport({
       id: tempId,
@@ -63,7 +83,7 @@ export async function queueOfflineReport(
       status: item.status,
     })
 
-    // If report has attachments, cache each attachment in IndexedDB
+    // If report has attachments, cache each attachment with its full dataUrl in IndexedDB
     if (item.report.attachments && item.report.attachments.length > 0) {
       for (const att of item.report.attachments) {
         if (att.dataUrl) {
@@ -111,19 +131,30 @@ export async function flushOfflineQueue(
       // 1. Process and upload attachments if present
       let syncedAttachments: ReportAttachment[] = []
       if (item.report.attachments && item.report.attachments.length > 0) {
+        // Fetch cached attachments from IndexedDB if dataUrl was stripped for localStorage
+        const idbAttachments = await offlineStorage.getAttachmentsForReport(
+          item.id,
+        )
+        const idbMap = new Map(idbAttachments.map((a) => [a.id, a.dataUrl]))
+
         syncedAttachments = await Promise.all(
           item.report.attachments.map(async (att) => {
             if (att.url && !att.isOfflineOnly) {
               return att
             }
 
+            const effectiveAtt = {
+              ...att,
+              dataUrl: att.dataUrl || idbMap.get(att.id) || "",
+            }
+
             try {
               const uploadRes = await uploadAttachmentFile(
-                att,
+                effectiveAtt,
                 item.report.author || "technician",
               )
               return {
-                ...att,
+                ...effectiveAtt,
                 url: uploadRes.url,
                 storagePath: uploadRes.storagePath,
                 storageProvider: uploadRes.provider,
@@ -135,8 +166,8 @@ export async function flushOfflineQueue(
                 upErr,
               )
               return {
-                ...att,
-                url: att.dataUrl || "",
+                ...effectiveAtt,
+                url: effectiveAtt.dataUrl || "",
                 storageProvider: "inline" as const,
                 isOfflineOnly: false,
               }
