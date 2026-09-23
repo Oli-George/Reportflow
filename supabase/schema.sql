@@ -52,7 +52,15 @@ ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deadlines ENABLE ROW LEVEL SECURITY;
 
--- 5. Create Secure Row Level Security Policies
+-- 5. Create Secure Row Level Security Policies & Role Functions
+
+-- Helper function to check if current user is the Super / Parent Administrator
+CREATE OR REPLACE FUNCTION public.is_super_admin_user()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (auth.jwt() ->> 'email') = 'info@gve-group.com';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Helper function to check if current user is an administrator
 CREATE OR REPLACE FUNCTION public.is_admin_user()
@@ -62,44 +70,77 @@ BEGIN
         SELECT 1 FROM public.members
         WHERE email = (auth.jwt() ->> 'email')
           AND is_admin = true
-    ) OR (auth.jwt() -> 'user_metadata' ->> 'role' = 'Admin');
+    )
+    OR (auth.jwt() ->> 'email' = 'info@gve-group.com')
+    OR (auth.jwt() -> 'app_metadata' ->> 'role' = 'Admin');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Trigger function to strictly enforce that ONLY info@gve-group.com can modify is_admin
+CREATE OR REPLACE FUNCTION public.check_admin_promotion_privilege()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (OLD.is_admin IS DISTINCT FROM NEW.is_admin) AND NOT public.is_super_admin_user() THEN
+        RAISE EXCEPTION 'Unauthorized: Only the Parent Administrator (info@gve-group.com) can promote or demote administrators.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_admin_promotion ON public.members;
+CREATE TRIGGER trg_admin_promotion
+    BEFORE UPDATE ON public.members
+    FOR EACH ROW
+    EXECUTE FUNCTION public.check_admin_promotion_privilege();
+
 -- 5.1 Members Policies
--- Everyone authenticated can view team members
+-- Authenticated staff can view team members (blocking unauthenticated scraping)
+DROP POLICY IF EXISTS "Allow authenticated read to members" ON public.members;
 CREATE POLICY "Allow authenticated read to members" 
     ON public.members FOR SELECT 
-    TO authenticated, anon
+    TO authenticated
     USING (true);
 
 -- Users can insert their initial profile upon registration
+DROP POLICY IF EXISTS "Allow authenticated user to insert member profile" ON public.members;
 CREATE POLICY "Allow authenticated user to insert member profile" 
     ON public.members FOR INSERT 
     TO authenticated
     WITH CHECK (email = (auth.jwt() ->> 'email'));
 
--- Users can ONLY update their OWN profile (Admins cannot modify another member's profile)
+-- Users can ONLY update their OWN profile
+DROP POLICY IF EXISTS "Allow users to update ONLY their own profile" ON public.members;
 CREATE POLICY "Allow users to update ONLY their own profile" 
     ON public.members FOR UPDATE 
     TO authenticated
     USING (email = (auth.jwt() ->> 'email'))
     WITH CHECK (email = (auth.jwt() ->> 'email'));
 
+-- Super Admin (info@gve-group.com) can update any member profile, including role and is_admin
+DROP POLICY IF EXISTS "Allow super admin to manage member roles and admin privileges" ON public.members;
+CREATE POLICY "Allow super admin to manage member roles and admin privileges" 
+    ON public.members FOR UPDATE 
+    TO authenticated
+    USING (public.is_super_admin_user())
+    WITH CHECK (public.is_super_admin_user());
+
 -- 5.2 Reports Policies
 -- Authenticated staff can view reports
+DROP POLICY IF EXISTS "Allow authenticated read access to reports" ON public.reports;
 CREATE POLICY "Allow authenticated read access to reports" 
     ON public.reports FOR SELECT 
     TO authenticated
     USING (true);
 
 -- Authenticated staff can submit/create reports
+DROP POLICY IF EXISTS "Allow authenticated staff to submit reports" ON public.reports;
 CREATE POLICY "Allow authenticated staff to submit reports" 
     ON public.reports FOR INSERT 
     TO authenticated
     WITH CHECK (true);
 
 -- Authors can update their own drafts/reports; Admins can update status, approvals & feedback
+DROP POLICY IF EXISTS "Allow author or admin to update reports" ON public.reports;
 CREATE POLICY "Allow author or admin to update reports" 
     ON public.reports FOR UPDATE 
     TO authenticated
@@ -111,6 +152,7 @@ CREATE POLICY "Allow author or admin to update reports"
     WITH CHECK (true);
 
 -- ONLY Administrators can delete reports (protects operational audit trails)
+DROP POLICY IF EXISTS "Allow ONLY admins to delete reports" ON public.reports;
 CREATE POLICY "Allow ONLY admins to delete reports" 
     ON public.reports FOR DELETE 
     TO authenticated
@@ -118,12 +160,14 @@ CREATE POLICY "Allow ONLY admins to delete reports"
 
 -- 5.3 Deadlines Policies
 -- All staff can view scheduled operational deadlines
+DROP POLICY IF EXISTS "Allow staff to read deadlines" ON public.deadlines;
 CREATE POLICY "Allow staff to read deadlines" 
     ON public.deadlines FOR SELECT 
     TO authenticated
     USING (true);
 
 -- ONLY Administrators can create, edit, or delete deadlines
+DROP POLICY IF EXISTS "Allow ONLY admins to manage deadlines" ON public.deadlines;
 CREATE POLICY "Allow ONLY admins to manage deadlines" 
     ON public.deadlines FOR ALL 
     TO authenticated
@@ -135,18 +179,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.reports;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.members;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.deadlines;
 
--- 7. Supabase Storage Bucket for Report Attachments
--- To enable remote Supabase Storage for report photos:
--- In Supabase Dashboard -> Storage -> Create New Bucket -> "report-attachments" (Set to Public)
--- Or run:
+-- 7. Guarantee info@gve-group.com is Super Administrator
+INSERT INTO public.members (name, email, role, department, compliance, initials, color, is_admin)
+VALUES ('GVE Operations Lead', 'info@gve-group.com', 'Super Administrator', 'Management', 100, 'GV', '#005030', true)
+ON CONFLICT (email) DO UPDATE SET is_admin = true, role = 'Super Administrator';
+
+-- 8. Supabase Storage Bucket for Report Attachments
+-- Ensure bucket exists
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('report-attachments', 'report-attachments', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Allow public uploads to report-attachments bucket"
+-- Authenticated staff only can upload photos (blocking anonymous spam)
+DROP POLICY IF EXISTS "Allow public uploads to report-attachments bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated uploads to report-attachments bucket" ON storage.objects;
+CREATE POLICY "Allow authenticated uploads to report-attachments bucket"
 ON storage.objects FOR INSERT
+TO authenticated
 WITH CHECK (bucket_id = 'report-attachments');
 
+-- Public reads so watermarked audit photos can be viewed in browser & reports
+DROP POLICY IF EXISTS "Allow public reads from report-attachments bucket" ON storage.objects;
 CREATE POLICY "Allow public reads from report-attachments bucket"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'report-attachments');

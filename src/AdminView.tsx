@@ -1,26 +1,35 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, lazy } from "react"
 
-import GveDailyHourlyForm from "./components/GveHourlyForm"
-import GveWeeklyForm from "./components/GveWeeklyForm"
-import GveQuarterlyForm from "./components/GveQuarterlyForm"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
-import { GveDailyRecordData } from "./types/gveDaily"
-import { GveWeeklyRecordData } from "./types/gveWeekly"
-import { GveQuarterlyRecordData, createEmptyGveQuarterlyData } from "./types/gveQuarterly"
-import { ReportAttachment } from "./types/attachment"
-import logoImg from "./components/logo.jpeg"
+
 import {
-  ContrastIcon, GridIcon, FileIcon,
-  UsersIcon, ChartIcon, BellIcon,
-  CalendarIcon, TrashIcon, AlertIcon,
+  GveQuarterlyRecordData,
+  createEmptyGveQuarterlyData,
+} from "./types/gveQuarterly"
+
+import { ReportAttachment } from "./types/attachment"
+
+import logoImg from "./components/logo.jpeg"
+
+import {
+  ContrastIcon, GridIcon, FileIcon, UsersIcon,
+  ChartIcon, BellIcon, CalendarIcon, TrashIcon,
+  AlertIcon, ShieldCheckIcon, ShieldIcon, KeyIcon,
 } from "./components/Icons"
+
+import { supabase } from "./lib/supabase"
 import SettingsModal from "./components/SettingsModal"
 import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
+
 import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
+
 import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
+
 import ReportDistributionChart from "./components/analytics/ReportDistributionChart"
+
 import SiteEnergyAnalytics from "./components/analytics/SiteEnergyAnalytics"
 import DepartmentComplianceTable from "./components/analytics/DepartmentComplianceTable"
+
 import {
   AnalyticsFilter, filterReports,
   calculateKPIs, getSubmissionVelocity,
@@ -28,145 +37,20 @@ import {
   getSolarMiniGridTelemetry, getTechnicianLeaderboard,
 } from "./lib/analyticsCalculator"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+import type { Report, ReportStatus, ReportType } from "./types/report"
+import type { Member } from "./types/member"
+import type { Deadline } from "./types/deadline"
+import type { View } from "./types/view"
 
-export type View = "dashboard" | "reports" | "teams" | "analytics"
-export type ReportStatus = "Approved" | "Submitted" | "Draft" | "Flagged"
-export type ReportType = "Daily" | "Weekly" | "Monthly" | "Quarterly" | "Yearly"
-export interface Report {
-  id: number
-  title: string
-  author: string
-  department: string
-  type: ReportType
-  submitted: Date
-  status: ReportStatus
-  summary: string
-  feedback?: string
-  attachments?: ReportAttachment[]
-  gveData?: GveDailyRecordData
-  gveWeeklyData?: GveWeeklyRecordData
-  gveQuarterlyData?: GveQuarterlyRecordData
-}
+import { isWithinPastMonth, formatDeadlineDate, getDeadlineUrgency } from "./lib/dateUtils"
+import { Badge } from "./components/StatusBadge"
+import { MEMBERS, DEFAULT_DEADLINES, DEPARTMENTS } from "./constants/defaults"
 
-export function isWithinPastMonth(date: Date | string) {
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-  const submittedTime = new Date(date).getTime()
+const GveDailyHourlyForm = lazy(() => import("./components/GveHourlyForm"))
 
-  return new Date().getTime() - submittedTime <= thirtyDaysMs
-}
+const GveWeeklyForm = lazy(() => import("./components/GveWeeklyForm"))
 
-export interface Member {
-  id: number
-  name: string
-  role: string
-  department: string
-  lastReport: Date
-  compliance: number
-  initials: string
-  color: string
-}
-
-export interface Deadline {
-  id: number
-  title: string
-  department: string
-  dueDate: string
-  description?: string
-  priority?: "High" | "Medium" | "Low"
-  createdAt?: string
-}
-
-export function formatDeadlineDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"))
-
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  } catch (e) {
-    return dateStr
-  }
-}
-
-export function getDeadlineUrgency(
-  dateStr: string,
-): { label: string; isOverdue: boolean; isUrgent: boolean } {
-  try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const due = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"))
-    due.setHours(0, 0, 0, 0)
-    const diffDays = Math.round(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-    )
-
-    if (diffDays < 0) {
-      return {
-        label: `Overdue (${Math.abs(diffDays)}d ago)`,
-        isOverdue: true,
-        isUrgent: true,
-      }
-    } else if (diffDays === 0) {
-      return { label: "Due Today", isOverdue: false, isUrgent: true }
-    } else if (diffDays === 1) {
-      return { label: "Due Tomorrow", isOverdue: false, isUrgent: true }
-    } else if (diffDays <= 3) {
-      return {
-        label: `Due in ${diffDays} days`,
-        isOverdue: false,
-        isUrgent: true,
-      }
-    } else {
-      return { label: `In ${diffDays} days`, isOverdue: false, isUrgent: false }
-    }
-  } catch (e) {
-    return { label: dateStr, isOverdue: false, isUrgent: false }
-  }
-}
-
-export const DEFAULT_DEADLINES: Deadline[] = [
-  {
-    id: 1,
-    title: "Weekly Site Operational Log",
-    department: "Engineering",
-    dueDate: "2026-08-28",
-    priority: "High",
-    description:
-      "Submission of all 12-hour solar PV, inverter remarks, and battery bank parameters.",
-  },
-
-  {
-    id: 2,
-    title: "Q3 Facility & Safety Audit",
-    department: "Operations",
-    dueDate: "2026-08-30",
-    priority: "Medium",
-    description: "Quarterly inspection of fire suppression and earthing grids.",
-  },
-
-  {
-    id: 3,
-    title: "Monthly Capex & Field Reconciliation",
-    department: "Finance",
-    dueDate: "2026-08-31",
-    priority: "High",
-    description:
-      "Reconciliation of site diesel procurement and technician allowances.",
-  },
-
-  {
-    id: 4,
-    title: "Monthly Performance & KPI Review",
-    department: "All Departments",
-    dueDate: "2026-08-31",
-    priority: "Medium",
-    description:
-      "General monthly reporting cycle across all departmental teams.",
-  },
-]
+const GveQuarterlyForm = lazy(() => import("./components/GveQuarterlyForm"))
 
 export interface AdminViewProps {
   reports: Report[]
@@ -174,6 +58,10 @@ export interface AdminViewProps {
   setReports: React.Dispatch<React.SetStateAction<Report[]>>
 
   members?: Member[]
+
+  setMembers?: React.Dispatch<React.SetStateAction<Member[]>>
+
+  currentUserEmail?: string
 
   deadlines?: Deadline[]
 
@@ -190,454 +78,9 @@ export interface AdminViewProps {
   onToggleSunlightMode?: () => void
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
 
-export const REPORTS: Report[] = [
-  {
-    id: 1,
-    title: "GVE KUKA Site Hourly Record — Jul 27",
-    author: "Amara Osei",
-    department: "Engineering",
-    type: "Daily",
-    submitted: new Date("2026-07-27T00:00:00Z"),
-
-    status: "Approved",
-
-    summary:
-      "Official physical GVE KUKA Site Operational Hourly Record sheet filled out with 12-hour solar PV, battery storage, site load, and grid parameters.",
-
-    gveData: {
-      siteName: "GVE KUKA SITE",
-
-      title: "GVE KUKA Site Hourly Record",
-
-      date: "2026-07-27",
-
-      day: "Monday",
-
-      year: "2026",
-
-      entries: [
-        {
-          id: "e1",
-          time: "06:00 AM",
-          pv: { volt: "420", curr: "12.5", power: "5.25", energy: "5.25" },
-          battery: { volt: "51.2", curr: "24.0", soc: "85", soh: "99" },
-          load: {
-            l1_v: "230",
-            l1_a: "8.5",
-            l2_v: "231",
-            l2_c: "8.2",
-            l3_v: "229",
-            l3_c: "8.4",
-            power: "5.8",
-            energy: "5.8",
-          },
-          grid: {
-            l1_v: "0",
-            l1_a: "0",
-            l2_v: "0",
-            l2_c: "0",
-            l3_v: "0",
-            l3_c: "0",
-            power: "0",
-            energy: "0",
-          },
-          spd: { in: "GOOD", out: "GOOD" },
-          cooling: { ac1: "ON", ac2: "ON" },
-          operatorName: "Amara Osei",
-        },
-
-        {
-          id: "e2",
-          time: "07:00 AM",
-          pv: { volt: "435", curr: "18.2", power: "7.91", energy: "13.16" },
-          battery: { volt: "52.0", curr: "31.5", soc: "90", soh: "99" },
-          load: {
-            l1_v: "230",
-            l1_a: "9.1",
-            l2_v: "230",
-            l2_c: "9.0",
-            l3_v: "231",
-            l3_c: "8.9",
-            power: "6.2",
-            energy: "12.0",
-          },
-          grid: {
-            l1_v: "0",
-            l1_a: "0",
-            l2_v: "0",
-            l2_c: "0",
-            l3_v: "0",
-            l3_c: "0",
-            power: "0",
-            energy: "0",
-          },
-          spd: { in: "GOOD", out: "GOOD" },
-          cooling: { ac1: "ON", ac2: "ON" },
-          operatorName: "Amara Osei",
-        },
-
-        {
-          id: "e3",
-          time: "08:00 AM",
-          pv: { volt: "450", curr: "25.0", power: "11.25", energy: "24.41" },
-          battery: { volt: "53.5", curr: "42.0", soc: "96", soh: "99" },
-          load: {
-            l1_v: "231",
-            l1_a: "11.0",
-            l2_v: "231",
-            l2_c: "10.8",
-            l3_v: "230",
-            l3_c: "11.2",
-            power: "7.6",
-            energy: "19.6",
-          },
-          grid: {
-            l1_v: "0",
-            l1_a: "0",
-            l2_v: "0",
-            l2_c: "0",
-            l3_v: "0",
-            l3_c: "0",
-            power: "0",
-            energy: "0",
-          },
-          spd: { in: "GOOD", out: "GOOD" },
-          cooling: { ac1: "ON", ac2: "ON" },
-          operatorName: "Amara Osei",
-        },
-
-        {
-          id: "e4",
-          time: "09:00 AM",
-          pv: { volt: "460", curr: "30.4", power: "13.98", energy: "38.39" },
-          battery: { volt: "54.1", curr: "15.0", soc: "100", soh: "99" },
-          load: {
-            l1_v: "230",
-            l1_a: "14.2",
-            l2_v: "229",
-            l2_c: "14.0",
-            l3_v: "230",
-            l3_c: "14.1",
-            power: "9.7",
-            energy: "29.3",
-          },
-          grid: {
-            l1_v: "0",
-            l1_a: "0",
-            l2_v: "0",
-            l2_c: "0",
-            l3_v: "0",
-            l3_c: "0",
-            power: "0",
-            energy: "0",
-          },
-          spd: { in: "GOOD", out: "GOOD" },
-          cooling: { ac1: "ON", ac2: "ON" },
-          operatorName: "Amara Osei",
-        },
-
-        {
-          id: "e5",
-          time: "10:00 AM",
-          pv: { volt: "465", curr: "32.1", power: "14.92", energy: "53.31" },
-          battery: { volt: "54.2", curr: "5.0", soc: "100", soh: "99" },
-          load: {
-            l1_v: "230",
-            l1_a: "16.0",
-            l2_v: "231",
-            l2_c: "15.8",
-            l3_v: "230",
-            l3_c: "16.1",
-            power: "11.0",
-            energy: "40.3",
-          },
-          grid: {
-            l1_v: "0",
-            l1_a: "0",
-            l2_v: "0",
-            l2_c: "0",
-            l3_v: "0",
-            l3_c: "0",
-            power: "0",
-            energy: "0",
-          },
-          spd: { in: "GOOD", out: "GOOD" },
-          cooling: { ac1: "ON", ac2: "ON" },
-          operatorName: "Amara Osei",
-        },
-      ],
-    },
-  },
-
-  {
-    id: 2,
-    title: "Campaign Performance — July",
-    author: "Lena Brandt",
-    department: "Marketing",
-    type: "Monthly",
-    submitted: new Date("2026-07-24T00:00:00Z"),
-    status: "Submitted",
-    summary:
-      "Email open rate at 31.4%, up from 27.1% in June. LinkedIn ad spend delivered 14% lower CPL. Retargeting cohort underperforming — recommend budget reallocation.",
-  },
-
-  {
-    id: 3,
-    title: "Daily Ops Standup — Jul 27",
-    author: "Marcus Chen",
-    department: "Operations",
-    type: "Daily",
-    submitted: new Date("2026-07-27T00:00:00Z"),
-    status: "Approved",
-    summary:
-      "Fulfillment at 98.2% on-time. One supplier delay flagged for packaging materials — estimated 3-day impact. Escalated to procurement.",
-  },
-
-  {
-    id: 4,
-    title: "H1 Budget Reconciliation",
-    author: "Priya Nair",
-    department: "Finance",
-    type: "Yearly",
-    submitted: new Date("2026-07-22T00:00:00Z"),
-    status: "Flagged",
-    summary:
-      "Variance of $142k identified in Engineering capex line. Pending clarification from department heads. CFO review scheduled Jul 30.",
-  },
-
-  {
-    id: 5,
-    title: "Talent Pipeline — July",
-    author: "James Okafor",
-    department: "HR",
-    type: "Monthly",
-    submitted: new Date("2026-07-23T00:00:00Z"),
-    status: "Submitted",
-    summary:
-      "7 open roles across Engineering and Sales. Offer acceptance rate at 88%. Two senior hires in final-round interviews.",
-  },
-
-  {
-    id: 6,
-    title: "Deployment Log — Jul 27",
-    author: "Sofia Alvarez",
-    department: "Engineering",
-    type: "Daily",
-    submitted: new Date("2026-07-27T00:00:00Z"),
-    status: "Submitted",
-    summary:
-      "Service mesh upgrade in staging. No production deployments today. Canary tests for payment service running at 5% traffic split.",
-  },
-
-  {
-    id: 7,
-    title: "Weekly Sales Summary — W30",
-    author: "Daniel Ruiz",
-    department: "Sales",
-    type: "Weekly",
-    submitted: new Date("2026-07-25T00:00:00Z"),
-    status: "Approved",
-    summary:
-      "Closed $480k ARR this week. Pipeline at $2.1M. Three enterprise deals slipped to August. Renewal rate holding at 94%.",
-  },
-
-  {
-    id: 8,
-    title: "Compliance Audit — Q2",
-    author: "Yuki Tanaka",
-    department: "Legal",
-    type: "Yearly",
-    submitted: new Date("2026-07-20T00:00:00Z"),
-    status: "Approved",
-    summary:
-      "Zero critical findings. Two low-severity observations addressed inline. SOC2 Type II audit window opens August 12.",
-  },
-
-  {
-    id: 9,
-    title: "Site Quarterly Maintenance Template — Q2 Audit",
-    author: "George (Admin)",
-    department: "Engineering",
-    type: "Quarterly",
-    submitted: new Date("2026-07-28T00:00:00Z"),
-    status: "Approved",
-    summary:
-      "Official Site Quarterly Maintenance Audit Report covering general power plant condition, support structures, PV arrays, indoor/outdoor switchgear, MPPTs, CL/Battery inverters, BESS strings, grid distribution, earthing system, equipment maintenance, and PPE/tool inventories.",
-    gveQuarterlyData: createEmptyGveQuarterlyData(),
-  },
-]
-
-export const MEMBERS: Member[] = [
-  {
-    id: 1,
-    name: "Amara Osei",
-    role: "Senior Engineer",
-    department: "Engineering",
-    lastReport: new Date("2026-07-27"),
-    compliance: 98,
-    initials: "AO",
-    color: "#005030",
-  },
-
-  {
-    id: 2,
-    name: "Lena Brandt",
-    role: "Marketing Lead",
-    department: "Marketing",
-    lastReport: new Date("2026-07-24T00:00:00Z"),
-    compliance: 92,
-    initials: "LB",
-    color: "#1a5c40",
-  },
-
-  {
-    id: 3,
-    name: "Marcus Chen",
-    role: "Ops Manager",
-    department: "Operations",
-    lastReport: new Date("2026-07-27T00:00:00Z"),
-    compliance: 100,
-    initials: "MC",
-    color: "#005030",
-  },
-
-  {
-    id: 4,
-    name: "Priya Nair",
-    role: "Finance Director",
-    department: "Finance",
-    lastReport: new Date("2026-07-22T00:00:00Z"),
-    compliance: 87,
-    initials: "PN",
-    color: "#7a4010",
-  },
-
-  {
-    id: 5,
-    name: "James Okafor",
-    role: "HR Manager",
-    department: "HR",
-    lastReport: new Date("2026-07-23T00:00:00Z"),
-    compliance: 95,
-    initials: "JO",
-    color: "#1a5c40",
-  },
-
-  {
-    id: 6,
-    name: "Sofia Alvarez",
-    role: "Staff Engineer",
-    department: "Engineering",
-    lastReport: new Date("2026-07-27T00:00:00Z"),
-    compliance: 90,
-    initials: "SA",
-    color: "#005030",
-  },
-
-  {
-    id: 7,
-    name: "Daniel Ruiz",
-    role: "Account Executive",
-    department: "Sales",
-    lastReport: new Date("2026-07-25T00:00:00Z"),
-    compliance: 96,
-    initials: "DR",
-    color: "#1a5c40",
-  },
-
-  {
-    id: 8,
-    name: "Yuki Tanaka",
-    role: "Legal Counsel",
-    department: "Legal",
-    lastReport: new Date("2026-07-20T00:00:00Z"),
-    compliance: 100,
-    initials: "YT",
-    color: "#005030",
-  },
-
-  {
-    id: 9,
-    name: "Felix Wagner",
-    role: "Backend Engineer",
-    department: "Engineering",
-    lastReport: new Date("2026-07-26T00:00:00Z"),
-    compliance: 83,
-    initials: "FW",
-    color: "#7a4010",
-  },
-
-  {
-    id: 10,
-    name: "Chioma Eze",
-    role: "Brand Designer",
-    department: "Marketing",
-    lastReport: new Date("2026-07-25T00:00:00Z"),
-    compliance: 91,
-    initials: "CE",
-    color: "#1a5c40",
-  },
-
-  {
-    id: 11,
-    name: "Raj Mehta",
-    role: "Data Analyst",
-    department: "Finance",
-    lastReport: new Date("2026-07-24T00:00:00Z"),
-    compliance: 94,
-    initials: "RM",
-    color: "#005030",
-  },
-
-  {
-    id: 12,
-    name: "Nadia Kowalski",
-    role: "Recruiter",
-    department: "HR",
-    lastReport: new Date("2026-07-22T00:00:00Z"),
-    compliance: 88,
-    initials: "NK",
-    color: "#1a5c40",
-  },
-]
-
-const DEPARTMENTS = [
-  "All",
-  "Engineering",
-  "Marketing",
-  "Finance",
-  "Operations",
-  "HR",
-
-  "Sales",
-
-  "Legal",
-]
 
 // ─── Shared Components ────────────────────────────────────────────────────────
-
-const statusColor: Record<ReportStatus | string, string> = {
-  Approved: "bg-emerald-900/60 text-emerald-300 border-emerald-700/50",
-
-  Submitted: "bg-blue-900/40 text-blue-300 border-blue-700/40",
-
-  Draft: "bg-zinc-800/60 text-zinc-400 border-zinc-700/40",
-
-  Flagged: "bg-amber-900/40 text-amber-300 border-amber-700/40",
-}
-
-export function Badge({ status }: { status: string }) {
-  const statusKey = status.toLowerCase()
-  return (
-    <span
-      className={`badge-status badge-${statusKey} inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${statusColor[status] ?? "bg-zinc-800 text-zinc-400 border-zinc-700"}`}
-    >
-      {status}
-    </span>
-  )
-}
 
 function StatCard({
   label,
@@ -699,19 +142,31 @@ const NAV = [
 
 function Sidebar({
   active,
+
   onChange,
+
   collapsed,
+
   onLogout,
+
   topOffset = 0,
+
   sidebarW,
+
   onOpenSettings,
 }: {
   active: View
+
   onChange: (v: View) => void
+
   collapsed: boolean
+
   onLogout?: () => void
+
   topOffset?: number
+
   sidebarW?: number
+
   onOpenSettings?: () => void
 }) {
   return (
@@ -719,9 +174,13 @@ function Sidebar({
       className="fixed left-0 flex flex-col border-r z-20 transition-all duration-200"
       style={{
         top: topOffset,
+
         height: topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh",
+
         width: sidebarW ?? (collapsed ? 56 : 240),
+
         backgroundColor: "var(--card)",
+
         borderColor: "var(--border)",
       }}
     >
@@ -768,16 +227,21 @@ function Sidebar({
               key={id}
               onClick={() => onChange(id as View)}
               className={`flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                isActive ? "sidebar-nav-active font-semibold shadow-sm" : "sidebar-nav-inactive"
+                isActive
+                  ? "sidebar-nav-active font-semibold shadow-sm"
+                  : "sidebar-nav-inactive"
               }`}
               style={{
                 backgroundColor: isActive ? "#00754a" : "transparent",
-                color: isActive
-                  ? "#ffffff"
-                  : "var(--muted-foreground)",
+
+                color: isActive ? "#ffffff" : "var(--muted-foreground)",
+
                 justifyContent: collapsed ? "center" : "flex-start",
+
                 gap: collapsed ? 0 : 10,
+
                 width: "100%",
+
                 minHeight: 36,
               }}
               onMouseEnter={(e) => {
@@ -825,6 +289,7 @@ function Sidebar({
               className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-mono font-semibold group-hover/user:scale-105 transition-transform"
               style={{
                 backgroundColor: "var(--primary)",
+
                 color: "var(--primary-foreground)",
               }}
             >
@@ -838,9 +303,7 @@ function Sidebar({
                 >
                   George
                 </p>
-                <p
-                  className="text-[10px] truncate text-muted-foreground"
-                >
+                <p className="text-[10px] truncate text-muted-foreground">
                   IT Dept
                 </p>
               </div>
@@ -850,6 +313,7 @@ function Sidebar({
             <button
               onClick={(e) => {
                 e.stopPropagation()
+
                 onLogout()
               }}
               className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors shrink-0"
@@ -877,6 +341,7 @@ function Sidebar({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
+
               onLogout()
             }}
             className="w-full py-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-accent transition-colors flex justify-center cursor-pointer"
@@ -933,12 +398,19 @@ function Header({
   onToggleSunlightMode,
 }: {
   view: View
+
   sidebarW: number
+
   searchQuery: string
+
   onSearchChange: (q: string) => void
+
   onOpenCreateModal: () => void
+
   topOffset?: number
+
   sunlightMode?: boolean
+
   onToggleSunlightMode?: () => void
 }) {
   return (
@@ -946,14 +418,19 @@ function Header({
       className="fixed right-0 flex items-center justify-between px-4 sm:px-6 gap-3 sm:gap-6 border-b z-10 transition-all duration-200"
       style={{
         top: topOffset,
+
         left: sidebarW,
+
         height: 56,
+
         backgroundColor: "var(--background)",
+
         borderColor: "var(--border)",
       }}
     >
       <div className="flex items-center gap-3 shrink-0">
-        <h1 className="font-display font-600 text-base sm:text-lg whitespace-nowrap shrink-0"
+        <h1
+          className="font-display font-600 text-base sm:text-lg whitespace-nowrap shrink-0"
           style={{ color: "var(--foreground)" }}
         >
           {VIEW_TITLES[view]}
@@ -976,11 +453,21 @@ function Header({
             className="sunlight-toggle-btn flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-all cursor-pointer shadow-xs hover:opacity-90 shrink-0 border"
             style={{
               backgroundColor: sunlightMode ? "#003822" : "var(--secondary)",
+
               color: sunlightMode ? "#ffffff" : "var(--foreground)",
+
               borderColor: sunlightMode ? "transparent" : "var(--border)",
             }}
-            title={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
-            aria-label={sunlightMode ? "Switch to Standard Mode" : "Switch to Sunlight Mode"}
+            title={
+              sunlightMode
+                ? "Switch to Standard Mode"
+                : "Switch to Sunlight Mode"
+            }
+            aria-label={
+              sunlightMode
+                ? "Switch to Standard Mode"
+                : "Switch to Sunlight Mode"
+            }
           >
             <ContrastIcon className="w-4 h-4 shrink-0" />
             <span className="hidden xl:inline">
@@ -990,14 +477,23 @@ function Header({
         )}
 
         {/* Search Bar */}
-        <div className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-27.5 max-w-xs"
+        <div
+          className="flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm shrink min-w-27.5 max-w-xs"
           style={{
             borderColor: searchQuery ? "var(--primary-hover)" : "var(--border)",
+
             backgroundColor: "var(--card)",
+
             color: "var(--muted-foreground)",
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 13 13"
+            fill="none"
+            className="shrink-0"
+          >
             <circle
               cx="5.5"
               cy="5.5"
@@ -1012,7 +508,10 @@ function Header({
               strokeLinecap="round"
             />
           </svg>
-          <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)}
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search reports…"
             className="search-bar-input bg-transparent border-none outline-none text-xs sm:text-sm text-foreground placeholder:text-muted-foreground w-16 sm:w-28 md:w-36 lg:w-44 focus:w-28 sm:focus:w-36 md:focus:w-48 transition-all min-w-0"
           />
@@ -1026,18 +525,22 @@ function Header({
           )}
         </div>
 
-        <button className="relative p-1.5 rounded-md transition-colors shrink-0"
+        <button
+          className="relative p-1.5 rounded-md transition-colors shrink-0"
           style={{ color: "var(--muted-foreground)" }}
           aria-label="Notifications"
         >
           <BellIcon size={16} />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
+          <span
+            className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
             style={{ backgroundColor: "var(--accent)" }}
           />
         </button>
-        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono shrink-0"
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono shrink-0"
           style={{
             backgroundColor: "var(--primary)",
+
             color: "var(--primary-foreground)",
           }}
         >
@@ -1052,17 +555,27 @@ function Header({
 
 function DashboardView({
   reports,
+
   onInspect,
+
   searchQuery,
+
   deadlines = [],
+
   onOpenDeadlineModal,
+
   onDeleteDeadline,
 }: {
   reports: Report[]
+
   onInspect: (r: Report) => void
+
   searchQuery: string
+
   deadlines?: Deadline[]
+
   onOpenDeadlineModal?: () => void
+
   onDeleteDeadline?: (id: number) => void
 }) {
   const [selectedDeadlineId, setSelectedDeadlineId] = useState<number | null>(
@@ -1070,13 +583,18 @@ function DashboardView({
   )
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
-  const [activityFilter, setActivityFilter] = useState<
-    "all" | "Submitted" | "Approved" | "Flagged"
-  >("all")
+
+  const [activityFilter, setActivityFilter] =
+    useState<"all" | "Submitted" | "Approved" | "Flagged">("all")
 
   // Strictly enforce non-draft reports in DashboardView
+
   const nonDraftReports = useMemo(
-    () => reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft"),
+    () =>
+      reports.filter(
+        (r) => r.status && r.status.toLowerCase().trim() !== "draft",
+      ),
+
     [reports],
   )
 
@@ -1095,23 +613,35 @@ function DashboardView({
   }, [nonDraftReports, searchQuery])
 
   // Sort real report activities chronologically (newest first, strictly EXCLUDING Drafts)
+
   const sortedActivities = useMemo(() => {
     const list = [...nonDraftReports].sort(
       (a, b) =>
         new Date(b.submitted).getTime() - new Date(a.submitted).getTime(),
     )
+
     if (activityFilter === "all") return list
+
     return list.filter((r) => r.status === activityFilter)
   }, [nonDraftReports, activityFilter])
 
   const recent = filteredReports.slice(0, 5)
+
   const now = new Date()
 
   let options = { day: "numeric", month: "short", year: "numeric" } as const
+
   let today = now.toLocaleDateString("en-US", options)
+
   const totalCount = nonDraftReports.length
-  const pendingCount = nonDraftReports.filter((r) => r.status === "Submitted").length
-  const flaggedCount = nonDraftReports.filter((r) => r.status === "Flagged").length
+
+  const pendingCount = nonDraftReports.filter(
+    (r) => r.status === "Submitted",
+  ).length
+
+  const flaggedCount = nonDraftReports.filter(
+    (r) => r.status === "Flagged",
+  ).length
 
   const teamCount = MEMBERS.length
 
@@ -1124,16 +654,19 @@ function DashboardView({
           value={totalCount.toString()}
           sub="Total submitted & filed"
         />
-        <StatCard label="Pending Approval"
+        <StatCard
+          label="Pending Approval"
           value={pendingCount.toString()}
           sub="Needs review"
           accent
         />
-        <StatCard label="Open Issues"
+        <StatCard
+          label="Open Issues"
           value={flaggedCount.toString()}
           sub="Flagged items"
         />
-        <StatCard label="Team Members"
+        <StatCard
+          label="Team Members"
           value={teamCount.toString()}
           sub="Active reporters"
         />
@@ -1146,6 +679,7 @@ function DashboardView({
           className="lg:col-span-3 rounded-lg border flex flex-col"
           style={{
             backgroundColor: "var(--card)",
+
             borderColor: "var(--border)",
           }}
         >
@@ -1171,7 +705,8 @@ function DashboardView({
             style={{ borderColor: "var(--border)" }}
           >
             {recent.map((r) => (
-              <div key={r.id}
+              <div
+                key={r.id}
                 onClick={() => onInspect(r)}
                 className="px-5 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white/5 cursor-pointer"
               >
@@ -1212,14 +747,16 @@ function DashboardView({
         {/* Right column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Deadlines */}
-          <div className="rounded-lg border"
+          <div
+            className="rounded-lg border"
             style={{
               backgroundColor: "var(--card)",
 
               borderColor: "var(--border)",
             }}
           >
-            <div className="px-5 py-3.5 border-b flex items-center justify-between"
+            <div
+              className="px-5 py-3.5 border-b flex items-center justify-between"
               style={{ borderColor: "var(--border)" }}
             >
               <div className="flex items-center gap-2">
@@ -1261,11 +798,15 @@ function DashboardView({
                       new Date(a.dueDate).getTime() -
                       new Date(b.dueDate).getTime(),
                   )
+
                   .map((d) => {
                     const urgency = getDeadlineUrgency(d.dueDate)
+
                     const isSelected = selectedDeadlineId === d.id
+
                     return (
-                      <div key={d.id}
+                      <div
+                        key={d.id}
                         onClick={() => {
                           setSelectedDeadlineId((prev) =>
                             prev === d.id ? null : d.id,
@@ -1295,7 +836,9 @@ function DashboardView({
                                 </span>
                               ) : d.priority === "Medium" ? (
                                 <span className="priority-badge-medium px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                                  <span className="hidden sm:inline">MEDIUM</span>
+                                  <span className="hidden sm:inline">
+                                    MEDIUM
+                                  </span>
                                   <span className="sm:hidden">MED</span>
                                 </span>
                               ) : (
@@ -1330,13 +873,15 @@ function DashboardView({
                             >
                               {formatDeadlineDate(d.dueDate)}
                             </span>
-                            <span className={`text-[11px] font-mono font-semibold block mt-0.5 ${
-                              urgency.isOverdue
-                                ? "text-rose-400"
-                                : urgency.isUrgent
-                                  ? "text-amber-400"
-                                  : "text-emerald-400"
-                            }`}>
+                            <span
+                              className={`text-[11px] font-mono font-semibold block mt-0.5 ${
+                                urgency.isOverdue
+                                  ? "text-rose-400"
+                                  : urgency.isUrgent
+                                    ? "text-amber-400"
+                                    : "text-emerald-400"
+                              }`}
+                            >
                               {urgency.label}
                             </span>
                           </div>
@@ -1393,6 +938,7 @@ function DashboardView({
             className="rounded-lg border flex flex-col"
             style={{
               backgroundColor: "var(--card)",
+
               borderColor: "var(--border)",
             }}
           >
@@ -1416,27 +962,30 @@ function DashboardView({
 
               {/* Quick status filters */}
               <div className="flex items-center gap-1 bg-secondary/50 p-0.5 rounded border border-border/50 text-[10px] font-mono">
-                {(
-                  [
-                    { id: "all", label: "All" },
-                    { id: "Submitted", label: "Submissions" },
-                    { id: "Approved", label: "Approved" },
-                    { id: "Flagged", label: "Flagged" },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActivityFilter(tab.id)}
-                    className={`px-2 py-0.5 rounded transition-colors ${
-                      activityFilter === tab.id
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {([
+                  { id: "all", label: "All" },
+
+                  { id: "Submitted", label: "Submissions" },
+
+                  { id: "Approved", label: "Approved" },
+
+                  { id: "Flagged", label: "Flagged" },
+                ] as const)
+
+                  .map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActivityFilter(tab.id)}
+                      className={`px-2 py-0.5 rounded transition-colors ${
+                        activityFilter === tab.id
+                          ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
               </div>
             </div>
 
@@ -1449,6 +998,7 @@ function DashboardView({
               ) : (
                 sortedActivities.slice(0, 10).map((r) => {
                   const isFlagged = r.status === "Flagged"
+
                   const isApproved = r.status === "Approved"
 
                   let actionText = (
@@ -1481,22 +1031,30 @@ function DashboardView({
                   }
 
                   // Compute relative time
+
                   let relativeTime = "Recently"
+
                   try {
                     const d = new Date(r.submitted)
+
                     const diffMs = Date.now() - d.getTime()
+
                     const diffMins = Math.floor(diffMs / 60000)
+
                     if (diffMins < 1) relativeTime = "Just now"
                     else if (diffMins < 60) relativeTime = `${diffMins}m ago`
                     else {
                       const diffHours = Math.floor(diffMins / 60)
+
                       if (diffHours < 24) relativeTime = `${diffHours}h ago`
                       else {
                         const diffDays = Math.floor(diffHours / 24)
+
                         if (diffDays < 7) relativeTime = `${diffDays}d ago`
                         else
                           relativeTime = d.toLocaleDateString("en-US", {
                             month: "short",
+
                             day: "numeric",
                           })
                       }
@@ -1564,17 +1122,25 @@ function DashboardView({
 
 const REPORT_TYPES: (ReportType | "All")[] = [
   "All",
+
   "Daily",
+
   "Weekly",
+
   "Monthly",
+
   "Quarterly",
+
   "Yearly",
 ]
 
 const REPORT_STATUSES: (Exclude<ReportStatus, "Draft"> | "All")[] = [
   "All",
+
   "Approved",
+
   "Submitted",
+
   "Flagged",
 ]
 
@@ -1605,7 +1171,8 @@ function ReportsView({
 }) {
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All")
 
-  const [statusFilter, setStatusFilter] = useState<Exclude<ReportStatus, "Draft"> | "All">("All")
+  const [statusFilter, setStatusFilter] =
+    useState<Exclude<ReportStatus, "Draft"> | "All">("All")
 
   const [expanded, setExpanded] = useState<number | null>(null)
 
@@ -1766,7 +1333,9 @@ function ReportsView({
               >
                 {r.submitted.toLocaleDateString("en-US", {
                   month: "short",
+
                   day: "numeric",
+
                   year: "numeric",
                 })}
               </span>
@@ -1823,6 +1392,7 @@ function ReportsView({
                       className="text-xs font-mono px-3 py-1.5 rounded transition-colors"
                       style={{
                         backgroundColor: "var(--primary)",
+
                         color: "var(--primary-foreground)",
                       }}
                     >
@@ -1860,21 +1430,128 @@ function ReportsView({
 
 // ─── Team View ────────────────────────────────────────────────────────────────
 
-function TeamView({ members = MEMBERS }: { members?: Member[] }) {
+function TeamView({
+  members = MEMBERS,
+  setMembers,
+  currentUserEmail,
+}: {
+  members?: Member[]
+
+  setMembers?: React.Dispatch<React.SetStateAction<Member[]>>
+
+  currentUserEmail?: string
+}) {
   const [dept, setDept] = useState("All")
+
+  const [updatingEmail, setUpdatingEmail] = useState<string | null>(null)
+
+  const [toastMsg, setToastMsg] = useState<{
+    type: "success" | "error"
+    text: string
+  } | null>(null)
+
+  const isSuperAdmin =
+    currentUserEmail?.toLowerCase().trim() === "info@gve-group.com"
+
+  const handleToggleAdmin = async (targetMember: Member) => {
+    if (!targetMember.email) return
+
+    const newAdminStatus = !targetMember.isAdmin
+
+    setUpdatingEmail(targetMember.email)
+
+    setToastMsg(null)
+
+    try {
+      const { error } = await supabase
+
+        .from("members")
+
+        .update({ is_admin: newAdminStatus })
+
+        .eq("email", targetMember.email)
+
+      if (error) {
+        setToastMsg({
+          type: "error",
+
+          text: error.message || "Failed to update administrator privileges.",
+        })
+      } else {
+        if (setMembers) {
+          setMembers((prev) =>
+            prev.map((m) =>
+              m.email === targetMember.email
+                ? { ...m, isAdmin: newAdminStatus }
+                : m,
+            ),
+          )
+        }
+
+        setToastMsg({
+          type: "success",
+
+          text: newAdminStatus
+            ? `${targetMember.name} promoted to Administrator.`
+            : `Administrator privileges revoked for ${targetMember.name}.`,
+        })
+
+        setTimeout(() => setToastMsg(null), 4000)
+      }
+    } catch (err: any) {
+      setToastMsg({
+        type: "error",
+
+        text: err?.message || "Unexpected error updating member.",
+      })
+    } finally {
+      setUpdatingEmail(null)
+    }
+  }
 
   const filtered =
     dept === "All" ? members : members.filter((m) => m.department === dept)
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Super Admin Notice Banner */}
+      {isSuperAdmin && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg bg-emerald-950/25 border border-emerald-800/40 text-xs font-mono text-emerald-300">
+          <ShieldCheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>
+            <strong>Parent Administrator Mode:</strong> You are authorized to
+            promote staff accounts to administrator status or revoke existing
+            admin privileges.
+          </span>
+        </div>
+      )}
+
+      {/* Action Feedback Toast */}
+      {toastMsg && (
+        <div
+          className={`text-xs font-mono px-4 py-2.5 rounded-lg border flex items-center justify-between ${
+            toastMsg.type === "success"
+              ? "bg-emerald-950/40 border-emerald-700/60 text-emerald-300"
+              : "bg-rose-950/40 border-rose-800/60 text-rose-300"
+          }`}
+        >
+          <span>{toastMsg.text}</span>
+          <button
+            onClick={() => setToastMsg(null)}
+            className="text-xs underline hover:text-white cursor-pointer ml-3"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Department tabs */}
       <div className="flex gap-1.5 flex-wrap">
         {DEPARTMENTS.map((d) => (
           <button
             key={d}
             onClick={() => setDept(d)}
-            className="px-3 py-1.5 rounded text-xs font-mono border transition-all duration-100"
+            className="px-3 py-1.5 rounded text-xs font-mono border transition-all duration-100 cursor-pointer"
             style={{
               backgroundColor: dept === d ? "var(--primary)" : "var(--card)",
 
@@ -1893,102 +1570,165 @@ function TeamView({ members = MEMBERS }: { members?: Member[] }) {
 
       {/* Member grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filtered.map((m) => (
-          <div
-            key={m.id}
-            className="rounded-lg border p-5 flex flex-col gap-3 transition-all duration-150 hover:border-primary"
-            style={{
-              backgroundColor: "var(--card)",
+        {filtered.map((m) => {
+          const isParentAdminMember =
+            m.email?.toLowerCase().trim() === "info@gve-group.com"
 
-              borderColor: "var(--border)",
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-mono font-500 shrink-0"
-                style={{
-                  backgroundColor: m.color + "33",
-
-                  color: "var(--foreground)",
-
-                  border: `1px solid ${m.color}66`,
-                }}
-              >
-                {m.initials}
-              </div>
-              <div className="min-w-0">
-                <p
-                  className="text-sm font-medium truncate"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  {m.name}
-                </p>
-                <p
-                  className="text-xs truncate"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {m.role}
-                </p>
-              </div>
-            </div>
+          return (
             <div
-              className="flex items-center justify-between text-xs font-mono"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              <span>{m.department}</span>
-              <span>
-                Last:{" "}
-                {m.lastReport.toLocaleDateString("en-US", {
-                  month: "short",
+              key={m.id}
+              className="rounded-lg border p-5 flex flex-col justify-between gap-3 transition-all duration-150 hover:border-primary"
+              style={{
+                backgroundColor: "var(--card)",
 
-                  day: "numeric",
-                })}
-              </span>
-            </div>
-            {/* Compliance bar */}
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span
-                  className="font-mono"
+                borderColor: "var(--border)",
+              }}
+            >
+              <div className="flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-mono font-medium shrink-0"
+                    style={{
+                      backgroundColor: m.color + "33",
+
+                      color: "var(--foreground)",
+
+                      border: `1px solid ${m.color}66`,
+                    }}
+                  >
+                    {m.initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <p
+                        className="text-sm font-medium truncate"
+                        style={{ color: "var(--foreground)" }}
+                      >
+                        {m.name}
+                      </p>
+
+                      {isParentAdminMember ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                          <ShieldCheckIcon className="w-3 h-3 text-emerald-400" />
+                          Parent Admin
+                        </span>
+                      ) : m.isAdmin ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                          <ShieldIcon className="w-3 h-3 text-amber-400" />
+                          Admin
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground bg-secondary/60 border border-border shrink-0">
+                          Staff
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className="text-xs truncate"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {m.role}
+                    </p>
+                    {m.email && (
+                      <p className="text-[11px] font-mono truncate text-muted-foreground/70">
+                        {m.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="flex items-center justify-between text-xs font-mono"
                   style={{ color: "var(--muted-foreground)" }}
                 >
-                  Compliance
-                </span>
-                <span
-                  className="font-mono font-500"
-                  style={{
-                    color:
-                      m.compliance >= 95
-                        ? "#4ade80"
-                        : m.compliance >= 85
-                          ? "var(--foreground)"
-                          : "var(--accent)",
-                  }}
-                >
-                  {m.compliance}%
-                </span>
-              </div>
-              <div
-                className="h-1 rounded-full overflow-hidden"
-                style={{ backgroundColor: "var(--secondary)" }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${m.compliance}%`,
+                  <span>{m.department}</span>
+                  <span>
+                    Last:{" "}
+                    {m.lastReport.toLocaleDateString("en-US", {
+                      month: "short",
 
-                    backgroundColor:
-                      m.compliance >= 95
-                        ? "#005030"
-                        : m.compliance >= 85
-                          ? "#1a5c40"
-                          : "#7a4010",
-                  }}
-                />
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+
+                {/* Compliance bar */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span
+                      className="font-mono"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      Compliance
+                    </span>
+                    <span
+                      className="font-mono font-medium"
+                      style={{
+                        color:
+                          m.compliance >= 95
+                            ? "#4ade80"
+                            : m.compliance >= 85
+                              ? "var(--foreground)"
+                              : "var(--accent)",
+                      }}
+                    >
+                      {m.compliance}%
+                    </span>
+                  </div>
+                  <div
+                    className="h-1 rounded-full overflow-hidden"
+                    style={{ backgroundColor: "var(--secondary)" }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${m.compliance}%`,
+
+                        backgroundColor:
+                          m.compliance >= 95
+                            ? "#005030"
+                            : m.compliance >= 85
+                              ? "#1a5c40"
+                              : "#7a4010",
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
+
+              {/* Super Admin Promotion Controls */}
+              {isSuperAdmin && m.email && !isParentAdminMember && (
+                <div className="pt-3 border-t border-border/60 mt-1">
+                  {m.isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAdmin(m)}
+                      disabled={updatingEmail === m.email}
+                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-rose-800/50 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40 hover:border-rose-700 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <KeyIcon className="w-3.5 h-3.5 text-rose-400" />
+                      {updatingEmail === m.email
+                        ? "Revoking..."
+                        : "Revoke Admin Access"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAdmin(m)}
+                      disabled={updatingEmail === m.email}
+                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-emerald-700/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-600 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <ShieldCheckIcon className="w-3.5 h-3.5 text-emerald-400" />
+                      {updatingEmail === m.email
+                        ? "Promoting..."
+                        : "Promote to Admin"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -1998,85 +1738,119 @@ function TeamView({ members = MEMBERS }: { members?: Member[] }) {
 
 export interface AnalyticsViewProps {
   reports: Report[]
+
   members?: Member[]
+
   deadlines?: Deadline[]
 }
 
 function AnalyticsView({
   reports = [],
+
   members = MEMBERS,
+
   deadlines = DEFAULT_DEADLINES,
 }: AnalyticsViewProps) {
   const [filter, setFilter] = useState<AnalyticsFilter>({
     timeframe: "all",
+
     department: "All",
+
     reportType: "All",
+
     site: "All",
   })
 
   // Filtered reports
+
   const { current, prior } = useMemo(
     () => filterReports(reports, filter),
+
     [reports, filter],
   )
 
   // Dynamic KPIs
+
   const kpis = useMemo(
     () => calculateKPIs(current, prior, deadlines),
+
     [current, prior, deadlines],
   )
 
   // Chart data
+
   const velocityData = useMemo(
     () => getSubmissionVelocity(current, filter.timeframe),
+
     [current, filter.timeframe],
   )
 
   const typeData = useMemo(
     () => getReportTypeDistribution(current),
+
     [current],
   )
 
   const deptMetrics = useMemo(
     () => getDepartmentMetrics(current, members),
+
     [current, members],
   )
 
   const solarTelemetry = useMemo(
     () => getSolarMiniGridTelemetry(current),
+
     [current],
   )
 
   const technicians = useMemo(
     () => getTechnicianLeaderboard(current, members),
+
     [current, members],
   )
 
   // CSV Export Handler
+
   const handleExportCsv = () => {
     if (current.length === 0) return
 
     const headers = [
       "ID",
+
       "Title",
+
       "Author",
+
       "Department",
+
       "Type",
+
       "Submitted Date",
+
       "Status",
+
       "Feedback",
+
       "Summary",
     ]
 
     const rows = current.map((r) => [
       r.id,
+
       `"${(r.title || "").replace(/"/g, '""')}"`,
+
       `"${(r.author || "").replace(/"/g, '""')}"`,
+
       `"${(r.department || "").replace(/"/g, '""')}"`,
+
       r.type,
+
       new Date(r.submitted).toISOString().slice(0, 10),
+
       r.status,
+
       `"${(r.feedback || "").replace(/"/g, '""')}"`,
+
       `"${(r.summary || "").replace(/"/g, '""')}"`,
     ])
 
@@ -2085,14 +1859,21 @@ function AnalyticsView({
       [headers.join(","), ...rows.map((e) => e.join(","))].join("\n")
 
     const encodedUri = encodeURI(csvContent)
+
     const link = document.createElement("a")
+
     link.setAttribute("href", encodedUri)
+
     link.setAttribute(
       "download",
+
       `reportflow_analytics_${filter.timeframe}_${new Date().toISOString().slice(0, 10)}.csv`,
     )
+
     document.body.appendChild(link)
+
     link.click()
+
     document.body.removeChild(link)
   }
 
@@ -2111,7 +1892,8 @@ function AnalyticsView({
             </span>
           </div>
           <p className="text-xs font-mono text-muted-foreground mt-1">
-            Real-time mini-grid telemetry, compliance tracking, and departmental reporting performance
+            Real-time mini-grid telemetry, compliance tracking, and departmental
+            reporting performance
           </p>
         </div>
       </div>
@@ -2131,12 +1913,20 @@ function AnalyticsView({
           sub={`${kpis.activeTechnicians} active technicians`}
           trend={{
             value: kpis.totalDeltaPct,
+
             label: "vs prior period",
           }}
           badge={filter.timeframe.toUpperCase()}
           colorScheme="blue"
           icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
@@ -2151,12 +1941,20 @@ function AnalyticsView({
           sub={`${current.filter((r) => r.status === "Approved").length} approved records`}
           trend={{
             value: kpis.approvalRateDelta,
+
             label: "percentage points",
           }}
           badge="Audit Standard"
           colorScheme="emerald"
           icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
@@ -2169,13 +1967,22 @@ function AnalyticsView({
           sub="Review & sign-off speed"
           trend={{
             value: kpis.turnaroundDeltaPct,
+
             label: "faster turnaround",
+
             isPositiveGood: false,
           }}
           badge="SLA: <24h"
           colorScheme="amber"
           icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
@@ -2188,12 +1995,20 @@ function AnalyticsView({
           sub="On-time submissions"
           trend={{
             value: 4,
+
             label: "SLA compliance",
           }}
           badge="High Reliability"
           colorScheme="purple"
           icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
               <line x1="8" y1="2" x2="8" y2="6" />
@@ -2272,10 +2087,7 @@ function AnalyticsView({
           />
         </div>
         <div>
-          <ReportDistributionChart
-            typeData={typeData}
-            deptData={deptMetrics}
-          />
+          <ReportDistributionChart typeData={typeData} deptData={deptMetrics} />
         </div>
       </div>
 
@@ -2365,7 +2177,9 @@ function FullReportModal({
               {report.type} ·{" "}
               {new Date(report.submitted).toLocaleDateString("en-US", {
                 month: "short",
+
                 day: "numeric",
+
                 year: "numeric",
               })}
             </span>
@@ -2382,7 +2196,8 @@ function FullReportModal({
                   {report.gveData.siteName || "GVE SITE"}
                 </span>
               </h3>
-              <GveDailyHourlyForm initialData={report.gveData}
+              <GveDailyHourlyForm
+                initialData={report.gveData}
                 readOnly={true}
                 isAdmin={true}
               />
@@ -2593,21 +2408,31 @@ function FlagReportModal({
 
 function AdminCreateReportModal({
   onClose,
+
   onSubmit,
 }: {
   onClose: () => void
+
   onSubmit: (
     report: Omit<Report, "id" | "submitted" | "status">,
+
     status?: ReportStatus,
   ) => void
 }) {
   const [title, setTitle] = useState("")
+
   const [author, setAuthor] = useState("")
+
   const [department, setDepartment] = useState("Engineering")
+
   const [type, setType] = useState<ReportType>("Quarterly")
+
   const [summary, setSummary] = useState("")
+
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
+
   const [error, setError] = useState("")
+
   const [quarterlyData, setQuarterlyData] = useState<GveQuarterlyRecordData>(
     createEmptyGveQuarterlyData(),
   )
@@ -2615,24 +2440,35 @@ function AdminCreateReportModal({
   const handleSave = (statusToSave: ReportStatus) => {
     if (!title.trim()) {
       setError("Please enter a report title.")
+
       return
     }
 
     if (!summary.trim() && type !== "Quarterly") {
       setError("Please enter detailed summary/findings.")
+
       return
     }
 
     onSubmit(
       {
         title,
+
         author,
+
         department,
+
         type,
-        summary: summary.trim() || `Official Site Quarterly Maintenance Audit Report for ${quarterlyData.siteName || "site"}.`,
+
+        summary:
+          summary.trim() ||
+          `Official Site Quarterly Maintenance Audit Report for ${quarterlyData.siteName || "site"}.`,
+
         attachments,
+
         ...(type === "Quarterly" ? { gveQuarterlyData: quarterlyData } : {}),
       },
+
       statusToSave,
     )
 
@@ -2641,6 +2477,7 @@ function AdminCreateReportModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
     handleSave("Approved")
   }
 
@@ -2713,11 +2550,17 @@ function AdminCreateReportModal({
               >
                 {[
                   "Executive",
+
                   "Engineering",
+
                   "Marketing",
+
                   "Finance",
+
                   "Operations",
+
                   "HR",
+
                   "Legal",
                 ].map((d) => (
                   <option key={d} value={d}>
@@ -2832,7 +2675,14 @@ function AdminCreateReportModal({
               className="px-4 py-2 text-xs font-semibold rounded bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 transition-all shadow-sm active:translate-y-px flex items-center gap-1.5"
               title="Save as Draft to edit later"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
@@ -2844,7 +2694,14 @@ function AdminCreateReportModal({
               onClick={() => handleSave("Approved")}
               className="px-5 py-2 text-xs font-semibold rounded bg-primary hover:bg-primary-hover text-foreground transition-all shadow-md active:translate-y-px flex items-center gap-1.5"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               Publish Report & Audit Form
@@ -3014,11 +2871,7 @@ function CreateDeadlineModal({
                         : "bg-secondary/60 border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {p === "High"
-                      ? "High"
-                      : p === "Medium"
-                        ? "Medium"
-                        : "Low"}
+                    {p === "High" ? "High" : p === "Medium" ? "Medium" : "Low"}
                   </button>
                 )
               })}
@@ -3072,6 +2925,10 @@ export default function AdminView({
 
   members = MEMBERS,
 
+  setMembers,
+
+  currentUserEmail,
+
   deadlines = DEFAULT_DEADLINES,
 
   onCreateDeadline,
@@ -3087,17 +2944,29 @@ export default function AdminView({
   onToggleSunlightMode,
 }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
+
   const [collapsed, setCollapsed] = useState(false)
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
   const [inspectingReport, setInspectingReport] = useState<Report | null>(null)
+
   const [flaggingReport, setFlaggingReport] = useState<Report | null>(null)
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false)
+
   const [searchQuery, setSearchQuery] = useState("")
 
   // Strictly filter out any reports in Draft stage so they are completely inaccessible to admins
+
   const adminReports = useMemo(
-    () => reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft"),
+    () =>
+      reports.filter(
+        (r) => r.status && r.status.toLowerCase().trim() !== "draft",
+      ),
+
     [reports],
   )
 
@@ -3115,12 +2984,16 @@ export default function AdminView({
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
+
     window.addEventListener("resize", handleResize)
+
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
   // Generous sidebar width for fitted logo and Admin badge
+
   const sidebarW = collapsed ? 56 : isMobile ? 216 : 248
+
   const handleApproveReport = (id: number) => {
     setReports((prev) =>
       prev.map((item) =>
@@ -3135,7 +3008,9 @@ export default function AdminView({
         item.id === id
           ? {
               ...item,
+
               status: "Flagged",
+
               feedback: feedback || "Revision requested by admin.",
             }
           : item,
@@ -3145,6 +3020,7 @@ export default function AdminView({
 
   const handleCreateAdminReport = (
     data: Omit<Report, "id" | "submitted" | "status">,
+
     status: ReportStatus = "Approved",
   ) => {
     const newId =
@@ -3152,8 +3028,11 @@ export default function AdminView({
 
     const newReport: Report = {
       id: newId,
+
       ...data,
+
       submitted: new Date(),
+
       status: status,
     }
 
@@ -3164,11 +3043,14 @@ export default function AdminView({
     <div
       style={{
         backgroundColor: "var(--background)",
+
         minHeight: "100vh",
+
         fontFamily: "var(--font-body, DM Sans, sans-serif)",
       }}
     >
-      <Sidebar active={view}
+      <Sidebar
+        active={view}
         onChange={setView}
         collapsed={collapsed}
         onLogout={onLogout}
@@ -3176,7 +3058,8 @@ export default function AdminView({
         sidebarW={sidebarW}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
-      <Header view={view}
+      <Header
+        view={view}
         sidebarW={sidebarW}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
@@ -3196,16 +3079,24 @@ export default function AdminView({
       />
 
       {/* Collapse toggle */}
-      <button onClick={() => setCollapsed((c) => !c)}
+      <button
+        onClick={() => setCollapsed((c) => !c)}
         className="fixed z-30 flex items-center justify-center rounded-md border transition-all duration-200 cursor-pointer shadow-xs hover:bg-secondary"
         style={{
           top: "50%",
+
           transform: "translateY(-50%)",
+
           left: sidebarW - 12,
+
           width: 24,
+
           height: 24,
+
           backgroundColor: "var(--card)",
+
           borderColor: "var(--border)",
+
           color: "var(--muted-foreground)",
         }}
         aria-label="Toggle sidebar"
@@ -3222,13 +3113,19 @@ export default function AdminView({
       </button>
 
       {/* Main content */}
-      <main className="transition-all duration-200"
+      <main
+        className="transition-all duration-200"
         style={{
           marginLeft: sidebarW,
+
           paddingTop: topOffset + 56 + 24,
+
           paddingBottom: 40,
+
           paddingLeft: 24,
+
           paddingRight: 24,
+
           minHeight: "100vh",
         }}
       >
@@ -3252,7 +3149,13 @@ export default function AdminView({
             searchQuery={searchQuery}
           />
         )}
-        {view === "teams" && <TeamView members={members} />}
+        {view === "teams" && (
+          <TeamView
+            members={members}
+            setMembers={setMembers}
+            currentUserEmail={currentUserEmail}
+          />
+        )}
         {view === "analytics" && (
           <AnalyticsView
             reports={adminReports}
@@ -3263,7 +3166,8 @@ export default function AdminView({
 
         {/* Institutional Footer */}
         <footer className="mt-12 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground/80 font-mono">
-          {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field Infrastructure Network.
+          {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field
+          Infrastructure Network.
         </footer>
       </main>
 
@@ -3301,7 +3205,6 @@ export default function AdminView({
           onSaveFlag={handleSaveFlag}
         />
       )}
-
     </div>
   )
 }

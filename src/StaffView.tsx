@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { Report,Member, Badge, Deadline,
-formatDeadlineDate, getDeadlineUrgency, DEFAULT_DEADLINES,
-} from "./AdminView"
+import type { Report } from "./types/report"
+import type { Member } from "./types/member"
+import type { Deadline } from "./types/deadline"
+import { Badge } from "./components/StatusBadge"
+import { formatDeadlineDate, getDeadlineUrgency } from "./lib/dateUtils"
+import { DEFAULT_DEADLINES } from "./constants/defaults"
 
 import GveDailyHourlyForm from "./components/GveHourlyForm"
 import GveWeeklyForm from "./components/GveWeeklyForm"
@@ -9,6 +12,7 @@ import GveQuarterlyForm from "./components/GveQuarterlyForm"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
 import { draftStorage, FormDraft } from "./lib/draftStorage"
 import { usePwaInstall } from "./hooks/usePwaInstall"
+import { useIsMobile } from "./hooks/useIsMobile"
 import { flushOfflineQueue } from "./lib/syncQueue"
 import logoImg from "./components/logo.jpeg"
 import {
@@ -127,15 +131,7 @@ export default function StaffView({
     await loadDrafts()
   }
 
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < 768 : false,
-  )
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
+  const isMobile = useIsMobile()
 
   // 85% of desktop 240px sidebar width is 204px on mobile viewports
   const sidebarW = collapsed ? 56 : isMobile ? 204 : 240

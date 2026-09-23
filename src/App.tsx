@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react"
-import { MEMBERS, Report, Member, Deadline, DEFAULT_DEADLINES} from "./AdminView"
+import { Report } from "./types/report"
+import { Member } from "./types/member"
+import { Deadline } from "./types/deadline"
+import { MEMBERS, DEFAULT_DEADLINES } from "./constants/defaults"
+import { fetchReportsSummary } from "./lib/reportService"
 import StaffView from "./StaffView"
 import { supabase, isValidGveEmail } from "./lib/supabase"
-import { initOfflineSyncListener, getOfflineQueue, flushOfflineQueue, queueOfflineReport} from "./lib/syncQueue"
+import {
+  initOfflineSyncListener,
+  getOfflineQueue,
+  flushOfflineQueue,
+  queueOfflineReport,
+} from "./lib/syncQueue"
 import { uploadAttachmentFile } from "./lib/storageProviders"
 import { ReportAttachment } from "./types/attachment"
 import logoImg from "./components/logo.jpeg"
@@ -18,9 +27,21 @@ export interface UserSession {
   email?: string
 }
 
-const DEPARTMENTS = ["Engineering","Operations","Finance","HSE","Management"]
+const DEPARTMENTS = [
+  "Engineering",
+  "Operations",
+  "Finance",
+  "HSE",
+  "Management",
+]
 
-const ROLES = [ "Field Engineer","Site Technician","Operations Lead","HSE Officer","Solar PV Specialist"]
+const ROLES = [
+  "Field Engineer",
+  "Site Technician",
+  "Operations Lead",
+  "HSE Officer",
+  "Solar PV Specialist",
+]
 
 // Helper to prevent and clean duplicate report rows safely
 export function deduplicateReportsList(list: Report[]): Report[] {
@@ -183,10 +204,7 @@ function App() {
   useEffect(() => {
     try {
       if (session) {
-        localStorage.setItem(
-          "reportflow_user_session",
-          JSON.stringify(session),
-        )
+        localStorage.setItem("reportflow_user_session", JSON.stringify(session))
       } else {
         localStorage.removeItem("reportflow_user_session")
       }
@@ -257,52 +275,16 @@ function App() {
 
   const [loading, setLoading] = useState(false)
 
-  // Fetch reports from Supabase (or fallback to local state if offline/unreachable)
-
+  // Fetch reports summary from Supabase (summary-first loading for fast 2G/3G performance)
   const fetchReportsFromSupabase = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-
-        .from("reports")
-
-        .select("*")
-
-        .order("id", { ascending: false })
-
-      if (error) {
-        console.warn(
-          "Supabase fetch error, using local fallback:",
-          error.message,
-        )
-
-        return
-      }
-
-      if (data && data.length > 0) {
-        const mappedReports: Report[] = data.map((row: any) => ({
-          id: Number(row.id),
-          title: row.title,
-          author: row.author,
-
-          department: row.department,
-          type: row.type,
-          submitted: new Date(row.submitted_at || row.created_at),
-          status: row.status,
-          summary: row.summary || "",
-          feedback: row.feedback || undefined,
-          attachments: row.attachments || undefined,
-          gveData: row.gve_daily_data || row.gve_kuka_data || row.gve_data || undefined,
-          gveWeeklyData: row.gve_weekly_data || undefined,
-
-          gveQuarterlyData: row.gve_quarterly_data || undefined,
-        }))
-
-        // Deduplicate database rows to clean any existing cloned rows
-        const cleaned = deduplicateReportsList(mappedReports)
+      const summaryReports = await fetchReportsSummary()
+      if (summaryReports && summaryReports.length > 0) {
+        const cleaned = deduplicateReportsList(summaryReports)
         setReports(cleaned)
       }
     } catch (err) {
-      console.warn("Failed to load reports from Supabase:", err)
+      console.warn("Failed to load reports summary from Supabase:", err)
     }
   }, [])
 
@@ -326,6 +308,7 @@ function App() {
         const mappedMembers: Member[] = data.map((row: any, idx: number) => ({
           id: idx + 1,
           name: row.name,
+          email: row.email,
           role: row.role || "Field Engineer",
           department: row.department || "Engineering",
           lastReport: new Date(),
@@ -338,8 +321,8 @@ function App() {
               .join("")
               .substring(0, 2)
               .toUpperCase(),
-
           color: row.color || "#005030",
+          isAdmin: Boolean(row.is_admin),
         }))
 
         setMembers(mappedMembers)
@@ -474,16 +457,25 @@ function App() {
     // Check URL query parameters and hash fragments on mount (e.g. password reset links)
     try {
       const fullUrl = window.location.href
-      if (fullUrl.includes("error=") || fullUrl.includes("error_description=")) {
+      if (
+        fullUrl.includes("error=") ||
+        fullUrl.includes("error_description=")
+      ) {
         const urlParams = new URLSearchParams(window.location.search)
-        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+        const hashParams = new URLSearchParams(
+          window.location.hash.replace(/^#/, ""),
+        )
         const errorDesc =
           hashParams.get("error_description") ||
           urlParams.get("error_description") ||
           "This password reset link is invalid or has expired. Please request a new one."
         setError(decodeURIComponent(errorDesc.replace(/\+/g, " ")))
         setAuthMode("forgot_password")
-        window.history.replaceState({}, document.title, window.location.pathname)
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        )
       } else if (
         fullUrl.includes("type=recovery") ||
         window.location.hash.includes("type=recovery") ||
@@ -492,7 +484,11 @@ function App() {
         setAuthMode("reset_password")
         setError("")
         setSuccessMsg("Email verified. Please enter your new password below.")
-        window.history.replaceState({}, document.title, window.location.pathname)
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        )
       }
     } catch (e) {
       console.warn("Failed to parse URL auth parameters", e)
@@ -539,7 +535,8 @@ function App() {
 
       // Find new items that are not in prev and not currently undergoing sync
       const newItems = nextReports.filter(
-        (r) => !prev.some((p) => p.id === r.id) && !syncingIdsRef.current.has(r.id),
+        (r) =>
+          !prev.some((p) => p.id === r.id) && !syncingIdsRef.current.has(r.id),
       )
 
       // Find updated items
@@ -611,7 +608,9 @@ function App() {
           gve_daily_data: report.gveData || null,
           gve_weekly_data: report.gveWeeklyData || null,
           gve_quarterly_data: report.gveQuarterlyData || null,
-          submitted_at: report.submitted ? new Date(report.submitted).toISOString() : new Date().toISOString(),
+          submitted_at: report.submitted
+            ? new Date(report.submitted).toISOString()
+            : new Date().toISOString(),
         }
 
         try {
@@ -749,7 +748,9 @@ function App() {
         }
 
         if (resetCooldown > 0) {
-          setError(`Please wait ${resetCooldown}s before requesting another reset email.`)
+          setError(
+            `Please wait ${resetCooldown}s before requesting another reset email.`,
+          )
           setLoading(false)
           return
         }
@@ -819,7 +820,9 @@ function App() {
 
           setTimeout(() => {
             setAuthMode("signin")
-            setSuccessMsg("Password updated! You can now sign in with your new password.")
+            setSuccessMsg(
+              "Password updated! You can now sign in with your new password.",
+            )
             setPassword("")
             setConfirmPassword("")
             setEmail(cleanEmail)
@@ -838,31 +841,10 @@ function App() {
           return
         }
 
-        // Demo super-admin check (development environment only)
-        if (
-          import.meta.env.DEV &&
-          (cleanEmail === "admin@gve-group.com" ||
-            cleanEmail === "info@gve-group.com")
-        ) {
-          if (password === "admin" || password === "admin123") {
-            setSession({ role: "admin", email: cleanEmail })
-            setLoading(false)
-            return
-          } else {
-            setError(
-              "Invalid administrator password. Please verify credentials.",
-            )
-            setLoading(false)
-            return
-          }
-        }
-
         // Attempt real Supabase Auth
-
         const { data: authData, error: authErr } =
           await supabase.auth.signInWithPassword({
             email: cleanEmail,
-
             password,
           })
 
@@ -871,40 +853,29 @@ function App() {
             authErr.message ||
               "Invalid administrator credentials. Account not recognized.",
           )
-
           setLoading(false)
-
           return
         }
 
         if (authData?.user) {
-          // Verify admin privileges in members table or metadata
-
+          // Verify admin privileges in members table or secure server-controlled app_metadata
           const { data: dbAdmin } = await supabase
-
             .from("members")
-
             .select("is_admin, role")
-
             .eq("email", cleanEmail)
-
             .maybeSingle()
 
           const isAdminUser =
             dbAdmin?.is_admin === true ||
-            authData.user.user_metadata?.role === "Admin" ||
-            authData.user.user_metadata?.is_admin === true ||
-            cleanEmail.startsWith("admin.")
+            cleanEmail === "info@gve-group.com" ||
+            authData.user.app_metadata?.role === "Admin"
 
           if (!isAdminUser) {
             setError(
               "Unauthorized: This staff account does not have Administrator privileges.",
             )
-
             await supabase.auth.signOut()
-
             setLoading(false)
-
             return
           }
 
@@ -968,22 +939,21 @@ function App() {
 
           // 1. Supabase Auth registration
 
-          const { error: signUpErr } =
-            await supabase.auth.signUp({
-              email: cleanEmail,
+          const { error: signUpErr } = await supabase.auth.signUp({
+            email: cleanEmail,
 
-              password,
+            password,
 
-              options: {
-                data: {
-                  full_name: cleanName,
+            options: {
+              data: {
+                full_name: cleanName,
 
-                  department,
+                department,
 
-                  role: staffRole,
-                },
+                role: staffRole,
               },
-            })
+            },
+          })
 
           if (signUpErr) {
             if (
@@ -1229,7 +1199,8 @@ function App() {
           <div className="absolute top-0 left-0 right-0 bg-amber-950/90 border-b border-amber-700/60 text-amber-200 py-2 px-4 text-xs font-mono text-center flex items-center justify-center gap-2 z-30">
             <WifiOffIcon className="w-4 h-4 text-amber-300 shrink-0" />
             <span>
-              <strong>OFFLINE MODE ACTIVE:</strong> Field operations mode enabled. Reports will be saved locally.
+              <strong>OFFLINE MODE ACTIVE:</strong> Field operations mode
+              enabled. Reports will be saved locally.
             </span>
           </div>
         )}
@@ -1358,7 +1329,10 @@ function App() {
             {authMode === "forgot_password" ? (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="forgot-email" className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <label
+                    htmlFor="forgot-email"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between"
+                  >
                     <span>Email Address</span>
                     <span className="text-[10px] text-emerald-400 font-bold">
                       @gve-group.com
@@ -1380,7 +1354,10 @@ function App() {
             ) : authMode === "reset_password" ? (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="reset-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="reset-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     New Password
                   </label>
                   <input
@@ -1396,7 +1373,10 @@ function App() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="reset-confirm-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="reset-confirm-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Confirm New Password
                   </label>
                   <input
@@ -1415,7 +1395,10 @@ function App() {
             ) : loginRole === "admin" ? (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="admin-email" className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <label
+                    htmlFor="admin-email"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between"
+                  >
                     <span>Admin Email Address</span>
                     <span className="text-[10px] text-emerald-400 font-bold">
                       @gve-group.com ONLY
@@ -1434,7 +1417,10 @@ function App() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="admin-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="admin-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Password
                   </label>
                   <input
@@ -1454,7 +1440,10 @@ function App() {
               <>
                 {/* Sign Up Fields */}
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signup-name" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="signup-name"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Full Name
                   </label>
                   <input
@@ -1471,7 +1460,10 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signup-email" className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <label
+                    htmlFor="signup-email"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between"
+                  >
                     <span>Staff Email Address</span>
                     <span className="text-[10px] text-emerald-400 font-bold">
                       @gve-group.com
@@ -1492,7 +1484,10 @@ function App() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1.5">
-                    <label htmlFor="signup-department" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                    <label
+                      htmlFor="signup-department"
+                      className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                    >
                       Department
                     </label>
                     <select
@@ -1511,7 +1506,10 @@ function App() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label htmlFor="signup-role" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                    <label
+                      htmlFor="signup-role"
+                      className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                    >
                       Job Role
                     </label>
                     <select
@@ -1531,7 +1529,10 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signup-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="signup-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Create Password
                   </label>
                   <input
@@ -1548,7 +1549,10 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signup-confirm-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="signup-confirm-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Confirm Password
                   </label>
                   <input
@@ -1568,7 +1572,10 @@ function App() {
               <>
                 {/* Staff Sign In Fields */}
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signin-email" className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <label
+                    htmlFor="signin-email"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center justify-between"
+                  >
                     <span>Staff Email Address</span>
                     <span className="text-[10px] text-emerald-400 font-bold">
                       @gve-group.com
@@ -1588,11 +1595,20 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="signin-password" className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  <label
+                    htmlFor="signin-password"
+                    className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+                  >
                     Password
                   </label>
-                  <input id="signin-password" name="password" type="password" autoComplete="current-password" required
-                    value={password} onChange={(e) => setPassword(e.target.value)}
+                  <input
+                    id="signin-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:border-primary-hover focus:ring-1 focus:ring-primary-hover transition-all"
                   />
@@ -1614,7 +1630,9 @@ function App() {
 
             <button
               type="submit"
-              disabled={loading || (authMode === "forgot_password" && resetCooldown > 0)}
+              disabled={
+                loading || (authMode === "forgot_password" && resetCooldown > 0)
+              }
               className="w-full bg-primary hover:bg-primary-hover text-foreground font-display font-600 text-sm py-2.5 rounded-md mt-2 transition-all shadow-md active:translate-y-px disabled:opacity-50 cursor-pointer"
             >
               {loading
@@ -1757,8 +1775,18 @@ function App() {
           <div className="min-h-[85vh] flex items-center justify-center p-6 text-center bg-background">
             <div className="max-w-md w-full bg-card border border-border/80 rounded-2xl p-8 shadow-2xl flex flex-col items-center">
               <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mb-5 shadow-inner">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                <svg
+                  className="w-8 h-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
                 </svg>
               </div>
               <span className="text-[11px] font-mono uppercase tracking-widest text-amber-500 font-semibold mb-1">
@@ -1768,7 +1796,9 @@ function App() {
                 Desktop Display Required
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed mb-6 font-sans">
-                The GVE Administrator Portal, interactive mini-grid analytics dashboards, and report auditing suites require a desktop or tablet display.
+                The GVE Administrator Portal, interactive mini-grid analytics
+                dashboards, and report auditing suites require a desktop or
+                tablet display.
               </p>
               <div className="w-full pt-5 border-t border-border/60 flex flex-col gap-3">
                 <button
@@ -1779,7 +1809,8 @@ function App() {
                   Log Out &amp; Switch to Staff Portal
                 </button>
                 <p className="text-[11px] font-mono text-muted-foreground/70">
-                  Please open ReportFlow on a computer to access Admin capabilities.
+                  Please open ReportFlow on a computer to access Admin
+                  capabilities.
                 </p>
               </div>
             </div>
@@ -1796,9 +1827,13 @@ function App() {
             }
           >
             <AdminView
-              reports={reports.filter((r) => r.status && r.status.toLowerCase().trim() !== "draft")}
+              reports={reports.filter(
+                (r) => r.status && r.status.toLowerCase().trim() !== "draft",
+              )}
               setReports={handleUpdateReports}
               members={members}
+              setMembers={setMembers}
+              currentUserEmail={session.email}
               deadlines={deadlines}
               onCreateDeadline={handleCreateDeadline}
               onDeleteDeadline={handleDeleteDeadline}
