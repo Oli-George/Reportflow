@@ -1,25 +1,33 @@
 import React, { useState, useMemo } from "react"
+
 import logoImg from "./logo.jpeg"
+
 import {
   GveDailyRecordData,
   GveHourlyEntry,
   DEFAULT_12HR_TIMES,
   createEmptyGveEntry,
 } from "../types/gveDaily"
+
 import { ReportAttachment } from "../types/attachment"
+
 import ReportPhotoUploader from "./ReportPhotoUploader"
+
 import {
   useServerTime,
   getHourlySlotStatus,
   hasEntryData,
   SlotStatusInfo,
 } from "../lib/serverTime"
+
 import {
   getLastSiteName,
   saveLastSiteName,
   getRecentSiteNames,
 } from "../lib/siteMemory"
+
 import { useFormAutoSave } from "../hooks/useFormAutoSave"
+
 import {
   ClockIcon,
   RefreshIcon,
@@ -34,11 +42,17 @@ import {
 
 export interface GveDailyHourlyFormProps {
   initialData?: GveDailyRecordData
+
   readOnly?: boolean
+
   isAdmin?: boolean
+
   author?: string
+
   reportId?: number | null
+
   onSave?: (data: GveDailyRecordData, status: "Draft" | "Submitted") => void
+
   onCancel?: () => void
 }
 
@@ -46,36 +60,51 @@ export type GveKukaHourlyFormProps = GveDailyHourlyFormProps
 
 export default function GveDailyHourlyForm({
   initialData,
+
   readOnly = false,
+
   isAdmin = false,
+
   author,
+
   reportId,
+
   onSave,
+
   onCancel,
 }: GveDailyHourlyFormProps) {
   const today = new Date()
+
   const defaultDateStr = today.toISOString().split("T")[0]
+
   const defaultDayStr = today.toLocaleDateString("en-US", { weekday: "long" })
+
   const defaultYearStr = today.getFullYear().toString()
 
   // Site Name state initialized from initialData or remembered site
+
   const [siteName, setSiteName] = useState(
     initialData?.siteName || getLastSiteName() || "GVE Daily Site",
   )
 
   const [date, setDate] = useState(initialData?.date || defaultDateStr)
+
   const [day, setDay] = useState(initialData?.day || defaultDayStr)
+
   const [year, setYear] = useState(initialData?.year || defaultYearStr)
+
   const [title, setTitle] = useState(
     initialData?.title ||
       `${initialData?.siteName || getLastSiteName() || "GVE Site"} Hourly Record — ${initialData?.date || defaultDateStr}`,
   )
+
   const [titleError, setTitleError] = useState<string | null>(null)
 
   const [entries, setEntries] = useState<GveHourlyEntry[]>(() => {
     if (initialData?.entries && initialData.entries.length > 0) {
       return initialData.entries
     }
+
     return DEFAULT_12HR_TIMES.map((time, idx) => createEmptyGveEntry(time, idx))
   })
 
@@ -84,82 +113,124 @@ export default function GveDailyHourlyForm({
   )
 
   // Continuous 10-second IndexedDB Form Auto-Save
+
   const currentFormData: GveDailyRecordData = useMemo(
     () => ({
       siteName: siteName || "GVE Daily Site",
+
       title: title.trim(),
+
       date,
+
       day,
+
       year,
+
       entries,
+
       attachments,
     }),
+
     [siteName, title, date, day, year, entries, attachments],
   )
 
   const {
     lastSavedTime,
+
     isSaving,
+
     recoveredDraft,
+
     restoreDraft,
+
     discardDraft,
+
     clearDraft,
   } = useFormAutoSave<GveDailyRecordData>({
     formType: "gveDaily",
+
     author: author || "Field Technician",
+
     reportId,
+
     formData: currentFormData,
+
     siteName,
+
     title,
+
     readOnly,
   })
 
   const handleRestoreDraft = () => {
     const restored = restoreDraft()
+
     if (restored) {
       if (restored.siteName) setSiteName(restored.siteName)
+
       if (restored.title) setTitle(restored.title)
+
       if (restored.date) setDate(restored.date)
+
       if (restored.day) setDay(restored.day)
+
       if (restored.year) setYear(restored.year)
-      if (restored.entries && restored.entries.length > 0) setEntries(restored.entries)
+
+      if (restored.entries && restored.entries.length > 0)
+        setEntries(restored.entries)
+
       if (restored.attachments) setAttachments(restored.attachments)
     }
   }
 
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
+
   const [showPdfModal, setShowPdfModal] = useState(false)
+
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
 
   // Anti-tamper server time hook
+
   const {
     currentTime,
+
     isTampered,
+
     isOffline,
+
     syncStatus,
+
     refreshServerTime,
   } = useServerTime()
 
   // Admin override to unlock all rows
+
   const [adminOverride, setAdminOverride] = useState(false)
 
   const recentSites = useMemo(() => getRecentSiteNames(), [])
 
   // Calculate live slot statuses
+
   const slotStatuses = useMemo(() => {
     const map: Record<string, SlotStatusInfo> = {}
+
     entries.forEach((entry) => {
       const hasData = hasEntryData(entry)
+
       map[entry.id] = getHourlySlotStatus(entry.time, currentTime, date, {
         readOnly,
+
         adminOverride,
+
         hasData,
       })
     })
+
     return map
   }, [entries, currentTime, date, readOnly, adminOverride])
 
   // Find currently active slot (if any) or next upcoming slot
+
   const currentActiveSlot = useMemo(() => {
     return entries.find((e) => slotStatuses[e.id]?.status === "ACTIVE")
   }, [entries, slotStatuses])
@@ -169,16 +240,21 @@ export default function GveDailyHourlyForm({
   }, [entries, slotStatuses])
 
   // Toggle to optionally preview hidden upcoming locked hours
+
   const [showAllUpcoming, setShowAllUpcoming] = useState(false)
 
   // Progressive row visibility: in live mode, hide locked UPCOMING rows unless they have data, admin override is on, or user clicked show all
+
   const visibleEntries = useMemo(() => {
     if (readOnly || adminOverride || showAllUpcoming) {
       return entries
     }
+
     return entries.filter((entry) => {
       const statusInfo = slotStatuses[entry.id]
+
       if (!statusInfo) return true
+
       if (
         statusInfo.status === "ACTIVE" ||
         statusInfo.status === "LOCKED_RECORDED" ||
@@ -188,7 +264,9 @@ export default function GveDailyHourlyForm({
       ) {
         return true
       }
+
       if (hasEntryData(entry)) return true
+
       return false
     })
   }, [entries, slotStatuses, readOnly, adminOverride, showAllUpcoming])
@@ -197,11 +275,15 @@ export default function GveDailyHourlyForm({
 
   const handleEntryChange = (
     id: string,
+
     section: keyof GveHourlyEntry,
+
     field: string,
+
     value: string,
   ) => {
     const statusInfo = slotStatuses[id]
+
     if (readOnly || (!adminOverride && statusInfo && !statusInfo.isEditable)) {
       return
     }
@@ -209,6 +291,7 @@ export default function GveDailyHourlyForm({
     setEntries((prev) =>
       prev.map((entry) => {
         if (entry.id !== id) return entry
+
         if (
           section === "time" ||
           section === "operatorName" ||
@@ -216,11 +299,15 @@ export default function GveDailyHourlyForm({
         ) {
           return { ...entry, [section]: value }
         }
+
         const subObj = entry[section] as Record<string, string>
+
         return {
           ...entry,
+
           [section]: {
             ...subObj,
+
             [field]: value,
           },
         }
@@ -230,73 +317,107 @@ export default function GveDailyHourlyForm({
 
   const handleAddRow = () => {
     if (readOnly) return
+
     const lastTime = entries[entries.length - 1]?.time || "12:00 PM"
+
     const newEntry = createEmptyGveEntry(`${lastTime} (Extra)`, entries.length)
+
     setEntries((prev) => [...prev, newEntry])
   }
 
   const handleRemoveRow = (id: string) => {
     if (readOnly || entries.length <= 1) return
+
     setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
   const extractSiteNameFromHourlyTitle = (titleText: string): string => {
     if (!titleText) return ""
+
     const trimmed = titleText.trim()
+
     if (/Hourly Record/i.test(trimmed)) {
-      return trimmed.split(/Hourly Record/i)[0].trim().replace(/[—–\-]\s*$/, "").trim()
+      return trimmed
+        .split(/Hourly Record/i)[0]
+        .trim()
+        .replace(/[—–\-]\s*$/, "")
+        .trim()
     }
+
     if (/[—–]/.test(trimmed)) {
       return trimmed.split(/[—–]/)[0].trim()
     }
+
     return trimmed
   }
 
   const handleSiteNameChange = (val: string) => {
     setSiteName(val)
+
     setTitle(`${val || "GVE Site"} Hourly Record — ${date}`)
+
     if (titleError) setTitleError(null)
   }
 
   const handleTitleChange = (val: string) => {
     setTitle(val)
+
     if (val.trim()) {
       setTitleError(null)
     }
+
     const extractedSite = extractSiteNameFromHourlyTitle(val)
+
     setSiteName(extractedSite)
   }
 
   const validateReportTitle = (): boolean => {
     if (!title || !title.trim()) {
-      setTitleError("Report Name is required. Please enter a valid name before proceeding.")
+      setTitleError(
+        "Report Name is required. Please enter a valid name before proceeding.",
+      )
+
       return false
     }
+
     setTitleError(null)
+
     return true
   }
 
   const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateReportTitle()) {
       return
     }
+
     saveLastSiteName(siteName)
+
     try {
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
+
     await clearDraft()
+
     if (onSave) {
       onSave(
         {
           siteName: siteName || "GVE Daily Site",
+
           title: title.trim(),
+
           date,
+
           day,
+
           year,
+
           entries,
+
           attachments,
         },
+
         "Draft",
       )
     }
@@ -304,27 +425,39 @@ export default function GveDailyHourlyForm({
 
   const handleSubmitFinal = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateReportTitle()) {
       setShowSubmitConfirmModal(false)
+
       return
     }
+
     saveLastSiteName(siteName)
+
     try {
       localStorage.removeItem(`reportflow_active_draft_hourly_${date}`)
     } catch (err) {}
+
     await clearDraft()
 
     if (onSave) {
       onSave(
         {
           siteName: siteName || "GVE Daily Site",
+
           title: title.trim(),
+
           date,
+
           day,
+
           year,
+
           entries,
+
           attachments,
         },
+
         "Submitted",
       )
     }
@@ -335,10 +468,14 @@ export default function GveDailyHourlyForm({
   }
 
   // Format current live time
+
   const formattedTimeStr = currentTime.toLocaleTimeString("en-US", {
     hour: "2-digit",
+
     minute: "2-digit",
+
     second: "2-digit",
+
     hour12: true,
   })
 
@@ -358,7 +495,9 @@ export default function GveDailyHourlyForm({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 bg-secondary border border-border px-2.5 py-1 rounded-md font-mono text-foreground font-semibold">
               <ClockIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-bold text-foreground">{formattedTimeStr}</span>
+              <span className="font-bold text-foreground">
+                {formattedTimeStr}
+              </span>
               <span className="text-[10px] text-muted-foreground">
                 ({Intl.DateTimeFormat().resolvedOptions().timeZone})
               </span>
@@ -412,7 +551,8 @@ export default function GveDailyHourlyForm({
                 <span>
                   Next window: <strong>{nextUpcomingSlot.time}</strong> (
                   {Math.floor(
-                    (slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60,
+                    (slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock ||
+                      0) / 60,
                   )}
                   m remaining)
                 </span>
@@ -467,14 +607,25 @@ export default function GveDailyHourlyForm({
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground font-mono flex items-center gap-1.5">
               <ClockIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-semibold text-foreground">Shift Progress:</span>
+              <span className="font-semibold text-foreground">
+                Shift Progress:
+              </span>
             </span>
             <span className="font-mono text-emerald-800 dark:text-emerald-300 font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800/60 text-[11px]">
               {visibleEntries.length} of {entries.length} hours visible
             </span>
             {hiddenUpcomingCount > 0 && nextUpcomingSlot && (
               <span className="text-muted-foreground font-mono text-[11px]">
-                • Next slot: <strong className="text-emerald-700 dark:text-emerald-300">{nextUpcomingSlot.time}</strong> (opens in {Math.floor((slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) / 60)}m with 15m entry window)
+                • Next slot:{" "}
+                <strong className="text-emerald-700 dark:text-emerald-300">
+                  {nextUpcomingSlot.time}
+                </strong>{" "}
+                (opens in{" "}
+                {Math.floor(
+                  (slotStatuses[nextUpcomingSlot.id]?.secondsUntilUnlock || 0) /
+                    60,
+                )}
+                m with 15m entry window)
               </span>
             )}
           </div>
@@ -626,6 +777,7 @@ export default function GveDailyHourlyForm({
               Unsaved local draft from{" "}
               {new Date(recoveredDraft.lastSavedAt).toLocaleTimeString([], {
                 hour: "2-digit",
+
                 minute: "2-digit",
               })}{" "}
               found for {recoveredDraft.siteName || "this site"}.
@@ -709,14 +861,17 @@ export default function GveDailyHourlyForm({
                 disabled={readOnly}
                 onChange={(e) => {
                   setDate(e.target.value)
+
                   try {
                     const parsed = new Date(e.target.value)
+
                     if (!isNaN(parsed.getTime())) {
                       setDay(
                         parsed.toLocaleDateString("en-US", {
                           weekday: "long",
                         }),
                       )
+
                       setYear(parsed.getFullYear().toString())
                     }
                   } catch (err) {}
@@ -752,7 +907,10 @@ export default function GveDailyHourlyForm({
               <thead>
                 {/* Row 1 Header Categories */}
                 <tr className="bg-zinc-200 text-black font-bold uppercase text-[9.5px]">
-                  <th rowSpan={2} className="w-24 min-w-[95px] p-1.5 border border-black">
+                  <th
+                    rowSpan={2}
+                    className="w-24 min-w-[95px] p-1.5 border border-black"
+                  >
                     TIME / STATUS
                   </th>
                   <th colSpan={4} className="p-1 border border-black ">
@@ -931,583 +1089,679 @@ export default function GveDailyHourlyForm({
                       colSpan={readOnly ? 29 : 30}
                       className="border border-black p-6 text-center text-xs font-mono text-zinc-600 bg-zinc-50"
                     >
-                      Shift has not started yet today. First hourly slot opens at{" "}
-                      <strong>06:00 AM</strong> with a 15-minute entry window.
+                      Shift has not started yet today. First hourly slot opens
+                      at <strong>06:00 AM</strong> with a 15-minute entry
+                      window.
                     </td>
                   </tr>
                 ) : (
                   visibleEntries.map((entry) => {
                     const statusInfo = slotStatuses[entry.id] || {
                       status: "ACTIVE",
+
                       isEditable: !readOnly,
+
                       statusLabel: "",
+
                       secondsRemainingInWindow: 0,
+
                       secondsUntilUnlock: 0,
                     }
-                  const isLocked = !statusInfo.isEditable && !readOnly
 
-                  // Row background style based on time progression status
-                  let rowBgClass = "hover:bg-zinc-50"
-                  if (statusInfo.status === "ACTIVE") {
-                    rowBgClass = "bg-emerald-50/80 font-bold"
-                  } else if (statusInfo.status === "UPCOMING") {
-                    rowBgClass = "bg-zinc-100/70 opacity-60"
-                  } else if (statusInfo.status === "EXPIRED_MISSED") {
-                    rowBgClass = "bg-amber-50/40 opacity-70"
-                  }
+                    const isLocked = !statusInfo.isEditable && !readOnly
 
-                  return (
-                    <tr
-                      key={entry.id}
-                      className={`font-mono text-[9.5px] h-9 border-b border-black transition-colors ${rowBgClass}`}
-                    >
-                      {/* Time & Live Status Indicator */}
-                      <td
-                        className={`border border-black p-1 text-center relative ${
-                          statusInfo.status === "ACTIVE"
-                            ? "bg-emerald-100 text-emerald-950 font-extrabold"
-                            : "bg-zinc-50 font-semibold"
-                        }`}
+                    // Row background style based on time progression status
+
+                    let rowBgClass = "hover:bg-zinc-50"
+
+                    if (statusInfo.status === "ACTIVE") {
+                      rowBgClass = "bg-emerald-50/80 font-bold"
+                    } else if (statusInfo.status === "UPCOMING") {
+                      rowBgClass = "bg-zinc-100/70 opacity-60"
+                    } else if (statusInfo.status === "EXPIRED_MISSED") {
+                      rowBgClass = "bg-amber-50/40 opacity-70"
+                    }
+
+                    return (
+                      <tr
+                        key={entry.id}
+                        className={`font-mono text-[9.5px] h-9 border-b border-black transition-colors ${rowBgClass}`}
                       >
-                        <div className="flex flex-col items-center justify-center leading-tight">
-                          <span>{entry.time}</span>
-                          {!readOnly && (
-                            <span className="text-[7px] block uppercase font-sans">
-                              {statusInfo.status === "ACTIVE" && (
-                                <span className="text-emerald-700 font-bold animate-pulse">
-                                  ● LIVE (:15)
-                                </span>
-                              )}
-                              {statusInfo.status === "UPCOMING" && (
-                                <span className="text-zinc-500 font-normal inline-flex items-center gap-0.5">
-                                  <LockIcon className="w-2 h-2" /> Locked
-                                </span>
-                              )}
-                              {statusInfo.status === "LOCKED_RECORDED" && (
-                                <span className="text-blue-800 font-medium inline-flex items-center gap-0.5">
-                                  <CheckIcon className="w-2 h-2" /> Recorded
-                                </span>
-                              )}
-                              {statusInfo.status === "EXPIRED_MISSED" && (
-                                <span className="text-amber-700 font-medium inline-flex items-center gap-0.5">
-                                  <AlertIcon className="w-2 h-2" /> Missed
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* PV */}
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.pv.volt}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "pv",
-                              "volt",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder={statusInfo.status === "UPCOMING" ? "—" : "—"}
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.pv.curr}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "pv",
-                              "curr",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.pv.power}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "pv",
-                              "power",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.pv.energy}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "pv",
-                              "energy",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-
-                      {/* BATTERY */}
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.battery.volt}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "battery",
-                              "volt",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.battery.curr}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "battery",
-                              "curr",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.battery.soc}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "battery",
-                              "soc",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.battery.soh}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "battery",
-                              "soh",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-
-                      {/* LOAD */}
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l1_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l1_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l1_a}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l1_a",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l2_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l2_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l2_c}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l2_c",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l3_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l3_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.l3_c}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "l3_c",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.power}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "power",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.load.energy}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "load",
-                              "energy",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-
-                      {/* GRID/DG */}
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l1_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l1_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l1_a}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l1_a",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l2_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l2_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l2_c}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l2_c",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l3_v}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l3_v",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.l3_c}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "l3_c",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.power}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "power",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-                      <td className="border border-black p-1">
-                        <input
-                          type="text"
-                          value={entry.grid.energy}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "grid",
-                              "energy",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
-                          placeholder="—"
-                        />
-                      </td>
-
-                      {/* SPD */}
-                      <td className="border border-black p-1">
-                        <select
-                          value={entry.spd.in}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "spd",
-                              "in",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
+                        {/* Time & Live Status Indicator */}
+                        <td
+                          className={`border border-black p-1 text-center relative ${
+                            statusInfo.status === "ACTIVE"
+                              ? "bg-emerald-100 text-emerald-950 font-extrabold"
+                              : "bg-zinc-50 font-semibold"
+                          }`}
                         >
-                          <option value="GOOD">GOOD</option>
-                          <option value="DEFECT">FAULT</option>
-                        </select>
-                      </td>
-                      <td className="border border-black p-1">
-                        <select
-                          value={entry.spd.out}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "spd",
-                              "out",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          <option value="GOOD">GOOD</option>
-                          <option value="DEFECT">FAULT</option>
-                        </select>
-                      </td>
-
-                      {/* COOLING */}
-                      <td className="border border-black p-1">
-                        <select
-                          value={entry.cooling.ac1}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "cooling",
-                              "ac1",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          <option value="ON">ON</option>
-                          <option value="OFF">OFF</option>
-                        </select>
-                      </td>
-                      <td className="border border-black p-1">
-                        <select
-                          value={entry.cooling.ac2}
-                          disabled={isLocked || readOnly}
-                          onChange={(e) =>
-                            handleEntryChange(
-                              entry.id,
-                              "cooling",
-                              "ac2",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          <option value="ON">ON</option>
-                          <option value="OFF">OFF</option>
-                        </select>
-                      </td>
-
-                      {/* Delete Action (only if admin or override) */}
-                      {!readOnly && (
-                        <td className="no-print border border-black p-0.5">
-                          {(adminOverride || statusInfo.status === "ACTIVE") && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveRow(entry.id)}
-                              className="text-red-500 hover:text-red-700 text-xs px-1"
-                              title="Delete row"
-                            >
-                              ✕
-                            </button>
-                          )}
+                          <div className="flex flex-col items-center justify-center leading-tight">
+                            <span>{entry.time}</span>
+                            {!readOnly && (
+                              <span className="text-[7px] block uppercase font-sans">
+                                {statusInfo.status === "ACTIVE" && (
+                                  <span className="text-emerald-700 font-bold animate-pulse">
+                                    ● LIVE (:15)
+                                  </span>
+                                )}
+                                {statusInfo.status === "UPCOMING" && (
+                                  <span className="text-zinc-500 font-normal inline-flex items-center gap-0.5">
+                                    <LockIcon className="w-2 h-2" /> Locked
+                                  </span>
+                                )}
+                                {statusInfo.status === "LOCKED_RECORDED" && (
+                                  <span className="text-blue-800 font-medium inline-flex items-center gap-0.5">
+                                    <CheckIcon className="w-2 h-2" /> Recorded
+                                  </span>
+                                )}
+                                {statusInfo.status === "EXPIRED_MISSED" && (
+                                  <span className="text-amber-700 font-medium inline-flex items-center gap-0.5">
+                                    <AlertIcon className="w-2 h-2" /> Missed
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </td>
-                      )}
-                    </tr>
-                  )
-                }))}
+
+                        {/* PV */}
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.pv.volt}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "pv",
+
+                                "volt",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder={
+                              statusInfo.status === "UPCOMING" ? "—" : "—"
+                            }
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.pv.curr}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "pv",
+
+                                "curr",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.pv.power}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "pv",
+
+                                "power",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.pv.energy}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "pv",
+
+                                "energy",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+
+                        {/* BATTERY */}
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.battery.volt}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "battery",
+
+                                "volt",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.battery.curr}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "battery",
+
+                                "curr",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.battery.soc}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "battery",
+
+                                "soc",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.battery.soh}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "battery",
+
+                                "soh",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+
+                        {/* LOAD */}
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l1_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l1_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l1_a}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l1_a",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l2_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l2_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l2_c}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l2_c",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l3_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l3_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.l3_c}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "l3_c",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.power}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "power",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.load.energy}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "load",
+
+                                "energy",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+
+                        {/* GRID/DG */}
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l1_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l1_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l1_a}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l1_a",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l2_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l2_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l2_c}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l2_c",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l3_v}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l3_v",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.l3_c}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "l3_c",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.power}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "power",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+                        <td className="border border-black p-1">
+                          <input
+                            type="text"
+                            value={entry.grid.energy}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "grid",
+
+                                "energy",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 px-0.5 text-[9.5px] font-mono outline-none disabled:cursor-not-allowed font-medium"
+                            placeholder="—"
+                          />
+                        </td>
+
+                        {/* SPD */}
+                        <td className="border border-black p-1">
+                          <select
+                            value={entry.spd.in}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "spd",
+
+                                "in",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            <option value="GOOD">GOOD</option>
+                            <option value="DEFECT">FAULT</option>
+                          </select>
+                        </td>
+                        <td className="border border-black p-1">
+                          <select
+                            value={entry.spd.out}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "spd",
+
+                                "out",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            <option value="GOOD">GOOD</option>
+                            <option value="DEFECT">FAULT</option>
+                          </select>
+                        </td>
+
+                        {/* COOLING */}
+                        <td className="border border-black p-1">
+                          <select
+                            value={entry.cooling.ac1}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "cooling",
+
+                                "ac1",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            <option value="ON">ON</option>
+                            <option value="OFF">OFF</option>
+                          </select>
+                        </td>
+                        <td className="border border-black p-1">
+                          <select
+                            value={entry.cooling.ac2}
+                            disabled={isLocked || readOnly}
+                            onChange={(e) =>
+                              handleEntryChange(
+                                entry.id,
+
+                                "cooling",
+
+                                "ac2",
+
+                                e.target.value,
+                              )
+                            }
+                            className="w-full text-center bg-transparent py-1 text-[9px] font-semibold outline-none disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            <option value="ON">ON</option>
+                            <option value="OFF">OFF</option>
+                          </select>
+                        </td>
+
+                        {/* Delete Action (only if admin or override) */}
+                        {!readOnly && (
+                          <td className="no-print border border-black p-0.5">
+                            {(adminOverride ||
+                              statusInfo.status === "ACTIVE") && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRow(entry.id)}
+                                className="text-red-500 hover:text-red-700 text-xs px-1"
+                                title="Delete row"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1527,6 +1781,7 @@ export default function GveDailyHourlyForm({
         </div>
       ) : (
         /* Fast Interactive Grid View */
+
         <div className="flex flex-col gap-4">
           {/* Site Name and Report Params Bar */}
           <div className="bg-card border border-border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -1593,140 +1848,158 @@ export default function GveDailyHourlyForm({
               visibleEntries.map((entry) => {
                 const statusInfo = slotStatuses[entry.id] || {
                   status: "ACTIVE",
+
                   isEditable: !readOnly,
+
                   statusLabel: "",
+
                   secondsRemainingInWindow: 0,
+
                   secondsUntilUnlock: 0,
                 }
-              const isLocked = !statusInfo.isEditable && !readOnly
 
-              return (
-                <div
-                  key={entry.id}
-                  className={`border rounded-lg p-4 transition-all ${
-                    statusInfo.status === "ACTIVE"
-                      ? "bg-card border-emerald-500 shadow-md ring-1 ring-emerald-500/40"
-                      : statusInfo.status === "UPCOMING"
-                      ? "bg-card/40 border-border opacity-70"
-                      : "bg-card border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-border">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-foreground">
-                        {entry.time}
-                      </span>
-                      {statusInfo.status === "ACTIVE" && (
-                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-400 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-600 px-2 py-0.5 rounded text-[10px] font-mono font-semibold animate-pulse">
-                          ● OPEN FOR INPUT ({statusInfo.statusLabel})
+                const isLocked = !statusInfo.isEditable && !readOnly
+
+                return (
+                  <div
+                    key={entry.id}
+                    className={`border rounded-lg p-4 transition-all ${
+                      statusInfo.status === "ACTIVE"
+                        ? "bg-card border-emerald-500 shadow-md ring-1 ring-emerald-500/40"
+                        : statusInfo.status === "UPCOMING"
+                          ? "bg-card/40 border-border opacity-70"
+                          : "bg-card border-border"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-2 mb-3 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm text-foreground">
+                          {entry.time}
                         </span>
-                      )}
-                      {statusInfo.status === "UPCOMING" && (
-                        <span className="bg-secondary text-muted-foreground border border-border px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1">
-                          <ClockIcon className="w-3 h-3 text-muted-foreground" />
-                          <span>{statusInfo.statusLabel}</span>
-                        </span>
-                      )}
-                      {statusInfo.status === "LOCKED_RECORDED" && (
-                        <span className="bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
-                          <CheckIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                          <span>Locked Log</span>
-                        </span>
-                      )}
-                      {statusInfo.status === "EXPIRED_MISSED" && (
-                        <span className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
-                          <AlertIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>Window Expired</span>
-                        </span>
-                      )}
+                        {statusInfo.status === "ACTIVE" && (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-400 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-600 px-2 py-0.5 rounded text-[10px] font-mono font-semibold animate-pulse">
+                            ● OPEN FOR INPUT ({statusInfo.statusLabel})
+                          </span>
+                        )}
+                        {statusInfo.status === "UPCOMING" && (
+                          <span className="bg-secondary text-muted-foreground border border-border px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1">
+                            <ClockIcon className="w-3 h-3 text-muted-foreground" />
+                            <span>{statusInfo.statusLabel}</span>
+                          </span>
+                        )}
+                        {statusInfo.status === "LOCKED_RECORDED" && (
+                          <span className="bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
+                            <CheckIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            <span>Locked Log</span>
+                          </span>
+                        )}
+                        {statusInfo.status === "EXPIRED_MISSED" && (
+                          <span className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700 px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 font-semibold">
+                            <AlertIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Window Expired</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block font-mono">
+                          PV Power (kW)
+                        </label>
+                        <input
+                          type="text"
+                          value={entry.pv.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+
+                              "pv",
+
+                              "power",
+
+                              e.target.value,
+                            )
+                          }
+                          placeholder="0.0"
+                          className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block font-mono">
+                          Battery SOC (%)
+                        </label>
+                        <input
+                          type="text"
+                          value={entry.battery.soc}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+
+                              "battery",
+
+                              "soc",
+
+                              e.target.value,
+                            )
+                          }
+                          placeholder="0%"
+                          className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block font-mono">
+                          Load Power (kW)
+                        </label>
+                        <input
+                          type="text"
+                          value={entry.load.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+
+                              "load",
+
+                              "power",
+
+                              e.target.value,
+                            )
+                          }
+                          placeholder="0.0"
+                          className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block font-mono">
+                          Grid Power (kW)
+                        </label>
+                        <input
+                          type="text"
+                          value={entry.grid.power}
+                          disabled={isLocked || readOnly}
+                          onChange={(e) =>
+                            handleEntryChange(
+                              entry.id,
+
+                              "grid",
+
+                              "power",
+
+                              e.target.value,
+                            )
+                          }
+                          placeholder="0.0"
+                          className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
+                        />
+                      </div>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block font-mono">
-                        PV Power (kW)
-                      </label>
-                      <input
-                        type="text"
-                        value={entry.pv.power}
-                        disabled={isLocked || readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "pv",
-                            "power",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0.0"
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block font-mono">
-                        Battery SOC (%)
-                      </label>
-                      <input
-                        type="text"
-                        value={entry.battery.soc}
-                        disabled={isLocked || readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "battery",
-                            "soc",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0%"
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block font-mono">
-                        Load Power (kW)
-                      </label>
-                      <input
-                        type="text"
-                        value={entry.load.power}
-                        disabled={isLocked || readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "load",
-                            "power",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0.0"
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block font-mono">
-                        Grid Power (kW)
-                      </label>
-                      <input
-                        type="text"
-                        value={entry.grid.power}
-                        disabled={isLocked || readOnly}
-                        onChange={(e) =>
-                          handleEntryChange(
-                            entry.id,
-                            "grid",
-                            "power",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="0.0"
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground font-mono disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )
-            }))}
+                )
+              })
+            )}
           </div>
         </div>
       )}
@@ -1802,8 +2075,8 @@ export default function GveDailyHourlyForm({
                     Live PDF Export & Physical Print Preview
                   </h3>
                   <p className="text-xs text-muted-foreground font-mono">
-                    Official 1:1 format replica of {siteName || "GVE Site"} Hourly
-                    Record
+                    Official 1:1 format replica of {siteName || "GVE Site"}{" "}
+                    Hourly Record
                   </p>
                 </div>
               </div>
@@ -2050,6 +2323,7 @@ export default function GveDailyHourlyForm({
                 type="button"
                 onClick={(e) => {
                   setShowSubmitConfirmModal(false)
+
                   handleSubmitFinal(e)
                 }}
                 className="px-4 py-2 rounded text-xs bg-primary hover:bg-primary-hover text-primary-foreground font-bold shadow cursor-pointer"

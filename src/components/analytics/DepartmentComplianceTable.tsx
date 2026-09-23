@@ -1,4 +1,7 @@
-import { DepartmentMetricItem, TechnicianLeaderboardItem } from "../../lib/analyticsCalculator"
+import {
+  DepartmentMetricItem,
+  TechnicianLeaderboardItem,
+} from "../../lib/analyticsCalculator"
 import { AwardIcon } from "../Icons"
 
 export interface DepartmentComplianceTableProps {
@@ -36,19 +39,28 @@ export default function DepartmentComplianceTable({
                 <th className="pb-2.5 font-medium text-center">Reports</th>
                 <th className="pb-2.5 font-medium text-center">Approved</th>
                 <th className="pb-2.5 font-medium text-center">Flagged</th>
-                <th className="pb-2.5 font-medium text-center">Approval Rate</th>
-                <th className="pb-2.5 font-medium text-right">Compliance SLA</th>
+                <th className="pb-2.5 font-medium text-center">
+                  Approval Rate
+                </th>
+                <th className="pb-2.5 font-medium text-right">
+                  Compliance SLA
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {departments.map((dept) => (
-                <tr key={dept.department} className="hover:bg-secondary/30 transition-colors">
+                <tr
+                  key={dept.department}
+                  className="hover:bg-secondary/30 transition-colors"
+                >
                   <td className="py-3 pr-2 flex items-center gap-2">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: dept.color }}
                     />
-                    <span className="font-medium text-foreground">{dept.department}</span>
+                    <span className="font-medium text-foreground">
+                      {dept.department}
+                    </span>
                   </td>
                   <td className="py-3 text-center text-foreground font-semibold">
                     {dept.total}

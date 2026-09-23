@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts"
-import { TypeDistributionItem, DepartmentMetricItem } from "../../lib/analyticsCalculator"
+import {
+  TypeDistributionItem,
+  DepartmentMetricItem,
+} from "../../lib/analyticsCalculator"
 
 export interface ReportDistributionChartProps {
   typeData: TypeDistributionItem[]
@@ -97,12 +100,20 @@ export default function ReportDistributionChart({
                 dataKey="value"
               >
                 {computedItems.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} stroke="#0b1410" strokeWidth={2} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.color}
+                    stroke="#0b1410"
+                    strokeWidth={2}
+                  />
                 ))}
               </Pie>
               <Tooltip
                 contentStyle={customTooltipStyle}
-                formatter={(v, name) => [`${v} reports (${Math.round((Number(v) / totalCount) * 100)}%)`, String(name)]}
+                formatter={(v, name) => [
+                  `${v} reports (${Math.round((Number(v) / totalCount) * 100)}%)`,
+                  String(name),
+                ]}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -132,7 +143,9 @@ export default function ReportDistributionChart({
                 <span className="text-foreground truncate">{item.name}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="font-semibold text-foreground">{item.value}</span>
+                <span className="font-semibold text-foreground">
+                  {item.value}
+                </span>
                 <span className="text-muted-foreground text-[10px] w-9 text-right">
                   ({item.percentage}%)
                 </span>

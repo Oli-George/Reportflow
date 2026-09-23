@@ -34,7 +34,10 @@ export default function SiteEnergyAnalytics({
   totalLoadKwh,
   avgSoc,
 }: SiteEnergyAnalyticsProps) {
-  const selfSufficiencyPct = totalLoadKwh > 0 ? Math.min(100, Math.round((totalGenKwh / totalLoadKwh) * 100)) : 100
+  const selfSufficiencyPct =
+    totalLoadKwh > 0
+      ? Math.min(100, Math.round((totalGenKwh / totalLoadKwh) * 100))
+      : 100
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-5 shadow-sm">
@@ -47,7 +50,8 @@ export default function SiteEnergyAnalytics({
             </h3>
           </div>
           <p className="text-xs font-mono text-muted-foreground mt-0.5">
-            Aggregated solar PV generation, load consumption, and battery storage performance
+            Aggregated solar PV generation, load consumption, and battery
+            storage performance
           </p>
         </div>
 
@@ -76,7 +80,11 @@ export default function SiteEnergyAnalytics({
       <div className="w-full h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={telemetryData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1c2f25" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#1c2f25"
+              vertical={false}
+            />
             <XAxis
               dataKey={"date" as any}
               tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}

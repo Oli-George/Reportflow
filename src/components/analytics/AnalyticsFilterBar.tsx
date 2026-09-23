@@ -41,7 +41,12 @@ export default function AnalyticsFilterBar({
   filter,
   onChange,
   onExportCsv,
-  sites = ["All Sites", "Kuka Mini-Grid", "GVE Base Plant", "Off-Grid Solar Cluster"],
+  sites = [
+    "All Sites",
+    "Kuka Mini-Grid",
+    "GVE Base Plant",
+    "Off-Grid Solar Cluster",
+  ],
 }: AnalyticsFilterBarProps) {
   const handleTimeframeChange = (tf: TimeframeOption) => {
     onChange({ ...filter, timeframe: tf })
@@ -70,7 +75,14 @@ export default function AnalyticsFilterBar({
           <span className="text-xs font-mono text-muted-foreground mr-1 hidden sm:inline">
             Range:
           </span>
-          {(["7d", "30d", "90d", "quarter", "year", "all"] as TimeframeOption[]).map((tf) => {
+          {([
+            "7d",
+            "30d",
+            "90d",
+            "quarter",
+            "year",
+            "all",
+          ] as TimeframeOption[]).map((tf) => {
             const isSelected = filter.timeframe === tf
             return (
               <button
@@ -98,7 +110,14 @@ export default function AnalyticsFilterBar({
               className="px-3 py-1.5 rounded-lg text-xs font-mono bg-secondary hover:bg-secondary/80 text-foreground border border-border flex items-center gap-1.5 transition-colors"
               title="Export filtered reports data as CSV"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
@@ -117,7 +136,11 @@ export default function AnalyticsFilterBar({
             Department
           </label>
           <select
-            value={filter.department === "All" ? "All Departments" : filter.department}
+            value={
+              filter.department === "All"
+                ? "All Departments"
+                : filter.department
+            }
             onChange={handleDeptChange}
             className="w-full bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary-hover font-mono"
           >
@@ -135,7 +158,9 @@ export default function AnalyticsFilterBar({
             Report Type
           </label>
           <select
-            value={filter.reportType === "All" ? "All Types" : filter.reportType}
+            value={
+              filter.reportType === "All" ? "All Types" : filter.reportType
+            }
             onChange={handleTypeChange}
             className="w-full bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary-hover font-mono"
           >

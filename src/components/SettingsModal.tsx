@@ -20,7 +20,7 @@ import {
   CheckIcon,
   TrashIcon,
   AlertIcon,
-  RefreshIcon
+  RefreshIcon,
 } from "./Icons"
 
 interface SettingsModalProps {
@@ -90,7 +90,10 @@ export default function SettingsModal({
   }, [isOpen, userName])
 
   useEffect(() => {
-    if (role === "staff" && (activeTab === "registry" || activeTab === "about")) {
+    if (
+      role === "staff" &&
+      (activeTab === "registry" || activeTab === "about")
+    ) {
       setActiveTab("general")
     }
   }, [role, activeTab])
@@ -171,7 +174,10 @@ export default function SettingsModal({
         {/* Modal Header */}
         <div
           className="flex items-center justify-between px-5 py-4 border-b shrink-0"
-          style={{ borderColor: "var(--border)", backgroundColor: "var(--background)" }}
+          style={{
+            borderColor: "var(--border)",
+            backgroundColor: "var(--background)",
+          }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-lg bg-primary/15 text-primary border border-primary/30">
@@ -195,7 +201,14 @@ export default function SettingsModal({
             className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title="Close Settings (ESC)"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -290,7 +303,8 @@ export default function SettingsModal({
                   Field Defaults & Form Automation
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Configure default values to minimize repetitive typing during daily field operations.
+                  Configure default values to minimize repetitive typing during
+                  daily field operations.
                 </p>
               </div>
 
@@ -300,13 +314,16 @@ export default function SettingsModal({
                   DEFAULT ASSIGNED MINI-GRID SITE
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  New Daily, Weekly, and Quarterly reports will automatically default to this site name.
+                  New Daily, Weekly, and Quarterly reports will automatically
+                  default to this site name.
                 </p>
                 <div className="relative">
                   <input
                     type="text"
                     value={settings.defaultSiteName}
-                    onChange={(e) => updateSettings({ defaultSiteName: e.target.value })}
+                    onChange={(e) =>
+                      updateSettings({ defaultSiteName: e.target.value })
+                    }
                     placeholder="Type default mini-grid site name (e.g. GVE Kuka Mini-Grid)..."
                     className="w-full bg-card border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-mono transition-colors"
                   />
@@ -319,7 +336,8 @@ export default function SettingsModal({
                   CONTINUOUS FORM AUTO-SAVE INTERVAL
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  How frequently long audit forms automatically save local drafts to IndexedDB.
+                  How frequently long audit forms automatically save local
+                  drafts to IndexedDB.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   {[5, 10, 30, 60].map((sec) => (
@@ -348,7 +366,8 @@ export default function SettingsModal({
                   ENVIRONMENT DISPLAY MODE
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  Switch between Dark Command Center and High-Contrast Mode for direct sunlight readability.
+                  Switch between Dark Command Center and High-Contrast Mode for
+                  direct sunlight readability.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <button
@@ -370,7 +389,9 @@ export default function SettingsModal({
                       <ContrastIcon size={18} />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold">Dark Command Center</p>
+                      <p className="text-xs font-semibold">
+                        Dark Command Center
+                      </p>
                       <p className="text-[11px] text-muted-foreground">
                         #005030 forest-green dark palette
                       </p>
@@ -396,7 +417,9 @@ export default function SettingsModal({
                       <SunIcon size={18} />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold">Outdoor Sunlight Mode</p>
+                      <p className="text-xs font-semibold">
+                        Outdoor Sunlight Mode
+                      </p>
                       <p className="text-[11px] text-muted-foreground">
                         Maximum mobile contrast in harsh glare
                       </p>
@@ -415,7 +438,9 @@ export default function SettingsModal({
                   Tamper-Proof Forensic Photo Watermarking
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Photos uploaded from the field are rendered onto an HTML5 canvas with a burned forensic audit bar to prevent photo reuse or armchair reporting.
+                  Photos uploaded from the field are rendered onto an HTML5
+                  canvas with a burned forensic audit bar to prevent photo reuse
+                  or armchair reporting.
                 </p>
               </div>
 
@@ -427,7 +452,8 @@ export default function SettingsModal({
                     Automated Forensic Watermarking
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Burn site, timestamp, and technician metadata permanently into image pixels
+                    Burn site, timestamp, and technician metadata permanently
+                    into image pixels
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -459,11 +485,16 @@ export default function SettingsModal({
                       type="checkbox"
                       checked={settings.watermarkIncludeTimestamp}
                       onChange={(e) =>
-                        updateSettings({ watermarkIncludeTimestamp: e.target.checked })
+                        updateSettings({
+                          watermarkIncludeTimestamp: e.target.checked,
+                        })
                       }
                       className="rounded border-border text-primary focus:ring-0"
                     />
-                    <span>West Africa Time (WAT) Stamp (e.g. 17-Sep-2026 10:24 AM WAT)</span>
+                    <span>
+                      West Africa Time (WAT) Stamp (e.g. 17-Sep-2026 10:24 AM
+                      WAT)
+                    </span>
                   </label>
 
                   <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer">
@@ -471,11 +502,16 @@ export default function SettingsModal({
                       type="checkbox"
                       checked={settings.watermarkIncludeInspector}
                       onChange={(e) =>
-                        updateSettings({ watermarkIncludeInspector: e.target.checked })
+                        updateSettings({
+                          watermarkIncludeInspector: e.target.checked,
+                        })
                       }
                       className="rounded border-border text-primary focus:ring-0"
                     />
-                    <span>Inspector Name / Tech ID (e.g. TECH: {userName.toUpperCase()})</span>
+                    <span>
+                      Inspector Name / Tech ID (e.g. TECH:{" "}
+                      {userName.toUpperCase()})
+                    </span>
                   </label>
 
                   <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer">
@@ -483,11 +519,15 @@ export default function SettingsModal({
                       type="checkbox"
                       checked={settings.watermarkIncludeGps}
                       onChange={(e) =>
-                        updateSettings({ watermarkIncludeGps: e.target.checked })
+                        updateSettings({
+                          watermarkIncludeGps: e.target.checked,
+                        })
                       }
                       className="rounded border-border text-primary focus:ring-0"
                     />
-                    <span>GPS Coordinates (Latitude & Longitude if location granted)</span>
+                    <span>
+                      GPS Coordinates (Latitude & Longitude if location granted)
+                    </span>
                   </label>
                 </div>
               </div>
@@ -499,7 +539,9 @@ export default function SettingsModal({
                     FORENSIC WATERMARK PREVIEW
                   </label>
                   <span className="text-[10px] font-mono text-muted-foreground">
-                    {role === "admin" ? "Admin Enhanced View (90% opacity)" : "Staff View (55% subtle opacity)"}
+                    {role === "admin"
+                      ? "Admin Enhanced View (90% opacity)"
+                      : "Staff View (55% subtle opacity)"}
                   </span>
                 </div>
 
@@ -516,20 +558,28 @@ export default function SettingsModal({
                   <div
                     className="relative px-3 py-2 border-t font-mono"
                     style={{
-                      backgroundColor: `rgba(8, 15, 11, ${role === "admin" ? settings.watermarkAdminOpacity : settings.watermarkStaffOpacity})`,
+                      backgroundColor: `rgba(8, 15, 11, ${
+                        role === "admin"
+                          ? settings.watermarkAdminOpacity
+                          : settings.watermarkStaffOpacity
+                      })`,
                       borderColor: "rgba(0, 117, 74, 0.8)",
                     }}
                   >
                     <p className="text-[11px] font-bold text-white tracking-wide">
-                      [SITE: {settings.defaultSiteName.toUpperCase()}] &nbsp; [TECH: {userName.toUpperCase()}]
+                      [SITE: {settings.defaultSiteName.toUpperCase()}] &nbsp;
+                      [TECH: {userName.toUpperCase()}]
                     </p>
                     <p className="text-[10px] text-lime-400">
-                      [TIME: 17-Sep-2026 10:24 AM WAT] &nbsp; [GPS: 9.87320°N, 6.54120°E]
+                      [TIME: 17-Sep-2026 10:24 AM WAT] &nbsp; [GPS: 9.87320°N,
+                      6.54120°E]
                     </p>
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground italic pt-1">
-                  Note: On Staff View, watermarks render with subtle ~50% opacity so equipment dials remain unobscured. On Admin View, photos render with high-contrast forensic clarity for audits.
+                  Note: On Staff View, watermarks render with subtle ~50%
+                  opacity so equipment dials remain unobscured. On Admin View,
+                  photos render with high-contrast forensic clarity for audits.
                 </p>
               </div>
             </div>
@@ -553,7 +603,10 @@ export default function SettingsModal({
                   disabled={isLoadingStats}
                   className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono border border-border text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer"
                 >
-                  <RefreshIcon size={12} className={isLoadingStats ? "animate-spin" : ""} />
+                  <RefreshIcon
+                    size={12}
+                    className={isLoadingStats ? "animate-spin" : ""}
+                  />
                   <span>Refresh</span>
                 </button>
               </div>
@@ -567,7 +620,9 @@ export default function SettingsModal({
                   <p className="text-xl font-display font-bold text-primary mt-1">
                     {stats?.draftsCount ?? 0}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Auto-saved forms</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Auto-saved forms
+                  </p>
                 </div>
 
                 <div className="p-3 rounded-lg bg-secondary/50 border border-border">
@@ -577,7 +632,9 @@ export default function SettingsModal({
                   <p className="text-xl font-display font-bold text-blue-400 mt-1">
                     {stats?.pendingSyncCount ?? 0}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Awaiting uplink</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Awaiting uplink
+                  </p>
                 </div>
 
                 <div className="p-3 rounded-lg bg-secondary/50 border border-border">
@@ -587,7 +644,9 @@ export default function SettingsModal({
                   <p className="text-xl font-display font-bold text-purple-400 mt-1">
                     {stats?.offlineReportsCount ?? 0}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Cached for offline</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Cached for offline
+                  </p>
                 </div>
 
                 <div className="p-3 rounded-lg bg-secondary/50 border border-border">
@@ -597,7 +656,9 @@ export default function SettingsModal({
                   <p className="text-xl font-display font-bold text-amber-400 mt-1">
                     {stats?.estimatedStorageKb ?? 0} KB
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Local footprint</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Local footprint
+                  </p>
                 </div>
               </div>
 
@@ -627,7 +688,9 @@ export default function SettingsModal({
                   </button>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Exporting creates a JSON archive of all local drafts on your device. Cleaning synced drafts safely removes submitted reports while preserving unsubmitted work.
+                  Exporting creates a JSON archive of all local drafts on your
+                  device. Cleaning synced drafts safely removes submitted
+                  reports while preserving unsubmitted work.
                 </p>
               </div>
 
@@ -638,7 +701,8 @@ export default function SettingsModal({
                   <span>DANGER ZONE</span>
                 </div>
                 <p className="text-xs text-rose-300/80">
-                  Purge all local drafts from IndexedDB. Use only if instructed by the IT administrator or if resolving local data conflicts.
+                  Purge all local drafts from IndexedDB. Use only if instructed
+                  by the IT administrator or if resolving local data conflicts.
                 </p>
 
                 {confirmResetOpen ? (
@@ -680,7 +744,8 @@ export default function SettingsModal({
                     Mini-Grid Site Registry & Asset Registry
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Manage operational sites, installed solar PV capacity (kWp), battery bank capacity (kWh), and reference GPS coordinates.
+                    Manage operational sites, installed solar PV capacity (kWp),
+                    battery bank capacity (kWh), and reference GPS coordinates.
                   </p>
                 </div>
                 <button
@@ -833,7 +898,9 @@ export default function SettingsModal({
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-muted-foreground">{s.state}</td>
+                        <td className="py-2.5 px-3 text-muted-foreground">
+                          {s.state}
+                        </td>
                         <td className="py-2.5 px-3 font-mono text-primary font-medium">
                           {s.pvCapacityKwp} kWp
                         </td>
@@ -886,20 +953,36 @@ export default function SettingsModal({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-border">
                   <div>
-                    <span className="text-muted-foreground">PWA & Offline Mode:</span>{" "}
-                    <span className="font-mono text-emerald-400">Active (ServiceWorker v2)</span>
+                    <span className="text-muted-foreground">
+                      PWA & Offline Mode:
+                    </span>{" "}
+                    <span className="font-mono text-emerald-400">
+                      Active (ServiceWorker v2)
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Storage Engine:</span>{" "}
-                    <span className="font-mono text-foreground">IndexedDB v1 + LocalForage</span>
+                    <span className="text-muted-foreground">
+                      Storage Engine:
+                    </span>{" "}
+                    <span className="font-mono text-foreground">
+                      IndexedDB v1 + LocalForage
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Regulatory Target:</span>{" "}
-                    <span className="font-mono text-foreground">NERC & REA / NEP Mini-Grid</span>
+                    <span className="text-muted-foreground">
+                      Regulatory Target:
+                    </span>{" "}
+                    <span className="font-mono text-foreground">
+                      NERC & REA / NEP Mini-Grid
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Emergency Support:</span>{" "}
-                    <span className="font-mono text-primary">{settings.controlRoomContact}</span>
+                    <span className="text-muted-foreground">
+                      Emergency Support:
+                    </span>{" "}
+                    <span className="font-mono text-primary">
+                      {settings.controlRoomContact}
+                    </span>
                   </div>
                 </div>
               </div>

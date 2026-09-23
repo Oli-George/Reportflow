@@ -46,7 +46,8 @@ export default function SubmissionVelocityChart({
             </span>
           </h3>
           <p className="text-xs font-mono text-muted-foreground mt-0.5">
-            Operational throughput: submitted, approved, and revision-flagged logs
+            Operational throughput: submitted, approved, and revision-flagged
+            logs
           </p>
         </div>
 
@@ -81,7 +82,11 @@ export default function SubmissionVelocityChart({
         <ResponsiveContainer width="100%" height="100%">
           {chartType === "bar" ? (
             <BarChart data={data} barCategoryGap="28%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1c2f25" vertical={false} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="#1c2f25"
+                vertical={false}
+              />
               <XAxis
                 dataKey={"period" as any}
                 tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}
@@ -139,7 +144,11 @@ export default function SubmissionVelocityChart({
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1c2f25" vertical={false} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="#1c2f25"
+                vertical={false}
+              />
               <XAxis
                 dataKey={"period" as any}
                 tick={{ fill: "#8aab96", fontSize: 11, fontFamily: "DM Mono" }}

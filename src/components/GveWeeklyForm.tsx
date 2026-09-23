@@ -1,121 +1,177 @@
 import React, { useState, useRef, useMemo } from "react"
+
 import logoImg from "./logo.jpeg"
+
 import {
   GveWeeklyRecordData,
   OutageFaultEntry,
   createEmptyGveWeeklyData,
   createDefaultOutageEntry,
 } from "../types/gveWeekly"
+
 import ReportPhotoUploader from "./ReportPhotoUploader"
+
 import {
   getLastSiteName,
   saveLastSiteName,
   getRecentSiteNames,
 } from "../lib/siteMemory"
+
 import { useFormAutoSave } from "../hooks/useFormAutoSave"
+
 import { FileTextIcon, InfoIcon, AlertIcon, EditIcon } from "./Icons"
 
 interface GveWeeklyFormProps {
   initialData?: GveWeeklyRecordData
+
   readOnly?: boolean
+
   author?: string
+
   reportId?: number | null
+
   onSave?: (data: GveWeeklyRecordData, status: "Draft" | "Submitted") => void
+
   onCancel?: () => void
 }
 
 export default function GveWeeklyForm({
   initialData,
+
   readOnly = false,
+
   author,
+
   reportId,
+
   onSave,
+
   onCancel,
 }: GveWeeklyFormProps) {
   const [formData, setFormData] = useState<GveWeeklyRecordData>(() => {
     if (initialData) return initialData
+
     const empty = createEmptyGveWeeklyData()
+
     empty.siteName = getLastSiteName()
+
     return empty
   })
 
   const recentSites = useMemo(() => getRecentSiteNames(), [])
 
   const [viewMode, setViewMode] = useState<"paper" | "interactive">("paper")
+
   const [showPdfModal, setShowPdfModal] = useState(false)
+
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
+
   const [title, setTitle] = useState(
     initialData?.title ||
       (initialData?.siteName
         ? `Weekly Site Report Form — ${initialData.siteName}`
         : formData.siteName
-        ? `Weekly Site Report Form — ${formData.siteName}`
-        : "Weekly Site Report Form"),
+          ? `Weekly Site Report Form — ${formData.siteName}`
+          : "Weekly Site Report Form"),
   )
+
   const [titleError, setTitleError] = useState<string | null>(null)
+
   const [activeSigField, setActiveSigField] =
     useState<"supervisor" | "operator" | null>(null)
 
   // HTML5 Canvas signature pad refs & state
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
   const [isDrawing, setIsDrawing] = useState(false)
 
   // Continuous 10-second IndexedDB Auto-Save
+
   const currentFormData: GveWeeklyRecordData = useMemo(
     () => ({
       ...formData,
+
       title: title.trim(),
     }),
+
     [formData, title],
   )
 
   const {
     lastSavedTime,
+
     isSaving,
+
     recoveredDraft,
+
     restoreDraft,
+
     discardDraft,
+
     clearDraft,
   } = useFormAutoSave<GveWeeklyRecordData>({
     formType: "gveWeekly",
+
     author: author || "Field Technician",
+
     reportId,
+
     formData: currentFormData,
+
     siteName: formData.siteName,
+
     title,
+
     readOnly,
   })
 
   const handleRestoreDraft = () => {
     const restored = restoreDraft()
+
     if (restored) {
       setFormData(restored)
+
       if (restored.title) setTitle(restored.title)
     }
   }
 
   // Direct state updaters
+
   const updateField = <K extends keyof GveWeeklyRecordData,>(
     field: K,
+
     value: GveWeeklyRecordData[K],
   ) => {
     if (readOnly) return
+
     setFormData((prev) => ({ ...prev, [field]: value }))
+
     if (field === "siteName") {
-      const sName = (value as string) || ""
-      setTitle(sName ? `Weekly Site Report Form — ${sName}` : "Weekly Site Report Form")
+      const sName = value as string || ""
+
+      setTitle(
+        sName
+          ? `Weekly Site Report Form — ${sName}`
+          : "Weekly Site Report Form",
+      )
+
       if (titleError) setTitleError(null)
     }
   }
 
   const updateOutage = (
     id: string,
+
     field: keyof OutageFaultEntry,
+
     value: string,
   ) => {
     if (readOnly) return
+
     setFormData((prev) => ({
       ...prev,
+
       outages: prev.outages.map((item) =>
         item.id === id ? { ...item, [field]: value } : item,
       ),
@@ -124,43 +180,67 @@ export default function GveWeeklyForm({
 
   const handleAddOutageRow = () => {
     if (readOnly) return
+
     const count = formData.outages.length + 1
+
     const dayLabel = `DAY ${Math.ceil(count / 2)}`
+
     const newEntry = createDefaultOutageEntry(dayLabel, count)
+
     setFormData((prev) => ({ ...prev, outages: [...prev.outages, newEntry] }))
   }
 
   const handleRemoveOutageRow = (id: string) => {
     if (readOnly) return
+
     setFormData((prev) => ({
       ...prev,
+
       outages: prev.outages.filter((item) => item.id !== id),
     }))
   }
 
   // Signature canvas handlers
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
+
     if (!canvas) return
+
     const ctx = canvas.getContext("2d")
+
     if (!ctx) return
+
     const rect = canvas.getBoundingClientRect()
+
     ctx.beginPath()
+
     ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
+
     setIsDrawing(true)
   }
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
+
     const canvas = canvasRef.current
+
     if (!canvas) return
+
     const ctx = canvas.getContext("2d")
+
     if (!ctx) return
+
     const rect = canvas.getBoundingClientRect()
+
     ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
+
     ctx.strokeStyle = "#005030"
+
     ctx.lineWidth = 2.5
+
     ctx.lineCap = "round"
+
     ctx.stroke()
   }
 
@@ -170,8 +250,11 @@ export default function GveWeeklyForm({
 
   const clearCanvas = () => {
     const canvas = canvasRef.current
+
     if (!canvas) return
+
     const ctx = canvas.getContext("2d")
+
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
     }
@@ -179,56 +262,85 @@ export default function GveWeeklyForm({
 
   const saveSignature = () => {
     const canvas = canvasRef.current
+
     if (!canvas || !activeSigField) return
+
     const dataUrl = canvas.toDataURL("image/png")
+
     if (activeSigField === "supervisor") {
       updateField("supervisorSignature", dataUrl)
     } else {
       updateField("operatorSignature", dataUrl)
     }
+
     setActiveSigField(null)
   }
 
   const extractSiteNameFromWeeklyTitle = (titleText: string): string => {
     if (!titleText) return ""
+
     const trimmed = titleText.trim()
+
     if (/Weekly Site Report/i.test(trimmed)) {
-      const after = trimmed.replace(/Weekly Site Report( Form)?\s*[—–\-]\s*/i, "").trim()
+      const after = trimmed
+        .replace(/Weekly Site Report( Form)?\s*[—–\-]\s*/i, "")
+        .trim()
+
       if (after && after !== trimmed) return after
-      const before = trimmed.split(/Weekly Site Report/i)[0].trim().replace(/[—–\-]\s*$/, "").trim()
+
+      const before = trimmed
+        .split(/Weekly Site Report/i)[0]
+        .trim()
+        .replace(/[—–\-]\s*$/, "")
+        .trim()
+
       if (before) return before
     }
+
     if (/[—–]/.test(trimmed)) {
       return trimmed.split(/[—–]/)[0].trim()
     }
+
     return trimmed
   }
 
   const handleTitleChange = (val: string) => {
     setTitle(val)
+
     if (val.trim()) {
       setTitleError(null)
     }
+
     const extractedSite = extractSiteNameFromWeeklyTitle(val)
+
     setFormData((prev) => ({ ...prev, siteName: extractedSite }))
   }
 
   const validateReportTitle = (): boolean => {
     if (!title || !title.trim()) {
-      setTitleError("Report Name is required. Please enter a valid name before proceeding.")
+      setTitleError(
+        "Report Name is required. Please enter a valid name before proceeding.",
+      )
+
       return false
     }
+
     setTitleError(null)
+
     return true
   }
 
   const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateReportTitle()) {
       return
     }
+
     saveLastSiteName(formData.siteName)
+
     await clearDraft()
+
     if (onSave) {
       onSave({ ...formData, title: title.trim() }, "Draft")
     }
@@ -236,12 +348,17 @@ export default function GveWeeklyForm({
 
   const handleSubmitFinal = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateReportTitle()) {
       setShowSubmitConfirmModal(false)
+
       return
     }
+
     saveLastSiteName(formData.siteName)
+
     await clearDraft()
+
     if (onSave) {
       onSave({ ...formData, title: title.trim() }, "Submitted")
     }
@@ -286,7 +403,8 @@ export default function GveWeeklyForm({
             </div>
             {readOnly ? (
               <h2 className="text-sm font-display font-600 text-foreground truncate">
-                {title || `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}
+                {title ||
+                  `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}
               </h2>
             ) : (
               <div className="relative flex items-center">
@@ -392,6 +510,7 @@ export default function GveWeeklyForm({
               Unsaved local draft from{" "}
               {new Date(recoveredDraft.lastSavedAt).toLocaleTimeString([], {
                 hour: "2-digit",
+
                 minute: "2-digit",
               })}{" "}
               found for {recoveredDraft.siteName || "this site"}.
@@ -693,7 +812,9 @@ export default function GveWeeklyForm({
                           onChange={(e) =>
                             updateOutage(
                               entry.id,
+
                               "timeRestored",
+
                               e.target.value,
                             )
                           }
@@ -750,34 +871,49 @@ export default function GveWeeklyForm({
             <div className="divide-y divide-zinc-400 text-[10px] font-bold text-black">
               {[
                 { field: "remarkBess" as const, label: "REMARK ON BESS" },
+
                 {
                   field: "remarkInverters" as const,
+
                   label: "REMARK ON INVERTERS",
                 },
+
                 {
                   field: "remarkChargeControllers" as const,
+
                   label: "REMARK ON CHARGE CONTROLLERS",
                 },
+
                 {
                   field: "remarkDieselGenerator" as const,
+
                   label: "REMARK ON DIESEL GENERATOR",
                 },
+
                 {
                   field: "remarkCoolingSystem" as const,
+
                   label: "REMARK ON COOLING SYSTEM",
                 },
+
                 {
                   field: "remarkMeteringVending" as const,
+
                   label: "REMARK ON METERING/VENDING",
                 },
+
                 {
                   field: "remarkGridLine" as const,
+
                   label: "REMARK ON GRID LINE",
                 },
+
                 {
                   field: "remarkFireExtinguisherSafetyTools" as const,
+
                   label: "REMARK ON FIRE EXTINGUISHER AND SAFETY TOOLS",
                 },
+
                 { field: "remarkSpds" as const, label: "REMARK ON SPDs" },
               ].map(({ field, label }) => (
                 <div
@@ -809,18 +945,25 @@ export default function GveWeeklyForm({
               {[
                 {
                   field: "visitorReceived" as const,
+
                   label: "VISITOR RECEIVED WITHIN THE WEEK",
                 },
+
                 {
                   field: "maintenanceCarriedOut" as const,
+
                   label: "MAINTENANCE CARRIED OUT WITHIN THE WEEK",
                 },
+
                 {
                   field: "housekeepingActivities" as const,
+
                   label: "HOUSE KEEPING ACTIVITIES WITHIN THE WEEK",
                 },
+
                 {
                   field: "anyOtherComment" as const,
+
                   label: "ANY OTHER COMMENT",
                 },
               ].map(({ field, label }) => (
@@ -846,6 +989,7 @@ export default function GveWeeklyForm({
         </div>
       ) : (
         /* Fast Grid Interactive Mode */
+
         <div className="bg-card border border-border rounded-lg p-5 space-y-6">
           {/* Header Info */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-secondary/50 p-4 rounded-lg border border-border">
@@ -936,28 +1080,41 @@ export default function GveWeeklyForm({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 { field: "remarkBess" as const, label: "BESS" },
+
                 { field: "remarkInverters" as const, label: "Inverters" },
+
                 {
                   field: "remarkChargeControllers" as const,
+
                   label: "Charge Controllers",
                 },
+
                 {
                   field: "remarkDieselGenerator" as const,
+
                   label: "Diesel Generator",
                 },
+
                 {
                   field: "remarkCoolingSystem" as const,
+
                   label: "Cooling System",
                 },
+
                 {
                   field: "remarkMeteringVending" as const,
+
                   label: "Metering / Vending",
                 },
+
                 { field: "remarkGridLine" as const, label: "Grid Line" },
+
                 {
                   field: "remarkFireExtinguisherSafetyTools" as const,
+
                   label: "Safety / Fire Tools",
                 },
+
                 { field: "remarkSpds" as const, label: "SPDs" },
               ].map(({ field, label }) => (
                 <div
@@ -1264,7 +1421,10 @@ export default function GveWeeklyForm({
             <p className="text-xs text-muted-foreground leading-relaxed">
               Are you sure you want to finalize and submit{" "}
               <strong className="text-foreground font-bold">
-                "{title || `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}"
+                "
+                {title ||
+                  `Weekly Site Report Form — ${formData.siteName || "GVE Site"}`}
+                "
               </strong>
               ? Once submitted, it will be locked and sent to Site
               Administrators for formal compliance review.
@@ -1293,6 +1453,7 @@ export default function GveWeeklyForm({
                 type="button"
                 onClick={(e) => {
                   setShowSubmitConfirmModal(false)
+
                   handleSubmitFinal(e)
                 }}
                 className="px-4 py-1.5 rounded text-xs font-mono bg-primary hover:bg-primary-hover text-primary-foreground font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer"

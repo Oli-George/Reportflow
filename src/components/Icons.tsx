@@ -378,10 +378,42 @@ export function GridIcon({ className = "w-4 h-4", size }: IconProps) {
       viewBox="0 0 16 16"
       fill="none"
     >
-      <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect
+        x="1"
+        y="1"
+        width="6"
+        height="6"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="9"
+        y="1"
+        width="6"
+        height="6"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="1"
+        y="9"
+        width="6"
+        height="6"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="9"
+        y="9"
+        width="6"
+        height="6"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
     </svg>
   )
 }
@@ -395,9 +427,18 @@ export function FileIcon({ className = "w-4 h-4", size }: IconProps) {
       viewBox="0 0 16 16"
       fill="none"
     >
-      <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
       <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M5 7h6M5 10h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M5 7h6M5 10h4"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -412,9 +453,19 @@ export function UsersIcon({ className = "w-4 h-4", size }: IconProps) {
       fill="none"
     >
       <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
       <circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M14.5 14c0-1.933-1.119-3-2.5-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M14.5 14c0-1.933-1.119-3-2.5-3"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -428,7 +479,13 @@ export function ChartIcon({ className = "w-4 h-4", size }: IconProps) {
       viewBox="0 0 16 16"
       fill="none"
     >
-      <path d="M2 12L5.5 7.5L8.5 10L12 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M2 12L5.5 7.5L8.5 10L12 5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <rect x="1" y="13" width="14" height="1" rx="0.5" fill="currentColor" />
     </svg>
   )
@@ -443,8 +500,16 @@ export function BellIcon({ className = "w-4 h-4", size }: IconProps) {
       viewBox="0 0 16 16"
       fill="none"
     >
-      <path d="M8 2a5 5 0 00-5 5v3l-1 1.5h12L13 10V7a5 5 0 00-5-5z" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M8 2a5 5 0 00-5 5v3l-1 1.5h12L13 10V7a5 5 0 00-5-5z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M6.5 13a1.5 1.5 0 003 0"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
     </svg>
   )
 }
@@ -621,6 +686,44 @@ export function ShieldCheckIcon({ className = "w-4 h-4", size }: IconProps) {
     >
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+export function ShieldIcon({ className = "w-4 h-4", size }: IconProps) {
+  return (
+    <svg
+      className={!size ? className : undefined}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}
+
+export function KeyIcon({ className = "w-4 h-4", size }: IconProps) {
+  return (
+    <svg
+      className={!size ? className : undefined}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="m21 2-9.6 9.6" />
+      <path d="m15.5 7.5 3 3L22 7l-3-3" />
     </svg>
   )
 }

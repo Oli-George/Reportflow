@@ -31,7 +31,8 @@ export default function AnalyticsStatCard({
         return {
           border: "border-emerald-500/30",
           glow: "hover:border-emerald-500/60",
-          iconBg: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+          iconBg:
+            "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
           valColor: "text-emerald-400",
         }
       case "blue":
@@ -52,7 +53,8 @@ export default function AnalyticsStatCard({
         return {
           border: "border-purple-500/30",
           glow: "hover:border-purple-500/60",
-          iconBg: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
+          iconBg:
+            "bg-purple-500/10 text-purple-400 border border-purple-500/20",
           valColor: "text-purple-400",
         }
       default:
@@ -76,14 +78,18 @@ export default function AnalyticsStatCard({
           {label}
         </span>
         {icon && (
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-transform duration-200 group-hover:scale-105 ${scheme.iconBg}`}>
+          <div
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-transform duration-200 group-hover:scale-105 ${scheme.iconBg}`}
+          >
             {icon}
           </div>
         )}
       </div>
 
       <div className="flex items-baseline gap-2 mt-1">
-        <span className={`text-2xl sm:text-3xl font-display font-bold tracking-tight ${scheme.valColor}`}>
+        <span
+          className={`text-2xl sm:text-3xl font-display font-bold tracking-tight ${scheme.valColor}`}
+        >
           {value}
         </span>
         {badge && (
