@@ -11,6 +11,7 @@ import GveWeeklyForm from "./components/GveWeeklyForm"
 import GveQuarterlyForm from "./components/GveQuarterlyForm"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
 import { draftStorage, FormDraft } from "./lib/draftStorage"
+import { hydrateReport } from "./lib/reportService"
 import { usePwaInstall } from "./hooks/usePwaInstall"
 import { useIsMobile } from "./hooks/useIsMobile"
 import { flushOfflineQueue } from "./lib/syncQueue"
@@ -199,17 +200,36 @@ export default function StaffView({
   }, [myReports])
 
   // Handle Load Draft or Flagged Report into Composer
-
-  const handleEditReport = (report: Report) => {
+  const handleEditReport = async (report: Report) => {
+    const hydrated = await hydrateReport(report)
+    setReports((prev) => prev.map((r) => (r.id === report.id ? hydrated : r)))
     setEditingReportId(report.id)
 
-    if (report.gveWeeklyData) {
+    if (hydrated.gveQuarterlyData || report.type === "Quarterly") {
+      setSelectedFormFormat("gveQuarterly")
+    } else if (hydrated.gveWeeklyData || report.type === "Weekly") {
       setSelectedFormFormat("gveWeekly")
     } else {
       setSelectedFormFormat("gveDaily")
     }
 
     setActiveTab("submit")
+  }
+
+  // Handle expanding report row with automatic on-demand hydration
+  const handleToggleExpand = async (report: Report) => {
+    const nextId = expandedReportId === report.id ? null : report.id
+    setExpandedReportId(nextId)
+    if (
+      nextId &&
+      !report.gveData &&
+      !report.gveWeeklyData &&
+      !report.gveQuarterlyData &&
+      (!report.attachments || report.attachments.length === 0)
+    ) {
+      const hydrated = await hydrateReport(report)
+      setReports((prev) => prev.map((r) => (r.id === report.id ? hydrated : r)))
+    }
   }
 
   const handleCancelEdit = () => {
@@ -875,11 +895,7 @@ export default function StaffView({
               filteredReports.map((r) => (
                 <div key={r.id}>
                   <button
-                    onClick={() =>
-                      setExpandedReportId(
-                        expandedReportId === r.id ? null : r.id,
-                      )
-                    }
+                    onClick={() => handleToggleExpand(r)}
                     className="w-full grid min-w-135 px-5 py-3.5 border-b text-left transition-colors hover:bg-white/2 items-center border-border gap-x-4"
                     style={{
                       gridTemplateColumns: "minmax(0, 1fr) 80px 110px 135px",

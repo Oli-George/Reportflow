@@ -1,16 +1,8 @@
 import { useState, useMemo, useEffect, lazy } from "react"
-
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
-
-import {
-  GveQuarterlyRecordData,
-  createEmptyGveQuarterlyData,
-} from "./types/gveQuarterly"
-
+import { GveQuarterlyRecordData, createEmptyGveQuarterlyData} from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
-
 import logoImg from "./components/logo.jpeg"
-
 import {
   ContrastIcon, GridIcon, FileIcon, UsersIcon,
   ChartIcon, BellIcon, CalendarIcon, TrashIcon,
@@ -20,13 +12,10 @@ import {
 import { supabase } from "./lib/supabase"
 import SettingsModal from "./components/SettingsModal"
 import AnalyticsStatCard from "./components/analytics/AnalyticsStatCard"
-
 import AnalyticsFilterBar from "./components/analytics/AnalyticsFilterBar"
-
 import SubmissionVelocityChart from "./components/analytics/SubmissionVelocityChart"
 
 import ReportDistributionChart from "./components/analytics/ReportDistributionChart"
-
 import SiteEnergyAnalytics from "./components/analytics/SiteEnergyAnalytics"
 import DepartmentComplianceTable from "./components/analytics/DepartmentComplianceTable"
 
@@ -41,15 +30,13 @@ import type { Report, ReportStatus, ReportType } from "./types/report"
 import type { Member } from "./types/member"
 import type { Deadline } from "./types/deadline"
 import type { View } from "./types/view"
-
 import { isWithinPastMonth, formatDeadlineDate, getDeadlineUrgency } from "./lib/dateUtils"
 import { Badge } from "./components/StatusBadge"
 import { MEMBERS, DEFAULT_DEADLINES, DEPARTMENTS } from "./constants/defaults"
+import { hydrateReport, hydrateReportsTelemetry } from "./lib/reportService"
 
 const GveDailyHourlyForm = lazy(() => import("./components/GveHourlyForm"))
-
 const GveWeeklyForm = lazy(() => import("./components/GveWeeklyForm"))
-
 const GveQuarterlyForm = lazy(() => import("./components/GveQuarterlyForm"))
 
 export interface AdminViewProps {
@@ -84,19 +71,13 @@ export interface AdminViewProps {
 
 function StatCard({
   label,
-
   value,
-
   sub,
-
   accent,
 }: {
   label: string
-
   value: string
-
   sub?: string
-
   accent?: boolean
 }) {
   return (
@@ -1742,6 +1723,8 @@ export interface AnalyticsViewProps {
   members?: Member[]
 
   deadlines?: Deadline[]
+
+  setReports?: React.Dispatch<React.SetStateAction<Report[]>>
 }
 
 function AnalyticsView({
@@ -1750,7 +1733,25 @@ function AnalyticsView({
   members = MEMBERS,
 
   deadlines = DEFAULT_DEADLINES,
+
+  setReports,
 }: AnalyticsViewProps) {
+  // Hydrate telemetry data for reports in the background if not yet loaded
+  useEffect(() => {
+    let isMounted = true
+    hydrateReportsTelemetry(reports).then((hydrated) => {
+      if (isMounted && setReports) {
+        const hasNew = hydrated.some((h, i) => h !== reports[i])
+        if (hasNew) {
+          setReports(hydrated)
+        }
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [reports, setReports])
+
   const [filter, setFilter] = useState<AnalyticsFilter>({
     timeframe: "all",
 
@@ -2111,7 +2112,7 @@ function AnalyticsView({
 // ─── Inspector & Flag Modals ───────────────────────────────────────────────────
 
 function FullReportModal({
-  report,
+  report: initialReport,
 
   onClose,
 
@@ -2127,6 +2128,27 @@ function FullReportModal({
 
   onOpenFlagModal: (report: Report) => void
 }) {
+  const [report, setReport] = useState<Report>(initialReport)
+  const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(
+    !initialReport.gveData &&
+    !initialReport.gveWeeklyData &&
+    !initialReport.gveQuarterlyData &&
+    (!initialReport.attachments || initialReport.attachments.length === 0)
+  )
+
+  useEffect(() => {
+    let isMounted = true
+    hydrateReport(initialReport).then((hydrated) => {
+      if (isMounted) {
+        setReport(hydrated)
+        setIsLoadingDetails(false)
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [initialReport])
+
   const canFlag = isWithinPastMonth(report.submitted)
 
   return (
@@ -2188,7 +2210,14 @@ function FullReportModal({
 
         {/* Report Content Body */}
         <div className="p-6 overflow-y-auto flex flex-col gap-4">
-          {report.gveData ? (
+          {isLoadingDetails ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <p className="text-xs font-mono text-muted-foreground">
+                Loading official physical form replica &amp; site telemetry...
+              </p>
+            </div>
+          ) : report.gveData ? (
             <div>
               <h3 className="text-xs font-mono uppercase text-muted-foreground mb-2 flex items-center justify-between">
                 <span>OFFICIAL PHYSICAL FORM REPLICA RECORD</span>
@@ -3161,6 +3190,7 @@ export default function AdminView({
             reports={adminReports}
             members={members}
             deadlines={deadlines}
+            setReports={setReports}
           />
         )}
 

@@ -3,7 +3,7 @@ import { Report } from "./types/report"
 import { Member } from "./types/member"
 import { Deadline } from "./types/deadline"
 import { MEMBERS, DEFAULT_DEADLINES } from "./constants/defaults"
-import { fetchReportsSummary } from "./lib/reportService"
+import { fetchReportsSummary, cacheReportDetails } from "./lib/reportService"
 import StaffView from "./StaffView"
 import { supabase, isValidGveEmail } from "./lib/supabase"
 import {
@@ -18,6 +18,7 @@ import logoImg from "./components/logo.jpeg"
 import { useOfflineReports } from "./hooks/useOfflineReports"
 import { useIsMobile } from "./hooks/useIsMobile"
 import { WifiOffIcon } from "./components/Icons"
+import ErrorBoundary from "./components/ErrorBoundary"
 
 const AdminView = lazy(() => import("./AdminView"))
 
@@ -559,8 +560,23 @@ function App() {
         if (syncingIdsRef.current.has(report.id)) return
         syncingIdsRef.current.add(report.id)
 
+        // Cache details locally so views can access them immediately
+        cacheReportDetails(report.id, {
+          attachments: report.attachments,
+          gveData: report.gveData,
+          gveWeeklyData: report.gveWeeklyData,
+          gveQuarterlyData: report.gveQuarterlyData,
+        })
+
         if (!navigator.onLine) {
-          await queueOfflineReport(report)
+          const targetDbId = isNew
+            ? undefined
+            : (tempIdMapRef.current.get(report.id) ?? report.id)
+          await queueOfflineReport(
+            report,
+            isNew ? "create" : "update",
+            targetDbId,
+          )
           setPendingQueueCount(getOfflineQueue().length)
           syncingIdsRef.current.delete(report.id)
           return
@@ -622,13 +638,20 @@ function App() {
 
             if (error) {
               console.error("Supabase insert error, queueing offline:", error)
-              await queueOfflineReport(report)
+              await queueOfflineReport(report, "create")
               setPendingQueueCount(getOfflineQueue().length)
             } else if (data && data[0]) {
               // Update local state with the database-assigned row ID
               const dbId = Number(data[0].id)
               tempIdMapRef.current.set(report.id, dbId)
               syncingIdsRef.current.add(dbId)
+
+              cacheReportDetails(dbId, {
+                attachments: syncedAttachments,
+                gveData: report.gveData,
+                gveWeeklyData: report.gveWeeklyData,
+                gveQuarterlyData: report.gveQuarterlyData,
+              })
 
               setReports((current) =>
                 current.map((r) =>
@@ -646,7 +669,16 @@ function App() {
               .eq("id", targetDbId)
 
             if (error) {
-              console.error("Supabase update error:", error)
+              console.error("Supabase update error, queueing offline:", error)
+              await queueOfflineReport(report, "update", targetDbId)
+              setPendingQueueCount(getOfflineQueue().length)
+            } else {
+              cacheReportDetails(targetDbId, {
+                attachments: syncedAttachments,
+                gveData: report.gveData,
+                gveWeeklyData: report.gveWeeklyData,
+                gveQuarterlyData: report.gveQuarterlyData,
+              })
             }
           }
         } finally {
@@ -771,7 +803,19 @@ function App() {
         )
 
         if (resetErr) {
-          setError(resetErr.message || "Failed to send password reset request.")
+          if (
+            resetErr.message
+              ?.toLowerCase()
+              .includes("error sending recovery email")
+          ) {
+            setError(
+              "Email Delivery Failed: Supabase could not dispatch the recovery email. Please ensure Custom SMTP (e.g. Resend) is enabled in your Supabase Dashboard and the sender domain is verified.",
+            )
+          } else {
+            setError(
+              resetErr.message || "Failed to send password reset request.",
+            )
+          }
         } else {
           setSuccessMsg(
             "If an account exists for this email, a password reset link has been sent. Please check your inbox and spam folder.",
@@ -1816,54 +1860,58 @@ function App() {
             </div>
           </div>
         ) : (
-          <Suspense
-            fallback={
-              <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground font-mono text-xs">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <span>Loading Administrator Console…</span>
+          <ErrorBoundary fallbackTitle="Administrator Console Encountered an Error">
+            <Suspense
+              fallback={
+                <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground font-mono text-xs">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    <span>Loading Administrator Console…</span>
+                  </div>
                 </div>
-              </div>
-            }
-          >
-            <AdminView
-              reports={reports.filter(
-                (r) => r.status && r.status.toLowerCase().trim() !== "draft",
-              )}
-              setReports={handleUpdateReports}
-              members={members}
-              setMembers={setMembers}
-              currentUserEmail={session.email}
-              deadlines={deadlines}
-              onCreateDeadline={handleCreateDeadline}
-              onDeleteDeadline={handleDeleteDeadline}
-              onLogout={handleLogout}
-              topOffset={topOffset}
-              sunlightMode={sunlightMode}
-              onToggleSunlightMode={toggleSunlightMode}
-            />
-          </Suspense>
+              }
+            >
+              <AdminView
+                reports={reports.filter(
+                  (r) => r.status && r.status.toLowerCase().trim() !== "draft",
+                )}
+                setReports={handleUpdateReports}
+                members={members}
+                setMembers={setMembers}
+                currentUserEmail={session.email}
+                deadlines={deadlines}
+                onCreateDeadline={handleCreateDeadline}
+                onDeleteDeadline={handleDeleteDeadline}
+                onLogout={handleLogout}
+                topOffset={topOffset}
+                sunlightMode={sunlightMode}
+                onToggleSunlightMode={toggleSunlightMode}
+              />
+            </Suspense>
+          </ErrorBoundary>
         )
       ) : (
-        <StaffView
-          reports={reports}
-          setReports={handleUpdateReports}
-          member={session.member!}
-          deadlines={deadlines}
-          onLogout={handleLogout}
-          topOffset={topOffset}
-          sunlightMode={sunlightMode}
-          onToggleSunlightMode={toggleSunlightMode}
-          isOffline={isOffline}
-          pendingQueueCount={pendingQueueCount}
-          onFlushQueue={async () => {
-            const res = await flushOfflineQueue()
-            if (res.synced > 0) {
-              fetchReportsFromSupabase()
-            }
-            return res
-          }}
-        />
+        <ErrorBoundary fallbackTitle="Staff Operations Portal Encountered an Error">
+          <StaffView
+            reports={reports}
+            setReports={handleUpdateReports}
+            member={session.member!}
+            deadlines={deadlines}
+            onLogout={handleLogout}
+            topOffset={topOffset}
+            sunlightMode={sunlightMode}
+            onToggleSunlightMode={toggleSunlightMode}
+            isOffline={isOffline}
+            pendingQueueCount={pendingQueueCount}
+            onFlushQueue={async () => {
+              const res = await flushOfflineQueue()
+              if (res.synced > 0) {
+                fetchReportsFromSupabase()
+              }
+              return res
+            }}
+          />
+        </ErrorBoundary>
       )}
     </>
   )
