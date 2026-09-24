@@ -171,9 +171,21 @@ By default, Supabase's built-in email service is rate-limited to 3–4 emails pe
 
 ---
 
-## 4. Run the Database Schema in SQL Editor
+## 4. Create the Storage Bucket for Report Attachments
 
-If you haven't already updated the Row Level Security (RLS) policies:
+ReportFlow uploads watermarked audit photos to Supabase Storage. You must create the bucket in your Supabase Dashboard:
+
+1. In Supabase Dashboard, go to **Storage ➔ Buckets** (left navigation).
+2. Click **New bucket**.
+3. **Bucket Name**: `report-attachments` (exact match).
+4. **Public bucket**: Toggle **ON** (allows inspection photos to be displayed in browser reports and PDF export).
+5. Click **Save bucket**.
+
+---
+
+## 5. Run the Database Schema in SQL Editor
+
+If you haven't already updated the Row Level Security (RLS) policies and storage permissions:
 
 1. Go to **Supabase Dashboard ➔ SQL Editor ➔ New query**.
 2. Open [`supabase/schema.sql`](file:///c:/Users/USER/OneDrive/Desktop/ReportFlow/supabase/schema.sql) in this repository.
@@ -182,7 +194,7 @@ If you haven't already updated the Row Level Security (RLS) policies:
 
 ---
 
-## 5. Parent Administrator Model (`info@gve-group.com`)
+## 6. Parent Administrator Model (`info@gve-group.com`)
 
 ReportFlow uses a two-tier administrative hierarchy:
 
@@ -197,4 +209,3 @@ ReportFlow uses a two-tier administrative hierarchy:
    - Cannot promote or demote other staff accounts.
 
 To ensure your initial Parent Admin user exists in Supabase Auth, register `info@gve-group.com` through the ReportFlow sign-up interface or invite them in **Supabase Dashboard ➔ Authentication ➔ Users**.
-

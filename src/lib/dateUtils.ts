@@ -1,3 +1,4 @@
+
 export function isWithinPastMonth(date: Date | string): boolean {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
   const submittedTime = new Date(date).getTime()
@@ -18,9 +19,7 @@ export function formatDeadlineDate(dateStr: string): string {
   }
 }
 
-export function getDeadlineUrgency(
-  dueDateStr: string,
-): {
+export function getDeadlineUrgency(dueDateStr: string): {
   label: string
   color: string
   bg: string

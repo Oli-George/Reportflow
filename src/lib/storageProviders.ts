@@ -100,10 +100,19 @@ export async function uploadAttachmentFile(
         }
       }
     } else if (uploadError) {
-      console.warn(
-        "Supabase storage upload returned error (falling back to inline JSONB):",
-        uploadError.message,
-      )
+      if (
+        uploadError.message?.toLowerCase().includes("not found") ||
+        (uploadError as any)?.statusCode === "404"
+      ) {
+        console.error(
+          "ReportFlow Storage Warning: Bucket 'report-attachments' not found in Supabase. Please create 'report-attachments' as a public bucket in your Supabase Dashboard (Storage -> New bucket). See docs/SUPABASE_SETUP.md for instructions.",
+        )
+      } else {
+        console.warn(
+          "Supabase storage upload returned error (falling back to inline JSONB):",
+          uploadError.message,
+        )
+      }
     }
   } catch (supabaseErr) {
     console.warn(

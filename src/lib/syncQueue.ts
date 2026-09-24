@@ -12,6 +12,8 @@ export interface OfflineReportQueueItem {
   createdAt: string
   status: "pending_sync" | "syncing" | "failed"
   errorMessage?: string
+  action?: "create" | "update"
+  targetDbId?: number
 }
 
 // ─── Queue Readers & Writers ──────────────────────────────────────────────────
@@ -57,6 +59,8 @@ export function saveOfflineQueue(queue: OfflineReportQueueItem[]): void {
 // Add report to offline queue and IndexedDB
 export async function queueOfflineReport(
   report: Partial<Report>,
+  action: "create" | "update" = "create",
+  targetDbId?: number,
 ): Promise<OfflineReportQueueItem> {
   const queue = getOfflineQueue()
   const tempId = `offline_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -68,6 +72,12 @@ export async function queueOfflineReport(
     },
     createdAt: new Date().toISOString(),
     status: "pending_sync",
+    action,
+    targetDbId:
+      targetDbId ??
+      (action === "update" && typeof report.id === "number"
+        ? report.id
+        : undefined),
   }
 
   // Save to memory/localStorage queue (sanitized without base64 strings)
@@ -194,15 +204,26 @@ export async function flushOfflineQueue(
           : new Date().toISOString(),
       }
 
-      const { error } = await supabase.from("reports").insert(dbRow)
+      let syncError = null
 
-      if (error) {
-        console.error("Supabase sync error for item", item.id, error)
+      if (item.action === "update" && item.targetDbId) {
+        const { error } = await supabase
+          .from("reports")
+          .update(dbRow)
+          .eq("id", item.targetDbId)
+        syncError = error
+      } else {
+        const { error } = await supabase.from("reports").insert(dbRow)
+        syncError = error
+      }
+
+      if (syncError) {
+        console.error("Supabase sync error for item", item.id, syncError)
         failed++
         remainingQueue.push({
           ...item,
           status: "failed",
-          errorMessage: error.message,
+          errorMessage: syncError.message,
         })
       } else {
         synced++
