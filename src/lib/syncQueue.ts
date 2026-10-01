@@ -203,6 +203,8 @@ export async function flushOfflineQueue(
           ? new Date(item.report.submitted).toISOString()
           : new Date().toISOString(),
         client_submission_id: item.id,
+        version: item.report.version || 1,
+        revision_history: item.report.revisionHistory || [],
       }
 
       let syncError = null

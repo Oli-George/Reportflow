@@ -12,6 +12,8 @@ export interface ReportSummaryRow {
   feedback: string | null
   submitted_at: string | null
   created_at: string | null
+  version?: number | null
+  revision_history?: any[] | null
 }
 
 // In-memory cache for loaded report payloads (gveData, gveWeeklyData, gveQuarterlyData, attachments)
@@ -25,7 +27,7 @@ export async function fetchReportsSummary(): Promise<Report[]> {
   const { data, error } = await supabase
     .from("reports")
     .select(
-      "id, title, author, department, type, status, summary, feedback, submitted_at, created_at",
+      "id, title, author, department, type, status, summary, feedback, submitted_at, created_at, version, revision_history",
     )
     .order("id", { ascending: false })
 
@@ -54,6 +56,8 @@ export async function fetchReportsSummary(): Promise<Report[]> {
       gveData: cached?.gveData,
       gveWeeklyData: cached?.gveWeeklyData,
       gveQuarterlyData: cached?.gveQuarterlyData,
+      version: row.version ? Number(row.version) : 1,
+      revisionHistory: row.revision_history || [],
     }
   })
 }
