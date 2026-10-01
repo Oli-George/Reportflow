@@ -20,4 +20,5 @@ export interface Report {
   gveData?: GveDailyRecordData
   gveWeeklyData?: GveWeeklyRecordData
   gveQuarterlyData?: GveQuarterlyRecordData
+  client_submission_id?: string
 }

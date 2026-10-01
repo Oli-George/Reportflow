@@ -30,11 +30,14 @@ CREATE TABLE IF NOT EXISTS public.reports (
     gve_weekly_data JSONB,
     gve_quarterly_data JSONB,
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    client_submission_id TEXT UNIQUE
 );
 
 -- Migration for existing databases:
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS client_submission_id TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_reports_client_submission_id ON public.reports (client_submission_id);
 
 -- 3. Create Deadlines Table
 CREATE TABLE IF NOT EXISTS public.deadlines (
