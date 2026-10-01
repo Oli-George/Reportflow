@@ -89,6 +89,41 @@ class OfflineStorageEngine {
     }
   }
 
+  async getReport(id: string): Promise<StoredOfflineReport | null> {
+    try {
+      const db = await this.getDB()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_REPORTS, "readonly")
+        const store = tx.objectStore(STORE_REPORTS)
+        const req = store.get(id)
+        req.onsuccess = () => resolve(req.result || null)
+        req.onerror = () => reject(req.error)
+      })
+    } catch (e) {
+      const key = `reportflow_offline_report_${id}`
+      const val = localStorage.getItem(key)
+      return val ? JSON.parse(val) : null
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    try {
+      const db = await this.getDB()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(
+          [STORE_REPORTS, STORE_ATTACHMENTS],
+          "readwrite",
+        )
+        tx.objectStore(STORE_REPORTS).clear()
+        tx.objectStore(STORE_ATTACHMENTS).clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+    } catch (e) {
+      console.warn("Error clearing offlineStorage:", e)
+    }
+  }
+
   async getAllReports(): Promise<StoredOfflineReport[]> {
     try {
       const db = await this.getDB()
@@ -155,9 +190,7 @@ class OfflineStorageEngine {
     // Also cascade delete any attachments stored in IndexedDB for this report
     try {
       await this.removeAttachmentsForReport(id)
-    } catch (e) {
-
-    }
+    } catch (e) {}
     try {
       localStorage.removeItem(`reportflow_offline_report_${id}`)
     } catch (e) {

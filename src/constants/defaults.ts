@@ -54,6 +54,18 @@ export const DEFAULT_DEADLINES: Deadline[] = [
 
 export const MEMBERS: Member[] = [
   {
+    id: 99,
+    name: "GVE Operations Lead",
+    email: "info@gve-group.com",
+    role: "Super Administrator",
+    department: "Management",
+    lastReport: new Date("2026-09-27"),
+    compliance: 100,
+    initials: "GV",
+    color: "#005030",
+    isAdmin: true,
+  },
+  {
     id: 1,
     name: "Amara Osei",
     email: "amara.osei@gve-group.com",

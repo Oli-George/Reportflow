@@ -19,35 +19,39 @@ export function useOfflineReports() {
     async function loadReports() {
       try {
         const storedReports = await localforage.getItem<Report[]>("reports")
-        if (storedReports && Array.isArray(storedReports) && storedReports.length > 0) {
+        if (
+          storedReports &&
+          Array.isArray(storedReports) &&
+          storedReports.length > 0
+        ) {
           // Clean any legacy mock reports that were mistakenly saved with "Draft" status
           const sanitized = storedReports.map((r) =>
             r.status && r.status.toLowerCase().trim() === "draft"
               ? { ...r, status: "Submitted" as const }
-              : r
+              : r,
           )
           setReports(sanitized)
           await localforage.setItem("reports", sanitized)
         } else {
-          // Fallback to localStorage or mock data for first-time migration
-          const legacySaved = localStorage.getItem("reportflow_cached_reports")
-          if (legacySaved) {
-            const parsed = JSON.parse(legacySaved)
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setReports(parsed)
-              await localforage.setItem("reports", parsed)
-            } else {
-              setReports(REPORTS)
-              await localforage.setItem("reports", REPORTS)
-            }
-          } else {
+          // In development with explicit mock flag, seed demo data; otherwise start with clean empty list
+          const isDevMockAllowed =
+            import.meta.env.DEV &&
+            import.meta.env.VITE_ENABLE_MOCK_DATA === "true"
+
+          if (isDevMockAllowed) {
             setReports(REPORTS)
             await localforage.setItem("reports", REPORTS)
+          } else {
+            setReports([])
+            await localforage.setItem("reports", [])
           }
         }
       } catch (err) {
         console.error("Failed to load reports from IndexedDB", err)
-        setReports(REPORTS)
+        const isDevMockAllowed =
+          import.meta.env.DEV &&
+          import.meta.env.VITE_ENABLE_MOCK_DATA === "true"
+        setReports(isDevMockAllowed ? REPORTS : [])
       } finally {
         setIsLoaded(true)
       }

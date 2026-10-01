@@ -202,6 +202,7 @@ export async function flushOfflineQueue(
         submitted_at: item.report.submitted
           ? new Date(item.report.submitted).toISOString()
           : new Date().toISOString(),
+        client_submission_id: item.id,
       }
 
       let syncError = null
@@ -213,7 +214,10 @@ export async function flushOfflineQueue(
           .eq("id", item.targetDbId)
         syncError = error
       } else {
-        const { error } = await supabase.from("reports").insert(dbRow)
+        // Idempotent upsert by client_submission_id: prevents duplicate records on network retry
+        const { error } = await supabase
+          .from("reports")
+          .upsert(dbRow, { onConflict: "client_submission_id" })
         syncError = error
       }
 
