@@ -17,7 +17,8 @@ export default function ReportDiffViewer({
   const history = report.revisionHistory || []
   if (history.length === 0) return null
 
-  const activeRevision: ReportRevision = history[selectedVersionIndex] || history[0]
+  const activeRevision: ReportRevision =
+    history[selectedVersionIndex] || history[0]
   const diffs = activeRevision.diffs || []
 
   return (
@@ -40,7 +41,8 @@ export default function ReportDiffViewer({
               </span>
             </div>
             <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
-              Document was flagged for revision by management and resubmitted by the technician.
+              Document was flagged for revision by management and resubmitted by
+              the technician.
             </p>
           </div>
         </div>
@@ -80,7 +82,10 @@ export default function ReportDiffViewer({
               <span>Admin Correction Request:</span>
             </span>
             <span className="text-[10px] text-amber-400/80">
-              Flagged on {new Date(activeRevision.flaggedAt || activeRevision.submittedAt).toLocaleDateString()}
+              Flagged on{" "}
+              {new Date(
+                activeRevision.flaggedAt || activeRevision.submittedAt,
+              ).toLocaleDateString()}
             </span>
           </div>
           <p className="text-xs font-mono text-amber-100/90 leading-relaxed italic bg-black/20 p-2 rounded border border-amber-900/40">
@@ -118,19 +123,26 @@ export default function ReportDiffViewer({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border/80 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2.5 px-4 font-semibold">Parameter / Field</th>
+                    <th className="py-2.5 px-4 font-semibold">
+                      Parameter / Field
+                    </th>
                     <th className="py-2.5 px-4 font-semibold text-red-400">
                       Previous (Flagged v{activeRevision.version})
                     </th>
                     <th className="py-2.5 px-4 font-semibold text-emerald-400">
                       Corrected (Revised v{activeRevision.version + 1})
                     </th>
-                    <th className="py-2.5 px-3 font-semibold text-center w-24">Type</th>
+                    <th className="py-2.5 px-3 font-semibold text-center w-24">
+                      Type
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {diffs.map((diff, i) => (
-                    <tr key={i} className="hover:bg-secondary/20 transition-colors">
+                    <tr
+                      key={i}
+                      className="hover:bg-secondary/20 transition-colors"
+                    >
                       <td className="py-2.5 px-4 font-medium text-foreground">
                         {diff.field}
                       </td>
@@ -162,7 +174,8 @@ export default function ReportDiffViewer({
           ) : (
             <div className="p-6 text-center text-muted-foreground">
               <p className="text-xs">
-                No telemetry cell discrepancies detected. The technician resubmitted without changing numerical fields.
+                No telemetry cell discrepancies detected. The technician
+                resubmitted without changing numerical fields.
               </p>
             </div>
           )}
@@ -183,7 +196,8 @@ export default function ReportDiffViewer({
                 </span>
               </div>
               <p className="text-muted-foreground text-[11px] mt-1">
-                Technician corrected flagged fields and resubmitted for management approval.
+                Technician corrected flagged fields and resubmitted for
+                management approval.
               </p>
             </div>
           </div>
@@ -196,7 +210,9 @@ export default function ReportDiffViewer({
                     Version {rev.version} Flagged
                   </span>
                   <span className="text-[10px]">
-                    {new Date(rev.flaggedAt || rev.submittedAt).toLocaleTimeString([], {
+                    {new Date(
+                      rev.flaggedAt || rev.submittedAt,
+                    ).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
@@ -208,7 +224,8 @@ export default function ReportDiffViewer({
                   </p>
                 )}
                 <span className="text-[10px] text-muted-foreground">
-                  {rev.diffs?.length || 0} fields adjusted in subsequent version.
+                  {rev.diffs?.length || 0} fields adjusted in subsequent
+                  version.
                 </span>
               </div>
             ))}

@@ -1,0 +1,33 @@
+name: CI Safety Net
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Lint, Type Check & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Code Formatting Check
+        run: npx oxfmt --check src
+
+      - name: TypeScript Type Check
+        run: npm run type-check
+
+      - name: Automated Unit & Integration Tests
+        run: npm run test:ci
+
+      - name: Verify Production Build
+        run: npm run build

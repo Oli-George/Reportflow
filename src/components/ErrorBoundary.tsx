@@ -1,22 +1,29 @@
 import { Component, ErrorInfo, ReactNode } from "react"
+
 import { AlertIcon } from "./Icons"
 
 interface Props {
   children: ReactNode
+
   fallbackTitle?: string
+
   fallbackMessage?: string
 }
 
 interface State {
   hasError: boolean
+
   error: Error | null
+
   errorInfo: ErrorInfo | null
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
+
     error: null,
+
     errorInfo: null,
   }
 
@@ -25,7 +32,12 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("ReportFlow ErrorBoundary caught an unexpected error:", error, errorInfo)
+    console.error(
+      "ReportFlow ErrorBoundary caught an unexpected error:",
+      error,
+      errorInfo,
+    )
+
     this.setState({ errorInfo })
   }
 
@@ -63,7 +75,9 @@ export default class ErrorBoundary extends Component<Props, State> {
                 </p>
                 {this.state.errorInfo && (
                   <details className="mt-2 text-[10px] font-mono text-muted-foreground cursor-pointer">
-                    <summary className="hover:text-foreground">View component stack</summary>
+                    <summary className="hover:text-foreground">
+                      View component stack
+                    </summary>
                     <pre className="mt-1 p-2 bg-black/40 rounded overflow-x-auto whitespace-pre-wrap max-h-32 text-[10px]">
                       {this.state.errorInfo.componentStack}
                     </pre>

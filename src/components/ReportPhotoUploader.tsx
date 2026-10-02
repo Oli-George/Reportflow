@@ -1,11 +1,14 @@
 import React, { useState, useRef, useCallback } from "react"
+
 import {
   ReportAttachment,
   ReportAttachmentCategory,
   ATTACHMENT_CATEGORIES,
   formatFileSize,
 } from "../types/attachment"
+
 import { compressImageFile } from "../lib/imageCompression"
+
 import {
   CameraIcon,
   FolderIcon,
@@ -15,44 +18,67 @@ import {
   SearchIcon,
   ShieldCheckIcon,
 } from "./Icons"
+
 import { getStoredAppSettings } from "../lib/settingsStorage"
 
 interface ReportPhotoUploaderProps {
   attachments: ReportAttachment[]
+
   onChange?: (attachments: ReportAttachment[]) => void
+
   readOnly?: boolean
+
   maxPhotos?: number
+
   title?: string
+
   description?: string
+
   siteName?: string
+
   author?: string
+
   isAdmin?: boolean
 }
 
 export default function ReportPhotoUploader({
   attachments = [],
+
   onChange,
+
   readOnly = false,
+
   maxPhotos = 20,
+
   title = "Site Photos & Visual Evidence",
+
   description = "Attach photos of PV arrays, inverters, battery bank, damages, or general site cleanliness. Images are compressed locally and available offline.",
+
   siteName,
+
   author,
+
   isAdmin = false,
 }: ReportPhotoUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
+
   const [isProcessing, setIsProcessing] = useState(false)
+
   const [processingStatus, setProcessingStatus] = useState<string | null>(null)
+
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(
     null,
   )
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
 
   // Handle file processing & compression
+
   const processFiles = async (fileList: FileList | File[]) => {
     if (readOnly || !onChange) return
+
     const files = Array.from(fileList).filter((f) =>
       f.type.startsWith("image/"),
     )
@@ -61,15 +87,20 @@ export default function ReportPhotoUploader({
 
     if (attachments.length + files.length > maxPhotos) {
       alert(`Maximum of ${maxPhotos} photos allowed per report.`)
+
       return
     }
 
     setIsProcessing(true)
+
     const newAttachments: ReportAttachment[] = []
+
     const appSettings = getStoredAppSettings()
 
     // Fetch GPS coordinates if watermark with GPS is enabled
-    let gpsCoords: { latitude: number; longitude: number } | null = null
+
+    let gpsCoords: { latitude: number longitude: number } | null = null
+
     if (
       appSettings.watermarkEnabled &&
       appSettings.watermarkIncludeGps &&
@@ -82,9 +113,12 @@ export default function ReportPhotoUploader({
             (pos) =>
               resolve({
                 latitude: pos.coords.latitude,
+
                 longitude: pos.coords.longitude,
               }),
+
             () => resolve(null),
+
             { timeout: 3500, enableHighAccuracy: true },
           )
         })
@@ -95,6 +129,7 @@ export default function ReportPhotoUploader({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
+
       setProcessingStatus(
         `Watermarking & optimizing image ${i + 1} of ${files.length} (${file.name})...`,
       )
@@ -102,29 +137,47 @@ export default function ReportPhotoUploader({
       try {
         const compressed = await compressImageFile(file, 1440, 0.8, {
           enabled: appSettings.watermarkEnabled,
+
           siteName: siteName || appSettings.defaultSiteName,
+
           author: author || "Field Technician",
+
           gpsCoords,
+
           opacity: isAdmin
             ? appSettings.watermarkAdminOpacity
             : appSettings.watermarkStaffOpacity,
         })
+
         const isOffline = !navigator.onLine
 
         const newAtt: ReportAttachment = {
           id: compressed.id,
+
           name: compressed.name,
+
           size: compressed.size,
+
           originalSize: compressed.originalSize,
+
           type: compressed.type,
+
           dataUrl: compressed.dataUrl,
+
           url: isOffline ? undefined : undefined, // Populated upon cloud sync
+
           storageProvider: isOffline ? "inline" : undefined,
+
           caption: "",
+
           category: "general",
+
           uploadedAt: new Date().toISOString(),
+
           width: compressed.width,
+
           height: compressed.height,
+
           isOfflineOnly: isOffline,
         }
 
@@ -135,6 +188,7 @@ export default function ReportPhotoUploader({
     }
 
     setIsProcessing(false)
+
     setProcessingStatus(null)
 
     if (newAttachments.length > 0) {
@@ -143,58 +197,74 @@ export default function ReportPhotoUploader({
   }
 
   // Drag & drop handlers
+
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
+
       e.stopPropagation()
+
       if (!readOnly) setIsDragging(true)
     },
+
     [readOnly],
   )
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+
     e.stopPropagation()
+
     setIsDragging(false)
   }, [])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
+
       e.stopPropagation()
+
       setIsDragging(false)
+
       if (readOnly) return
 
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         processFiles(e.dataTransfer.files)
       }
     },
+
     [readOnly, attachments],
   )
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(e.target.files)
+
       e.target.value = ""
     }
   }
 
   // Field updaters for attachments
+
   const handleUpdateCaption = (id: string, caption: string) => {
     if (readOnly || !onChange) return
+
     onChange(attachments.map((a) => (a.id === id ? { ...a, caption } : a)))
   }
 
   const handleUpdateCategory = (
     id: string,
+
     category: ReportAttachmentCategory,
   ) => {
     if (readOnly || !onChange) return
+
     onChange(attachments.map((a) => (a.id === id ? { ...a, category } : a)))
   }
 
   const handleRemoveAttachment = (id: string) => {
     if (readOnly || !onChange) return
+
     onChange(attachments.filter((a) => a.id !== id))
   }
 
@@ -314,6 +384,7 @@ export default function ReportPhotoUploader({
             const currentCat =
               ATTACHMENT_CATEGORIES.find((c) => c.value === item.category) ||
               ATTACHMENT_CATEGORIES[7]
+
             const imgSrc = item.dataUrl || item.url || ""
 
             return (
@@ -387,6 +458,7 @@ export default function ReportPhotoUploader({
                           onChange={(e) =>
                             handleUpdateCategory(
                               item.id,
+
                               e.target.value as ReportAttachmentCategory,
                             )
                           }
@@ -603,11 +675,16 @@ export default function ReportPhotoUploader({
                   Uploaded:{" "}
                   {new Date(activePhoto.uploadedAt).toLocaleDateString(
                     "en-US",
+
                     {
                       month: "short",
+
                       day: "numeric",
+
                       year: "numeric",
+
                       hour: "2-digit",
+
                       minute: "2-digit",
                     },
                   )}
