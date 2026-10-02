@@ -1,12 +1,24 @@
 import { useState, useMemo, useEffect, lazy } from "react"
 import ReportPhotoUploader from "./components/ReportPhotoUploader"
-import { GveQuarterlyRecordData, createEmptyGveQuarterlyData} from "./types/gveQuarterly"
+import {
+  GveQuarterlyRecordData,
+  createEmptyGveQuarterlyData,
+} from "./types/gveQuarterly"
 import { ReportAttachment } from "./types/attachment"
 import logoImg from "./components/logo.jpeg"
 import {
-  ContrastIcon, GridIcon, FileIcon, UsersIcon,
-  ChartIcon, BellIcon, CalendarIcon, TrashIcon,
-  AlertIcon, ShieldCheckIcon, ShieldIcon, KeyIcon,
+  ContrastIcon,
+  GridIcon,
+  FileIcon,
+  UsersIcon,
+  ChartIcon,
+  BellIcon,
+  CalendarIcon,
+  TrashIcon,
+  AlertIcon,
+  ShieldCheckIcon,
+  ShieldIcon,
+  KeyIcon,
 } from "./components/Icons"
 
 import { supabase } from "./lib/supabase"
@@ -20,20 +32,33 @@ import SiteEnergyAnalytics from "./components/analytics/SiteEnergyAnalytics"
 import DepartmentComplianceTable from "./components/analytics/DepartmentComplianceTable"
 
 import {
-  AnalyticsFilter, filterReports,
-  calculateKPIs, getSubmissionVelocity,
-  getReportTypeDistribution, getDepartmentMetrics,
-  getSolarMiniGridTelemetry, getTechnicianLeaderboard,
+  AnalyticsFilter,
+  filterReports,
+  calculateKPIs,
+  getSubmissionVelocity,
+  getReportTypeDistribution,
+  getDepartmentMetrics,
+  getSolarMiniGridTelemetry,
+  getTechnicianLeaderboard,
 } from "./lib/analyticsCalculator"
 
 import type { Report, ReportStatus, ReportType } from "./types/report"
 import type { Member } from "./types/member"
 import type { Deadline } from "./types/deadline"
 import type { View } from "./types/view"
-import { isWithinPastMonth, formatDeadlineDate, getDeadlineUrgency } from "./lib/dateUtils"
+import {
+  isWithinPastMonth,
+  formatDeadlineDate,
+  getDeadlineUrgency,
+} from "./lib/dateUtils"
 import { Badge } from "./components/StatusBadge"
 import { MEMBERS, DEFAULT_DEADLINES, DEPARTMENTS } from "./constants/defaults"
 import { hydrateReport, hydrateReportsTelemetry } from "./lib/reportService"
+import ReportDiffViewer from "./components/ReportDiffViewer"
+import {
+  recalculateAllMembersCompliance,
+  syncMemberComplianceToSupabase,
+} from "./lib/complianceEngine"
 
 const GveDailyHourlyForm = lazy(() => import("./components/GveHourlyForm"))
 const GveWeeklyForm = lazy(() => import("./components/GveWeeklyForm"))
@@ -50,6 +75,8 @@ export interface AdminViewProps {
 
   currentUserEmail?: string
 
+  currentMember?: Member
+
   deadlines?: Deadline[]
 
   onCreateDeadline?: (deadline: Omit<Deadline, "id" | "createdAt">) => void
@@ -63,9 +90,11 @@ export interface AdminViewProps {
   sunlightMode?: boolean
 
   onToggleSunlightMode?: () => void
+
+  isOffline?: boolean
+
+  pendingQueueCount?: number
 }
-
-
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -135,6 +164,12 @@ function Sidebar({
   sidebarW,
 
   onOpenSettings,
+
+  userName,
+
+  userDepartment,
+
+  userInitials,
 }: {
   active: View
 
@@ -149,6 +184,12 @@ function Sidebar({
   sidebarW?: number
 
   onOpenSettings?: () => void
+
+  userName?: string
+
+  userDepartment?: string
+
+  userInitials?: string
 }) {
   return (
     <aside
@@ -274,7 +315,7 @@ function Sidebar({
                 color: "var(--primary-foreground)",
               }}
             >
-              OG
+              {userInitials || "AD"}
             </div>
             {!collapsed && (
               <div className="min-w-0">
@@ -282,10 +323,10 @@ function Sidebar({
                   className="text-xs font-medium truncate group-hover/user:text-primary transition-colors"
                   style={{ color: "var(--foreground)" }}
                 >
-                  George
+                  {userName || "Administrator"}
                 </p>
                 <p className="text-[10px] truncate text-muted-foreground">
-                  IT Dept
+                  {userDepartment || "Administration"}
                 </p>
               </div>
             )}
@@ -377,6 +418,10 @@ function Header({
   sunlightMode = false,
 
   onToggleSunlightMode,
+
+  isOffline = false,
+
+  pendingQueueCount = 0,
 }: {
   view: View
 
@@ -393,6 +438,10 @@ function Header({
   sunlightMode?: boolean
 
   onToggleSunlightMode?: () => void
+
+  isOffline?: boolean
+
+  pendingQueueCount?: number
 }) {
   return (
     <header
@@ -426,6 +475,19 @@ function Header({
         </button>
       </div>
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Connection Status Pill - Only shown when offline */}
+        {isOffline && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-950/80 border border-amber-600/70 text-amber-300 text-[11px] font-mono shadow-xs shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="font-semibold">Offline</span>
+            {pendingQueueCount && pendingQueueCount > 0 ? (
+              <span className="bg-amber-900/80 px-1 rounded text-[10px]">
+                {pendingQueueCount}
+              </span>
+            ) : null}
+          </div>
+        )}
+
         {/* Sunlight Mode Toggle */}
         {onToggleSunlightMode && (
           <button
@@ -543,6 +605,8 @@ function DashboardView({
 
   deadlines = [],
 
+  members = [],
+
   onOpenDeadlineModal,
 
   onDeleteDeadline,
@@ -554,6 +618,8 @@ function DashboardView({
   searchQuery: string
 
   deadlines?: Deadline[]
+
+  members?: Member[]
 
   onOpenDeadlineModal?: () => void
 
@@ -624,7 +690,7 @@ function DashboardView({
     (r) => r.status === "Flagged",
   ).length
 
-  const teamCount = MEMBERS.length
+  const teamCount = members.length
 
   return (
     <div className="flex flex-col gap-6">
@@ -718,6 +784,14 @@ function DashboardView({
                       year: "numeric",
                     })}
                   </span>
+                  {r.version && r.version > 1 && (
+                    <span
+                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 font-semibold"
+                      title={`Revision v${r.version}`}
+                    >
+                      v{r.version}
+                    </span>
+                  )}
                   <Badge status={r.status} />
                 </div>
               </div>
@@ -891,10 +965,10 @@ function DashboardView({
                                     setConfirmDeleteId(d.id)
                                   }
                                 }}
-                                className={`px-2.5 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-all shadow-sm shrink-0 ${
+                                className={`px-2.5 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer ${
                                   confirmDeleteId === d.id
-                                    ? "bg-rose-600 text-white font-bold animate-pulse"
-                                    : "bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300"
+                                    ? "bg-rose-700 hover:bg-rose-800 text-white font-bold ring-2 ring-rose-400 animate-pulse"
+                                    : "bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 font-semibold"
                                 }`}
                               >
                                 <TrashIcon className="w-3.5 h-3.5" />
@@ -1320,7 +1394,17 @@ function ReportsView({
                   year: "numeric",
                 })}
               </span>
-              <Badge status={r.status} />
+              <div className="flex items-center gap-1.5 shrink-0 justify-end">
+                {r.version && r.version > 1 && (
+                  <span
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 font-semibold"
+                    title={`Revision v${r.version}`}
+                  >
+                    v{r.version}
+                  </span>
+                )}
+                <Badge status={r.status} />
+              </div>
             </button>
             {expanded === r.id && (
               <div
@@ -1343,6 +1427,11 @@ function ReportsView({
                 >
                   {r.summary}
                 </p>
+                {r.revisionHistory && r.revisionHistory.length > 0 && (
+                  <div className="mt-4">
+                    <ReportDiffViewer report={r} />
+                  </div>
+                )}
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={() => onInspect(r)}
@@ -1497,12 +1586,12 @@ function TeamView({
     <div className="flex flex-col gap-5">
       {/* Super Admin Notice Banner */}
       {isSuperAdmin && (
-        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg bg-emerald-950/25 border border-emerald-800/40 text-xs font-mono text-emerald-300">
-          <ShieldCheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="admin-super-notice flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-xs font-mono bg-emerald-950/25 border-emerald-800/40 text-emerald-300">
+          <ShieldCheckIcon className="w-4 h-4 shrink-0" />
           <span>
-            <strong>Parent Administrator Mode:</strong> You are authorized to
-            promote staff accounts to administrator status or revoke existing
-            admin privileges.
+            <strong>Parent Administrator:</strong> You are able to promote staff
+            accounts to administrator status or revoke existing admin
+            privileges.
           </span>
         </div>
       )}
@@ -1589,13 +1678,13 @@ function TeamView({
                       </p>
 
                       {isParentAdminMember ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
-                          <ShieldCheckIcon className="w-3 h-3 text-emerald-400" />
+                        <span className="admin-badge-parent inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                          <ShieldCheckIcon className="w-3 h-3" />
                           Parent Admin
                         </span>
                       ) : m.isAdmin ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                          <ShieldIcon className="w-3 h-3 text-amber-400" />
+                        <span className="admin-badge-regular inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                          <ShieldIcon className="w-3 h-3" />
                           Admin
                         </span>
                       ) : (
@@ -1643,7 +1732,9 @@ function TeamView({
                       Compliance
                     </span>
                     <span
-                      className="font-mono font-medium"
+                      className={`font-mono font-medium ${
+                        m.compliance >= 95 ? "compliance-text-high" : ""
+                      }`}
                       style={{
                         color:
                           m.compliance >= 95
@@ -1685,9 +1776,9 @@ function TeamView({
                       type="button"
                       onClick={() => handleToggleAdmin(m)}
                       disabled={updatingEmail === m.email}
-                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-rose-800/50 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40 hover:border-rose-700 transition-colors cursor-pointer disabled:opacity-50"
+                      className="btn-revoke-admin w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-rose-800/50 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40 hover:border-rose-700 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <KeyIcon className="w-3.5 h-3.5 text-rose-400" />
+                      <KeyIcon className="w-3.5 h-3.5" />
                       {updatingEmail === m.email
                         ? "Revoking..."
                         : "Revoke Admin Access"}
@@ -1697,9 +1788,9 @@ function TeamView({
                       type="button"
                       onClick={() => handleToggleAdmin(m)}
                       disabled={updatingEmail === m.email}
-                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-emerald-700/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-600 transition-colors cursor-pointer disabled:opacity-50"
+                      className="btn-promote-admin w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono border border-emerald-700/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-600 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <ShieldCheckIcon className="w-3.5 h-3.5 text-emerald-400" />
+                      <ShieldCheckIcon className="w-3.5 h-3.5" />
                       {updatingEmail === m.email
                         ? "Promoting..."
                         : "Promote to Admin"}
@@ -2131,9 +2222,9 @@ function FullReportModal({
   const [report, setReport] = useState<Report>(initialReport)
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(
     !initialReport.gveData &&
-    !initialReport.gveWeeklyData &&
-    !initialReport.gveQuarterlyData &&
-    (!initialReport.attachments || initialReport.attachments.length === 0)
+      !initialReport.gveWeeklyData &&
+      !initialReport.gveQuarterlyData &&
+      (!initialReport.attachments || initialReport.attachments.length === 0),
   )
 
   useEffect(() => {
@@ -2161,6 +2252,11 @@ function FullReportModal({
               <span className="text-xs font-mono text-muted-foreground uppercase">
                 FORM RF-1099
               </span>
+              {report.version && report.version > 1 && (
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 font-semibold">
+                  v{report.version}
+                </span>
+              )}
               <Badge status={report.status} />
             </div>
             <h2 className="font-display font-700 text-lg text-foreground mt-1">
@@ -2210,6 +2306,11 @@ function FullReportModal({
 
         {/* Report Content Body */}
         <div className="p-6 overflow-y-auto flex flex-col gap-4">
+          {/* Visual Revision Diff Inspector if revisions exist */}
+          {report.revisionHistory && report.revisionHistory.length > 0 && (
+            <ReportDiffViewer report={report} />
+          )}
+
           {isLoadingDetails ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3">
               <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -2952,13 +3053,15 @@ export default function AdminView({
 
   setReports,
 
-  members = MEMBERS,
+  members = [],
 
   setMembers,
 
   currentUserEmail,
 
-  deadlines = DEFAULT_DEADLINES,
+  currentMember,
+
+  deadlines = [],
 
   onCreateDeadline,
 
@@ -2971,6 +3074,10 @@ export default function AdminView({
   sunlightMode = false,
 
   onToggleSunlightMode,
+
+  isOffline = false,
+
+  pendingQueueCount = 0,
 }: AdminViewProps) {
   const [view, setView] = useState<View>("dashboard")
 
@@ -2998,6 +3105,64 @@ export default function AdminView({
 
     [reports],
   )
+
+  // Dynamically resolve active administrator details
+  const activeAdminMember = useMemo(() => {
+    if (currentMember) return currentMember
+    if (!currentUserEmail) return undefined
+    const clean = currentUserEmail.trim().toLowerCase()
+    return members?.find((m) => m.email?.trim().toLowerCase() === clean)
+  }, [currentMember, currentUserEmail, members])
+
+  const isSuperAdmin =
+    currentUserEmail?.toLowerCase().trim() === "info@gve-group.com"
+
+  const adminDisplayName =
+    activeAdminMember?.name ||
+    (isSuperAdmin
+      ? "GVE Operations"
+      : currentUserEmail
+        ? currentUserEmail
+            .split("@")[0]
+            .replace(/[._]/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase())
+        : "Administrator")
+
+  const adminDisplayDepartment =
+    activeAdminMember?.department ||
+    (isSuperAdmin ? "Super Administrator" : "Administration")
+
+  const adminDisplayInitials =
+    activeAdminMember?.initials ||
+    adminDisplayName
+      .split(" ")
+      .map((w) => w[0]?.toUpperCase())
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("") ||
+    "AD"
+
+  // Dynamically recalculate member compliance scores based on actual reports and deadlines
+  const dynamicMembers = useMemo(() => {
+    return recalculateAllMembersCompliance(
+      members && members.length > 0 ? members : MEMBERS,
+      reports,
+      deadlines.length > 0 ? deadlines : DEFAULT_DEADLINES,
+    )
+  }, [members, reports, deadlines])
+
+  // Sync compliance updates to Supabase members table in the background
+  useEffect(() => {
+    if (!dynamicMembers || dynamicMembers.length === 0) return
+    const timer = setTimeout(() => {
+      dynamicMembers.forEach((m) => {
+        if (m.email) {
+          syncMemberComplianceToSupabase(m.email, m.compliance).catch(() => {})
+        }
+      })
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [dynamicMembers])
 
   const handleSearchChange = (q: string) => {
     setSearchQuery(q)
@@ -3086,6 +3251,9 @@ export default function AdminView({
         topOffset={topOffset}
         sidebarW={sidebarW}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        userName={adminDisplayName}
+        userDepartment={adminDisplayDepartment}
+        userInitials={adminDisplayInitials}
       />
       <Header
         view={view}
@@ -3096,13 +3264,15 @@ export default function AdminView({
         topOffset={topOffset}
         sunlightMode={sunlightMode}
         onToggleSunlightMode={onToggleSunlightMode}
+        isOffline={isOffline}
+        pendingQueueCount={pendingQueueCount}
       />
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         role="admin"
-        userName="George"
-        userDepartment="IT Dept"
+        userName={adminDisplayName}
+        userDepartment={adminDisplayDepartment}
         sunlightMode={sunlightMode}
         onToggleSunlightMode={onToggleSunlightMode}
       />
@@ -3143,13 +3313,13 @@ export default function AdminView({
 
       {/* Main content */}
       <main
-        className="transition-all duration-200"
+        className="transition-all duration-200 flex flex-col justify-between"
         style={{
           marginLeft: sidebarW,
 
           paddingTop: topOffset + 56 + 24,
 
-          paddingBottom: 40,
+          paddingBottom: 24,
 
           paddingLeft: 24,
 
@@ -3158,44 +3328,47 @@ export default function AdminView({
           minHeight: "100vh",
         }}
       >
-        {view === "dashboard" && (
-          <DashboardView
-            reports={adminReports}
-            onInspect={setInspectingReport}
-            searchQuery={searchQuery}
-            deadlines={deadlines}
-            onOpenDeadlineModal={() => setIsDeadlineModalOpen(true)}
-            onDeleteDeadline={onDeleteDeadline}
-          />
-        )}
-        {view === "reports" && (
-          <ReportsView
-            reports={adminReports}
-            setReports={setReports}
-            onInspect={setInspectingReport}
-            onOpenFlagModal={setFlaggingReport}
-            onOpenCreateModal={() => setIsCreateModalOpen(true)}
-            searchQuery={searchQuery}
-          />
-        )}
-        {view === "teams" && (
-          <TeamView
-            members={members}
-            setMembers={setMembers}
-            currentUserEmail={currentUserEmail}
-          />
-        )}
-        {view === "analytics" && (
-          <AnalyticsView
-            reports={adminReports}
-            members={members}
-            deadlines={deadlines}
-            setReports={setReports}
-          />
-        )}
+        <div className="flex-1 flex flex-col">
+          {view === "dashboard" && (
+            <DashboardView
+              reports={adminReports}
+              onInspect={setInspectingReport}
+              searchQuery={searchQuery}
+              deadlines={deadlines}
+              members={dynamicMembers}
+              onOpenDeadlineModal={() => setIsDeadlineModalOpen(true)}
+              onDeleteDeadline={onDeleteDeadline}
+            />
+          )}
+          {view === "reports" && (
+            <ReportsView
+              reports={adminReports}
+              setReports={setReports}
+              onInspect={setInspectingReport}
+              onOpenFlagModal={setFlaggingReport}
+              onOpenCreateModal={() => setIsCreateModalOpen(true)}
+              searchQuery={searchQuery}
+            />
+          )}
+          {view === "teams" && (
+            <TeamView
+              members={dynamicMembers}
+              setMembers={setMembers}
+              currentUserEmail={currentUserEmail}
+            />
+          )}
+          {view === "analytics" && (
+            <AnalyticsView
+              reports={adminReports}
+              members={dynamicMembers}
+              deadlines={deadlines}
+              setReports={setReports}
+            />
+          )}
+        </div>
 
         {/* Institutional Footer */}
-        <footer className="mt-12 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground/80 font-mono">
+        <footer className="mt-auto pt-8 pb-4 border-t border-border/40 text-center text-xs text-muted-foreground/80 font-mono">
           {new Date().getFullYear()} &copy; ReportFlow • GVE Group Field
           Infrastructure Network.
         </footer>

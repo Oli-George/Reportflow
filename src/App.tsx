@@ -5,7 +5,13 @@ import { Deadline } from "./types/deadline"
 import { MEMBERS, DEFAULT_DEADLINES } from "./constants/defaults"
 import { fetchReportsSummary, cacheReportDetails } from "./lib/reportService"
 import StaffView from "./StaffView"
-import { supabase, isValidGveEmail } from "./lib/supabase"
+import { supabase, isValidGveEmail, isSupabaseConfigured } from "./lib/supabase"
+import {
+  getCachedWithTTL,
+  setCachedWithTTL,
+  CACHE_KEYS,
+  CACHE_TTLS,
+} from "./lib/cacheManager"
 import {
   initOfflineSyncListener,
   getOfflineQueue,
@@ -122,9 +128,16 @@ function App() {
 
   const [members, setMembers] = useState<Member[]>(() => {
     try {
-      const saved = localStorage.getItem("reportflow_cached_members")
-      if (saved) {
-        const parsed = JSON.parse(saved)
+      const cached = getCachedWithTTL<Member[]>(CACHE_KEYS.MEMBERS)
+      if (cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
+        return cached.data.map((m: any) => ({
+          ...m,
+          lastReport: m.lastReport ? new Date(m.lastReport) : new Date(),
+        }))
+      }
+      const legacySaved = localStorage.getItem("reportflow_cached_members")
+      if (legacySaved) {
+        const parsed = JSON.parse(legacySaved)
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((m: any) => ({
             ...m,
@@ -133,25 +146,30 @@ function App() {
         }
       }
     } catch (e) {
-      console.warn("Failed to parse cached members from localStorage", e)
+      console.warn("Failed to parse cached members", e)
     }
-    return MEMBERS
+    const isDevMockAllowed =
+      import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_DATA === "true"
+    return isDevMockAllowed ? MEMBERS : []
   })
 
   const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
     try {
-      const saved = localStorage.getItem("reportflow_deadlines")
-
-      if (saved) {
-        const parsed = JSON.parse(saved)
-
+      const cached = getCachedWithTTL<Deadline[]>(CACHE_KEYS.DEADLINES)
+      if (cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
+        return cached.data
+      }
+      const legacySaved = localStorage.getItem("reportflow_deadlines")
+      if (legacySaved) {
+        const parsed = JSON.parse(legacySaved)
         if (Array.isArray(parsed) && parsed.length > 0) return parsed
       }
     } catch (e) {
       console.warn("Failed to parse cached deadlines", e)
     }
-
-    return DEFAULT_DEADLINES
+    const isDevMockAllowed =
+      import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_DATA === "true"
+    return isDevMockAllowed ? DEFAULT_DEADLINES : []
   })
 
   const [session, setSession] = useState<UserSession | null>(() => {
@@ -165,6 +183,28 @@ function App() {
     }
     return null
   })
+
+  // Active session integrity validation on boot
+  useEffect(() => {
+    async function verifySessionIntegrity() {
+      if (!isSupabaseConfigured) return
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error || !data.session) {
+          if (navigator.onLine && session) {
+            console.warn(
+              "Supabase session expired or revoked on server. Purging local session.",
+            )
+            setSession(null)
+            localStorage.removeItem("reportflow_user_session")
+          }
+        }
+      } catch (err) {
+        console.warn("Session verification warning:", err)
+      }
+    }
+    verifySessionIntegrity()
+  }, [])
 
   const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
     try {
@@ -214,26 +254,28 @@ function App() {
     }
   }, [session])
 
-  // Persist reports is now handled by useOfflineReports hook
-
-  // Persist members to localStorage
+  // Persist members with Cache Envelope & TTL
   useEffect(() => {
     try {
       if (members && members.length > 0) {
+        setCachedWithTTL(CACHE_KEYS.MEMBERS, members, CACHE_TTLS.MEMBERS)
         localStorage.setItem(
           "reportflow_cached_members",
           JSON.stringify(members),
         )
       }
     } catch (e) {
-      console.warn("Failed to cache members to localStorage", e)
+      console.warn("Failed to cache members", e)
     }
   }, [members])
 
-  // Persist deadlines to localStorage
+  // Persist deadlines with Cache Envelope & TTL
   useEffect(() => {
     try {
-      localStorage.setItem("reportflow_deadlines", JSON.stringify(deadlines))
+      if (deadlines && deadlines.length > 0) {
+        setCachedWithTTL(CACHE_KEYS.DEADLINES, deadlines, CACHE_TTLS.DEADLINES)
+        localStorage.setItem("reportflow_deadlines", JSON.stringify(deadlines))
+      }
     } catch (e) {
       console.warn("Failed to cache deadlines", e)
     }
@@ -551,7 +593,9 @@ function App() {
             existing.gveData !== r.gveData ||
             existing.gveWeeklyData !== r.gveWeeklyData ||
             existing.gveQuarterlyData !== r.gveQuarterlyData ||
-            existing.attachments !== r.attachments)
+            existing.attachments !== r.attachments ||
+            existing.version !== r.version ||
+            existing.revisionHistory !== r.revisionHistory)
         )
       })
 
@@ -627,6 +671,8 @@ function App() {
           submitted_at: report.submitted
             ? new Date(report.submitted).toISOString()
             : new Date().toISOString(),
+          version: report.version || 1,
+          revision_history: report.revisionHistory || [],
         }
 
         try {
@@ -885,6 +931,14 @@ function App() {
           return
         }
 
+        if (!navigator.onLine) {
+          setError(
+            "Network Offline: You must be connected to the internet to sign in as an Administrator.",
+          )
+          setLoading(false)
+          return
+        }
+
         // Attempt real Supabase Auth
         const { data: authData, error: authErr } =
           await supabase.auth.signInWithPassword({
@@ -895,7 +949,7 @@ function App() {
         if (authErr) {
           setError(
             authErr.message ||
-              "Invalid administrator credentials. Account not recognized.",
+              "Invalid email or password. Please verify your administrator credentials.",
           )
           setLoading(false)
           return
@@ -905,7 +959,7 @@ function App() {
           // Verify admin privileges in members table or secure server-controlled app_metadata
           const { data: dbAdmin } = await supabase
             .from("members")
-            .select("is_admin, role")
+            .select("*")
             .eq("email", cleanEmail)
             .maybeSingle()
 
@@ -916,16 +970,39 @@ function App() {
 
           if (!isAdminUser) {
             setError(
-              "Unauthorized: This staff account does not have Administrator privileges.",
+              "Unauthorized: This staff account does not have Administrator privileges. Please contact the Super Administrator to request elevation.",
             )
             await supabase.auth.signOut()
             setLoading(false)
             return
           }
 
+          const adminMember: Member = {
+            id: dbAdmin?.id ? Number(dbAdmin.id) || 1 : 1,
+            name:
+              dbAdmin?.name ||
+              (cleanEmail === "info@gve-group.com"
+                ? "GVE Operations Lead"
+                : "Administrator"),
+            email: cleanEmail,
+            role:
+              cleanEmail === "info@gve-group.com"
+                ? "Super Administrator"
+                : dbAdmin?.role || "Administrator",
+            department: dbAdmin?.department || "Management",
+            lastReport: new Date(),
+            compliance: dbAdmin?.compliance ?? 100,
+            initials:
+              dbAdmin?.initials ||
+              (cleanEmail === "info@gve-group.com" ? "GV" : "AD"),
+            color: dbAdmin?.color || "#005030",
+            isAdmin: true,
+          }
+
           setSession({
             role: "admin",
             email: authData.user.email || cleanEmail,
+            member: adminMember,
           })
         }
       } else {
@@ -1023,18 +1100,23 @@ function App() {
           }
 
           // 2. Insert / Upsert into public.members database table
+          const isSuperAdminEmail = cleanEmail === "info@gve-group.com"
+          const assignedRole = isSuperAdminEmail
+            ? "Super Administrator"
+            : staffRole
+          const assignedIsAdmin = isSuperAdminEmail ? true : false
+          const assignedDept = isSuperAdminEmail ? "Management" : department
 
           try {
             await supabase.from("members").upsert({
               name: cleanName,
               email: cleanEmail,
-              role: staffRole,
-              department: department,
+              role: assignedRole,
+              department: assignedDept,
               compliance: 100,
               initials,
               color: "#005030",
-
-              is_admin: false,
+              is_admin: assignedIsAdmin,
             })
           } catch (dbEx) {
             console.warn("Supabase members insert exception:", dbEx)
@@ -1045,12 +1127,13 @@ function App() {
           const newMember: Member = {
             id: Date.now(),
             name: cleanName,
-            role: staffRole,
-            department: department,
+            role: assignedRole,
+            department: assignedDept,
             lastReport: new Date(),
             compliance: 100,
             initials,
             color: "#005030",
+            isAdmin: assignedIsAdmin,
           }
 
           setMembers((prev) => [
@@ -1073,36 +1156,28 @@ function App() {
             return
           }
 
-          // 1. Authenticate via Supabase Auth
+          if (!navigator.onLine) {
+            setError(
+              "Network Offline: You must be connected to the internet to sign in.",
+            )
+            setLoading(false)
+            return
+          }
 
+          // 1. Authenticate via Supabase Auth
           const { data: authData, error: authError } =
             await supabase.auth.signInWithPassword({
               email: cleanEmail,
-
               password,
             })
 
           if (authError) {
-            // Check if user is offline and using standard pre-seeded demo credentials (development only)
-            if (
-              import.meta.env.DEV &&
-              !navigator.onLine &&
-              (password === "gve2026" ||
-                password === "password123" ||
-                password === "admin123")
-            ) {
-              // Valid offline demo password in development
-            } else {
-              // Reject invalid credentials immediately — Zero password bypass in production
-              setError(
-                authError.message ||
-                  "Invalid email or password. Please verify your credentials.",
-              )
-
-              setLoading(false)
-
-              return
-            }
+            setError(
+              authError.message ||
+                "Invalid email or password. Please verify your credentials.",
+            )
+            setLoading(false)
+            return
           }
 
           // 2. Fetch member profile from Supabase 'members' table
@@ -1204,7 +1279,11 @@ function App() {
                 color: "#005030",
               }
 
-          setSession({ role: "staff", member: activeMember, email: cleanEmail })
+          setSession({
+            role: "staff",
+            member: activeMember,
+            email: cleanEmail,
+          })
         }
       }
     } catch (err: any) {
@@ -1879,6 +1958,14 @@ function App() {
                 members={members}
                 setMembers={setMembers}
                 currentUserEmail={session.email}
+                currentMember={
+                  session.member ||
+                  members.find(
+                    (m) =>
+                      m.email?.toLowerCase().trim() ===
+                      session.email?.toLowerCase().trim(),
+                  )
+                }
                 deadlines={deadlines}
                 onCreateDeadline={handleCreateDeadline}
                 onDeleteDeadline={handleDeleteDeadline}
@@ -1886,6 +1973,8 @@ function App() {
                 topOffset={topOffset}
                 sunlightMode={sunlightMode}
                 onToggleSunlightMode={toggleSunlightMode}
+                isOffline={isOffline}
+                pendingQueueCount={pendingQueueCount}
               />
             </Suspense>
           </ErrorBoundary>

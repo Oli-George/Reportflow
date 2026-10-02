@@ -33,7 +33,9 @@ export function calculateMemberCompliance(
   const authorReports = allReports.filter((r) => {
     if (!r.author) return false
     const authorLower = r.author.trim().toLowerCase()
-    return authorLower === cleanEmail || (cleanName && authorLower === cleanName)
+    return (
+      authorLower === cleanEmail || (cleanName && authorLower === cleanName)
+    )
   })
 
   // Exclude unsubmitted drafts from compliance tracking
@@ -64,14 +66,19 @@ export function calculateMemberCompliance(
     if (r.status === "Flagged") flaggedCount++
 
     // Resolved revision = had at least one flag in history but is now Submitted or Approved
-    if (r.revisionHistory && r.revisionHistory.length > 0 && r.status !== "Flagged") {
+    if (
+      r.revisionHistory &&
+      r.revisionHistory.length > 0 &&
+      r.status !== "Flagged"
+    ) {
       resolvedCount++
     }
 
     // Check against department deadlines
     const subDate = new Date(r.submitted)
     const matchingDeadline = deadlines.find(
-      (d) => d.department === r.department || d.department === "All Departments",
+      (d) =>
+        d.department === r.department || d.department === "All Departments",
     )
 
     if (matchingDeadline) {
@@ -160,7 +167,10 @@ export async function syncMemberComplianceToSupabase(
       .eq("email", memberEmail.trim().toLowerCase())
 
     if (error) {
-      console.warn("Could not sync compliance score to Supabase:", error.message)
+      console.warn(
+        "Could not sync compliance score to Supabase:",
+        error.message,
+      )
     }
   } catch (err) {
     console.warn("Failed to reach Supabase to update member compliance:", err)

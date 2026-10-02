@@ -124,7 +124,7 @@ export async function queueOfflineReport(
 // Flush pending reports to Supabase when online
 export async function flushOfflineQueue(
   onStatusChange?: (count: number) => void,
-): Promise<{ synced: number; failed: number }> {
+): Promise<{ synced: number failed: number }> {
   if (!navigator.onLine) {
     return { synced: 0, failed: 0 }
   }

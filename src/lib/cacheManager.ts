@@ -45,7 +45,7 @@ export function setCachedWithTTL<T>(
 export function getCachedWithTTL<T>(
   key: string,
   expectedVersion: number = 1,
-): { data: T | null; isStale: boolean; exists: boolean } {
+): { data: T | null isStale: boolean exists: boolean } {
   if (typeof window === "undefined" || !window.localStorage) {
     return { data: null, isStale: true, exists: false }
   }
@@ -54,7 +54,11 @@ export function getCachedWithTTL<T>(
     if (!raw) return { data: null, isStale: true, exists: false }
 
     const envelope: CacheEnvelope<T> = JSON.parse(raw)
-    if (!envelope || typeof envelope !== "object" || envelope.version !== expectedVersion) {
+    if (
+      !envelope ||
+      typeof envelope !== "object" ||
+      envelope.version !== expectedVersion
+    ) {
       localStorage.removeItem(key)
       return { data: null, isStale: true, exists: false }
     }

@@ -58,7 +58,9 @@ export function computeReportDiffs(
       if (origEntry.battery?.volt !== newEntry.battery?.volt) {
         diffs.push({
           field: `${timeLabel} · Battery Bank Voltage`,
-          previousValue: origEntry.battery?.volt ? `${origEntry.battery.volt} V` : "—",
+          previousValue: origEntry.battery?.volt
+            ? `${origEntry.battery.volt} V`
+            : "—",
           newValue: newEntry.battery?.volt ? `${newEntry.battery.volt} V` : "—",
           category: "telemetry",
         })
@@ -68,7 +70,9 @@ export function computeReportDiffs(
       if (origEntry.battery?.soc !== newEntry.battery?.soc) {
         diffs.push({
           field: `${timeLabel} · Battery State of Charge (SoC)`,
-          previousValue: origEntry.battery?.soc ? `${origEntry.battery.soc}%` : "—",
+          previousValue: origEntry.battery?.soc
+            ? `${origEntry.battery.soc}%`
+            : "—",
           newValue: newEntry.battery?.soc ? `${newEntry.battery.soc}%` : "—",
           category: "telemetry",
         })
@@ -78,7 +82,9 @@ export function computeReportDiffs(
       if (origEntry.load?.power !== newEntry.load?.power) {
         diffs.push({
           field: `${timeLabel} · Site AC Load Power`,
-          previousValue: origEntry.load?.power ? `${origEntry.load.power} kW` : "—",
+          previousValue: origEntry.load?.power
+            ? `${origEntry.load.power} kW`
+            : "—",
           newValue: newEntry.load?.power ? `${newEntry.load.power} kW` : "—",
           category: "telemetry",
         })
@@ -88,7 +94,9 @@ export function computeReportDiffs(
       if (origEntry.grid?.power !== newEntry.grid?.power) {
         diffs.push({
           field: `${timeLabel} · Diesel Genset / Grid Power`,
-          previousValue: origEntry.grid?.power ? `${origEntry.grid.power} kW` : "—",
+          previousValue: origEntry.grid?.power
+            ? `${origEntry.grid.power} kW`
+            : "—",
           newValue: newEntry.grid?.power ? `${newEntry.grid.power} kW` : "—",
           category: "telemetry",
         })
@@ -101,7 +109,7 @@ export function computeReportDiffs(
     const origW = original.gveWeeklyData
     const newW = updated.gveWeeklyData
 
-    const fieldsToCheck: Array<{ key: keyof typeof origW; label: string }> = [
+    const fieldsToCheck: Array<{ key: keyof typeof origW label: string }> = [
       { key: "remarkInverters", label: "Inverter Maintenance Remark" },
       { key: "remarkBess", label: "BESS Battery Storage Remark" },
       { key: "remarkDieselGenerator", label: "Diesel Generator Status" },
@@ -142,11 +150,14 @@ export function createRevisionSnapshot(
       ? new Date(original.submitted).toISOString()
       : new Date().toISOString(),
     flaggedAt: new Date().toISOString(),
-    feedback: feedback || original.feedback || "Revision requested by administrator",
+    feedback:
+      feedback || original.feedback || "Revision requested by administrator",
     diffs,
     snapshot: {
       summary: original.summary,
-      gveData: original.gveData ? JSON.parse(JSON.stringify(original.gveData)) : undefined,
+      gveData: original.gveData
+        ? JSON.parse(JSON.stringify(original.gveData))
+        : undefined,
       gveWeeklyData: original.gveWeeklyData
         ? JSON.parse(JSON.stringify(original.gveWeeklyData))
         : undefined,

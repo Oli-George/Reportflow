@@ -403,3 +403,87 @@ html.sunlight-mode .paper-sheet {
   border: 2px solid #000000 !important;
 }
 
+/* ─── Super Admin & Team View Sunlight Mode High-Contrast Rules ────────── */
+html.sunlight-mode .admin-super-notice {
+  background-color: #ecfdf5 !important;
+  border: 1.5px solid #a7f3d0 !important;
+  color: #064e3b !important;
+  font-weight: 500 !important;
+}
+html.sunlight-mode .admin-super-notice strong {
+  color: #022c22 !important;
+  font-weight: 700 !important;
+}
+html.sunlight-mode .admin-super-notice svg {
+  color: #047857 !important;
+}
+
+html.sunlight-mode .admin-badge-parent {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border: 1px solid #6ee7b7 !important;
+  font-weight: 700 !important;
+}
+html.sunlight-mode .admin-badge-parent svg {
+  color: #047857 !important;
+}
+
+html.sunlight-mode .admin-badge-regular {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fcd34d !important;
+  font-weight: 700 !important;
+}
+html.sunlight-mode .admin-badge-regular svg {
+  color: #b45309 !important;
+}
+
+html.sunlight-mode .btn-promote-admin {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1.5px solid #059669 !important;
+  font-weight: 700 !important;
+}
+html.sunlight-mode .btn-promote-admin:hover {
+  background-color: #d1fae5 !important;
+  color: #064e3b !important;
+}
+html.sunlight-mode .btn-promote-admin svg {
+  color: #047857 !important;
+}
+
+html.sunlight-mode .btn-revoke-admin {
+  background-color: #fff1f2 !important;
+  color: #9f1239 !important;
+  border: 1.5px solid #e11d48 !important;
+  font-weight: 700 !important;
+}
+html.sunlight-mode .btn-revoke-admin:hover {
+  background-color: #ffe4e6 !important;
+  color: #881337 !important;
+}
+html.sunlight-mode .btn-revoke-admin svg {
+  color: #e11d48 !important;
+}
+
+html.sunlight-mode .compliance-text-high {
+  color: #047857 !important;
+  font-weight: 700 !important;
+}
+
+/* Universal text contrast helpers for Sunlight Mode */
+html.sunlight-mode .text-emerald-400,
+html.sunlight-mode .text-emerald-300 {
+  color: #047857 !important;
+}
+
+html.sunlight-mode .text-amber-400,
+html.sunlight-mode .text-amber-300 {
+  color: #92400e !important;
+}
+
+html.sunlight-mode .text-rose-400,
+html.sunlight-mode .text-rose-300 {
+  color: #9f1239 !important;
+}
+
