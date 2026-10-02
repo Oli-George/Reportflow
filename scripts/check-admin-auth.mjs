@@ -1,9 +1,14 @@
 import { createClient } from "@supabase/supabase-js"
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://jpmssqpnzwejhrcycopu.supabase.co"
-const SUPABASE_ANON_KEY =
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  "sb_publishable_kPh4ie_d2FCNSAqevWr7og_ZsZpNoUt"
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("\n[ERROR] Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables are required.")
+  console.error("Provide them before running diagnostics, e.g.:")
+  console.error("  VITE_SUPABASE_URL=https://<project-ref>.supabase.co VITE_SUPABASE_ANON_KEY=<anon-key> node scripts/check-admin-auth.mjs\n")
+  process.exit(1)
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 

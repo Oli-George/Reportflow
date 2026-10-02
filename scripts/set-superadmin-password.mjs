@@ -4,16 +4,24 @@ import { createClient } from "@supabase/supabase-js"
  * Script: Provision or Reset Super Admin Password in Supabase Auth
  * 
  * Usage:
- *   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" node scripts/set-superadmin-password.mjs "YourSecurePassword123!"
+ *   VITE_SUPABASE_URL="https://your-project.supabase.co" SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" node scripts/set-superadmin-password.mjs "YourSecurePassword123!"
  * 
  * Note: Never commit your service role key to git. Run this once in terminal.
  */
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://jpmssqpnzwejhrcycopu.supabase.co"
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const targetEmail = "info@gve-group.com"
 const newPassword = process.argv[2] || process.env.NEW_ADMIN_PASSWORD
+
+if (!SUPABASE_URL) {
+  console.error("\n[ERROR] VITE_SUPABASE_URL environment variable is required.")
+  console.error("Retrieve it from Supabase Dashboard -> Project Settings -> API -> Project URL.\n")
+  console.error("Example:")
+  console.error('  VITE_SUPABASE_URL="https://your-project.supabase.co" SUPABASE_SERVICE_ROLE_KEY="eyJh..." node scripts/set-superadmin-password.mjs "MyNewPassword2026!"\n')
+  process.exit(1)
+}
 
 if (!SERVICE_ROLE_KEY) {
   console.error("\n[ERROR] SUPABASE_SERVICE_ROLE_KEY environment variable is required.")
